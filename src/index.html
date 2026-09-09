@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <title>UHM Pack Installer</title>
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/pages.css" />
+</head>
+<body dir="rtl" data-theme="night">
+
+  <div id="titlebar">
+    <div class="brand">
+      <img src="assets/images/logo.jpg" alt="UHM" />
+      <span id="app-name-label">UHM Pack Installer</span>
+    </div>
+    <div class="titlebar-actions">
+      <button class="titlebar-btn" id="btn-theme-toggle" title="تغییر تم">🌙</button>
+      <button class="titlebar-btn" id="btn-settings" title="تنظیمات">⚙️</button>
+      <button class="titlebar-btn" id="btn-minimize" title="کوچک کردن">─</button>
+      <button class="titlebar-btn" id="btn-maximize" title="بزرگ کردن">□</button>
+      <button class="titlebar-btn close" id="btn-close" title="بستن">✕</button>
+    </div>
+  </div>
+
+  <div id="page-content"></div>
+
+  <!-- ترتیب بارگذاری مهم است: i18n و app قبل از فایل‌های صفحات -->
+  <script src="js/i18n.js"></script>
+  <script src="js/app.js"></script>
+  <script src="pages/showcase.js"></script>
+  <script src="pages/settings.js"></script>
+  <script src="pages/about.js"></script>
+  <script src="pages/gamePath.js"></script>
+  <script src="pages/baseModsCheck.js"></script>
+</body>
+</html>

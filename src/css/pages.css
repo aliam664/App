@@ -1,0 +1,284 @@
+/* ============ صفحه شوکیس ============ */
+.showcase {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.showcase-slider {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-card);
+  clip-path: inset(0 round var(--radius-card));
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.showcase-slider .slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  overflow: hidden;
+}
+.showcase-slider .slide.active { opacity: 1; }
+
+.showcase-slider .slide-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px) brightness(0.55) saturate(1.2);
+  transform: scale(1.15); /* برای پوشوندن لبه‌های محوشده بعد از بلور */
+}
+
+.showcase-slider .slide-fg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* عکس کامل بدون برش، فارغ از نسبت ابعادش */
+}
+
+.showcase-slider::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 45%);
+  pointer-events: none;
+}
+
+.slide-brand {
+  position: absolute;
+  bottom: 10px;
+  inset-inline-end: 16px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 1px;
+  font-size: 14px;
+  color: #fff;
+  text-shadow: 0 0 8px var(--color-accent);
+  z-index: 2;
+}
+
+.slide-dots {
+  display: flex;
+  gap: 6px;
+}
+.slide-dots .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-card-border);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.slide-dots .dot.active {
+  background: var(--color-accent);
+  transform: scale(1.3);
+}
+
+.showcase-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* ============ صفحه‌های عمومی با هدر بازگشت ============ */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.page-header .back-btn {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-header .back-btn:hover { background: var(--color-card-border); }
+.page-header h2 { font-size: 17px; font-weight: 700; }
+
+/* ============ صفحه تنظیمات ============ */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+.settings-row .label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-row .value {
+  font-size: 13px;
+  color: var(--color-text-dim);
+}
+.settings-row.clickable { cursor: pointer; }
+.settings-row.clickable:hover { background: var(--color-card-border); }
+
+.toggle-group {
+  display: flex;
+  background: rgba(0,0,0,0.15);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+.toggle-group button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-dim);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.toggle-group button.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* ============ صفحه درباره ما ============ */
+.about-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 22px;
+  text-align: center;
+}
+.about-header img {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+.about-header .app-name { font-size: 16px; font-weight: 700; }
+.about-header .app-version { font-size: 12px; color: var(--color-text-dim); }
+.about-header .tagline {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-dim);
+  max-width: 320px;
+}
+
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 1px solid var(--color-card-border);
+}
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-card-bg);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.contact-row:hover { background: var(--color-card-border); }
+.contact-row .icon { font-size: 18px; }
+.contact-row .info { display: flex; flex-direction: column; gap: 2px; }
+.contact-row .info .platform { font-size: 12px; color: var(--color-text-dim); }
+.contact-row .info .handle { font-size: 14px; font-weight: 600; }
+
+/* ============ صفحه مسیر بازی ============ */
+.gamepath-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+.gamepath-icon { font-size: 44px; opacity: 0.8; }
+
+.gamepath-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+}
+.gamepath-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  font-size: 13px;
+  color: var(--color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  text-align: left;
+}
+
+.gamepath-status { font-size: 13px; min-height: 18px; }
+.gamepath-status.valid { color: #4cd964; }
+.gamepath-status.invalid { color: #ff5b5b; }
+.gamepath-status.searching { color: var(--color-text-dim); }
+
+.wizard-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+/* ============ صفحه بررسی فایل‌های پایه ============ */
+.basecheck-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+.basecheck-row { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.overwrite-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-card-border);
+}
+.overwrite-actions { display: flex; gap: 8px; }
+.overwrite-btn.selected {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}

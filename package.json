@@ -1,0 +1,34 @@
+{
+  "name": "uhm-pack-installer",
+  "version": "1.0.0",
+  "description": "نصب‌کننده خودکار مودهای گرافیکی UHM برای Assetto Corsa",
+  "main": "main.js",
+  "author": "UHM",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "node-unrar-js": "^2.0.0"
+  },
+  "build": {
+    "appId": "com.uhm.packinstaller",
+    "productName": "UHM Pack Installer",
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/images/icon.ico"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*"
+    ]
+  }
+}
