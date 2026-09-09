@@ -99,11 +99,14 @@
       : '—';
     const cores = specs.cpuCores ? `${specs.cpuCores} ${s('cores')}` : '—';
     const gpuName = specs.gpuName || s('unknownGpu');
-    const reasonKey = specs.detectedBy === 'vram'
-      ? 'reasonVram'
-      : specs.detectedBy === 'gpu'
-        ? 'reasonGpu'
-        : 'reasonSpec';
+    const constrained = Boolean(specs.constrained) || /-limited$/.test(specs.detectedBy || '');
+    const reasonKey = constrained
+      ? 'reasonLimited'
+      : specs.detectedBy === 'vram'
+        ? 'reasonVram'
+        : specs.detectedBy === 'gpu'
+          ? 'reasonGpu'
+          : 'reasonSpec';
     const reason = s(reasonKey);
 
     info.innerHTML = `

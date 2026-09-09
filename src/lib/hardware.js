@@ -23,36 +23,81 @@ function parseVramToGb(raw) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tier suggestion based on the user's reference GPU list             */
-/*  Low        = GTX 1650                                              */
-/*  Medium     = RX 580                                                */
-/*  High       = GTX 1660 Ti                                           */
-/*  VeryHigh   = RTX 2060 SUPER                                        */
-/*  Ultra      = RTX 3060 and newer                                    */
+/*  Tier suggestion — expanded GPU database + RAM/CPU constraints      */
 /*                                                                     */
-/*  If a GPU is not in the known list, we fall back to VRAM as the     */
-/*  secondary metric. All GPUs with 1GB or 2GB VRAM are always Low.    */
+/*  Reference anchor list (user's test results):                       */
+/*    Low        = GTX 1650                                            */
+/*    Medium     = RX 580                                              */
+/*    High       = GTX 1660 Ti                                         */
+/*    VeryHigh   = RTX 2060 SUPER                                      */
+/*    Ultra      = RTX 3060 and newer                                  */
+/*                                                                     */
+/*  Rules:                                                             */
+/*   1. Known GPU list is checked first (most specific model wins).    */
+/*   2. Unknown GPUs fall back to VRAM (1-2GB always Low).             */
+/*   3. RAM is a hard ceiling: <4GB => Low, 4-7GB => Medium,           */
+/*      8-15GB => VeryHigh max, >=16GB => no cap.                      */
+/*   4. CPU is a soft ceiling: <=2 cores => Medium max, 3-4 => High    */
+/*      max, 5-6 => VeryHigh max, >=7 => no cap.                       */
+/*   Final tier = min(GPU/VRAM tier, RAM cap, CPU cap).                */
 /* ------------------------------------------------------------------ */
 const GPU_CHECKS = [
+  /* -------- Ultra (RTX 3060 and newer, all RTX 50/40/30 high-end) --- */
   {
     tier: 'ultra',
-    re: /\b(rtx\s*(3060(\s*ti)?|3070(\s*ti)?|3080(\s*ti)?|3090(\s*ti)?|4060(\s*ti)?|4070(\s*ti|super)?|4080(\s*super)?|4090(\s*ti)?))\b|\brx\s*(6600(\s*xt)?|6700(\s*xt)?|6800(\s*xt)?|6900(\s*xt)?|7600(\s*xt)?|7700(\s*xt)?|7800(\s*xt)?|7900(\s*xt|xtx)?)\b/i
+    re: /\b(rtx\s*(3060(\s*ti)?|3070(\s*ti)?|3080(\s*ti)?|3090(\s*ti)?|4060(\s*ti)?|4070(\s*ti|super|ti\s*super)?|4080(\s*super)?|4090(\s*ti)?|5060(\s*ti)?|5070(\s*ti)?|5080|5090))\b/i
+  },
+  {
+    tier: 'ultra',
+    re: /\brx\s*(6600(\s*xt)?|6650(\s*xt)?|6700(\s*xt)?|6750(\s*xt)?|6800(\s*xt)?|6900(\s*xt)?|6950(\s*xt)?|7600(\s*xt)?|7700(\s*xt)?|7800(\s*xt)?|7900(\s*xt|xtx|gre)?)\b/i
+  },
+  {
+    tier: 'ultra',
+    re: /\b(arc\s*(a750|a770|b570|b580))\b/i
+  },
+
+  /* -------- VeryHigh (RTX 2060 SUPER class + equivalent) ------------ */
+  {
+    tier: 'veryhigh',
+    re: /(2060\s*super|2070(\s*super)?|2080(\s*super)?|gtx\s*1080|rtx\s*3050\s*ti)/i
   },
   {
     tier: 'veryhigh',
-    re: /(2060\s*super|2070(\s*super)?|2080(\s*super)?|gtx\s*1080(\s*ti)?|rx\s*5700(\s*xt)?|rtx\s*3050\s*ti)/i
+    re: /\brx\s*(5700\s*xt|6700\s*xt|6800\s*xt|6900\s*xt)\b/i
+  },
+
+  /* -------- High (GTX 1660 Ti class + equivalent) ------------------- */
+  {
+    tier: 'high',
+    re: /(1660\s*ti|1660\s*super|2060|3050|2050|gtx\s*1070(\s*ti)?|gtx\s*980\s*ti|gtx\s*780|mx\s*450|mx\s*550)/i
   },
   {
     tier: 'high',
-    re: /(1660\s*ti|1660\s*super|2060|2050|3050|gtx\s*1070(\s*ti)?|gtx\s*980\s*ti|rx\s*590|rx\s*5600(\s*xt)?|rx\s*5700|vega\s*56|radeon\s*rx\s*5500\s*xt)/i
+    re: /\brx\s*(5600(\s*xt)?|5700|vega\s*56)\b|\barc\s*a580\b/i
+  },
+
+  /* -------- Medium (RX 580 class + equivalent) ---------------------- */
+  {
+    tier: 'medium',
+    re: /(1650\s*super|1660|1060(\s*ti)?|gtx\s*970|gtx\s*980|gtx\s*770|gtx\s*760|mx\s*250|mx\s*330|mx\s*350)/i
   },
   {
     tier: 'medium',
-    re: /(1650\s*super|1660|1060(\s*ti)?|gtx\s*970|gtx\s*980|rx\s*580|rx\s*570|rx\s*480|rx\s*470|rx\s*5500(\s*xt)?|rx\s*6500\s*xt|r9\s*380|r9\s*390|vega\s*8)/i
+    re: /\brx\s*(460|470|480|570|580|590|5500\s*xt|6500\s*xt|6500)\b|\br9\s*(380|390)\b/i
+  },
+
+  /* -------- Low (GTX 1650 class and below, integrated) -------------- */
+  {
+    tier: 'low',
+    re: /(1650|1050(\s*ti)?|1030|gtx\s*950|gtx\s*960|gtx\s*750(\s*ti)?|gtx\s*740|gtx\s*730|gtx\s*720|gtx\s*710|gt\s*1030|gt\s*710|gtx\s*920|gtx\s*940|mx\s*110|mx\s*130|mx\s*150|mx\s*230)/i
   },
   {
     tier: 'low',
-    re: /(1650|1050(\s*ti)?|1030|gtx\s*950|gtx\s*960|gtx\s*750(\s*ti)?|gtx\s*740|gtx\s*730|gtx\s*710|gtx\s*720|gt\s*1030|gt\s*710|rx\s*550|rx\s*560|rx\s*540|rx\s*530|r7\s*240|r7\s*250|r7\s*260|r7\s*360|hd\s*7750|hd\s*7770|hd\s*6870|intel[^0-9]*uhd|intel\s*hd|intel\s*iris\s*xe|intel\s*arc\s*a380|vega\s*3|vega\s*11|integrated|radeon\s*vega\s*8)/i
+    re: /\brx\s*(530|540|550|560|560\s*xt)\b|\br7\s*(240|250|260|360|370)\b|\br5\s*340\b|\bhd\s*(6870|6750|6770|7750|7770|7850|7870)\b/i
+  },
+  {
+    tier: 'low',
+    re: /(intel[^0-9]*(uhd|hd|iris)[^0-9]*|intel\s*arc\s*a380|radeon\s*vega\s*(3|6|8|11)|vega\s*(3|8|11)|integrated|nvidia\s*geforce\s*(gt|mx)\s*\d{2,3})/i
   }
 ];
 
@@ -68,7 +113,7 @@ function suggestTierFromGpu(gpuName) {
 }
 
 /* Secondary criterion: VRAM. Unknown GPUs are mapped by video memory.
-   Every GPU with 1GB or 2GB VRAM goes to Low. */
+   Every GPU with 1GB or 2GB VRAM always goes to Low. */
 function suggestTierFromVram(vramGb) {
   if (!vramGb || vramGb <= 0) return null;
   if (vramGb <= 2) return { tier: 'low', reason: 'vram', detectedBy: 'vram' };
@@ -78,31 +123,70 @@ function suggestTierFromVram(vramGb) {
   return { tier: 'ultra', reason: 'vram', detectedBy: 'vram' };
 }
 
-function suggestTierFromSpecs({ gpuName = '', gpuVramGb = null, cpuCores = 0, totalMemGb = 0 } = {}) {
-  // 1) Known GPU list first
-  const byGpu = suggestTierFromGpu(gpuName);
-  if (byGpu) return { ...byGpu, score: tierScore(byGpu.tier) };
+/* RAM is a hard ceiling because low memory will choke high presets. */
+function ramCap(ramGb) {
+  const gb = Number(ramGb) || 0;
+  if (gb < 4) return 1;   // less than 4GB -> Low max
+  if (gb < 8) return 2;   // 4-7GB     -> Medium max
+  if (gb < 16) return 4;  // 8-15GB    -> VeryHigh max
+  return 5;               // >=16GB    -> no cap
+}
 
-  // 2) Unknown GPU: use VRAM as the secondary metric
-  const byVram = suggestTierFromVram(gpuVramGb);
-  if (byVram) return { ...byVram, score: tierScore(byVram.tier) };
-
-  // 3) Fallback: CPU / RAM if we have nothing else
-  const memGb = Number(totalMemGb) || 0;
-  const cores = Number(cpuCores) || 0;
-
-  let tier = 'medium';
-  if (memGb >= 32 && cores >= 12) tier = 'ultra';
-  else if (memGb >= 32 && cores >= 8) tier = 'veryhigh';
-  else if (memGb >= 16 && cores >= 8) tier = 'high';
-  else if (memGb >= 16) tier = 'medium';
-  else if (memGb >= 8) tier = 'low';
-
-  return { tier, reason: tier, detectedBy: 'spec', score: tierScore(tier) };
+/* CPU is a soft ceiling so a weak CPU does not get saddled with heavy presets. */
+function cpuCap(cores) {
+  const n = Number(cores) || 0;
+  if (n <= 2) return 2;   // <=2 cores  -> Medium max
+  if (n <= 4) return 3;   // 3-4 cores  -> High max
+  if (n <= 6) return 4;   // 5-6 cores  -> VeryHigh max
+  return 5;               // >=7 cores  -> no cap
 }
 
 function tierScore(tier) {
   return { low: 1, medium: 2, high: 3, veryhigh: 4, ultra: 5 }[tier] || 2;
+}
+
+function capToTier(score) {
+  return score <= 1 ? 'low' : score === 2 ? 'medium' : score === 3 ? 'high' : score === 4 ? 'veryhigh' : 'ultra';
+}
+
+/* Full decision: GPU -> VRAM -> CPU/RAM fallback, then apply RAM/CPU ceilings. */
+function suggestTierFromSpecs({ gpuName = '', gpuVramGb = null, cpuCores = 0, totalMemGb = 0 } = {}) {
+  // 1) Known GPU list first
+  let base = suggestTierFromGpu(gpuName);
+
+  // 2) Unknown GPU: use VRAM as the secondary metric
+  if (!base) {
+    const byVram = suggestTierFromVram(gpuVramGb);
+    if (byVram) base = byVram;
+  }
+
+  // 3) Fallback: CPU / RAM if we have nothing else
+  if (!base) {
+    const memGb = Number(totalMemGb) || 0;
+    const cores = Number(cpuCores) || 0;
+    let tier = 'medium';
+    if (memGb >= 32 && cores >= 12) tier = 'ultra';
+    else if (memGb >= 32 && cores >= 8) tier = 'veryhigh';
+    else if (memGb >= 16 && cores >= 8) tier = 'high';
+    else if (memGb >= 16) tier = 'medium';
+    else if (memGb >= 8) tier = 'low';
+    base = { tier, reason: tier, detectedBy: 'spec' };
+  }
+
+  // Apply RAM & CPU ceilings. Example: RTX 3060 + 4GB RAM -> medium (not ultra).
+  const baseScore = tierScore(base.tier);
+  const finalScore = Math.min(baseScore, ramCap(totalMemGb), cpuCap(cpuCores));
+  const finalTier = capToTier(finalScore);
+
+  const constrained = finalScore < baseScore;
+  return {
+    tier: finalTier,
+    reason: constrained ? `${base.reason}-limited` : base.reason,
+    detectedBy: constrained ? `${base.detectedBy}-limited` : base.detectedBy,
+    score: finalScore,
+    baseTier: base.tier,
+    constrained
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -221,5 +305,7 @@ module.exports = {
   suggestTierFromVram,
   suggestTierFromSpecs,
   tierScore,
+  ramCap,
+  cpuCap,
   detectSystemSpecs
 };
