@@ -581,6 +581,110 @@ body[dir='ltr'] .contact-row:hover { transform: translateX(3px); }
 .done-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 
 /* ========================= Manage mods ============================ */
+/* ======================= Content Library ========================== */
+.library-toolbar {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  margin-bottom: 18px;
+}
+.library-tabs {
+  display: flex; gap: 6px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  padding: 5px;
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+}
+.library-tab {
+  border: none; background: transparent;
+  color: var(--color-text-dim);
+  font-family: var(--font);
+  font-size: 12px; font-weight: 700;
+  padding: 8px 16px; border-radius: 10px;
+  cursor: pointer;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.library-tab.active {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(30,144,255,.3);
+}
+.library-search {
+  flex: 1; min-width: 180px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  padding: 11px 16px;
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.library-search:focus { border-color: var(--color-accent-2); box-shadow: 0 0 0 3px var(--color-accent-soft); }
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+  animation: uhmSlideUp .3s ease both;
+}
+.content-card {
+  display: flex; flex-direction: column;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 18px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-soft);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s;
+}
+.content-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent-2);
+  box-shadow: 0 16px 38px rgba(30,144,255,.16);
+}
+.content-card-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, var(--color-bg-2), var(--color-card-bg));
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.content-card-preview img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  object-position: center;
+  animation: uhmZoomIn .4s ease both;
+  background: linear-gradient(135deg, rgba(0,0,0,.35), rgba(0,0,0,.15));
+}
+.content-card-preview.no-preview {
+  color: var(--color-text-dim);
+  font-size: 26px;
+  text-align: center;
+}
+.content-preview-fallback { line-height: 1.5; font-size: 22px; }
+.content-preview-fallback .text-dim { font-size: 11px; }
+.content-card-body {
+  padding: 14px 16px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  flex: 1;
+}
+.content-card-title { font-size: 14px; font-weight: 800; }
+.content-card-meta { font-size: 11px; line-height: 1.6; }
+.content-card-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge-kunos { background: rgba(30,144,255,.14); color: var(--color-accent-2); border: 1px solid rgba(30,144,255,.25); }
+.badge-mod { background: rgba(255,194,75,.14); color: var(--color-warn); border: 1px solid rgba(255,194,75,.25); }
+.content-delete, .content-restore {
+  margin: 0 16px 16px;
+  justify-content: center;
+  font-size: 12px; padding: 9px 14px;
+}
+.content-delete:hover { border-color: var(--color-error); color: var(--color-error); }
+.content-restore:hover { border-color: var(--color-success); color: var(--color-success); }
+.trash-card .content-card-preview { background: rgba(0,0,0,.25); }
+
 .manage-list { display: flex; flex-direction: column; gap: 12px; max-width: 560px; width: 100%; margin: 0 auto; animation: uhmSlideUp .3s ease both; }
 .manage-card { display: flex; flex-direction: column; gap: 10px; }
 .manage-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

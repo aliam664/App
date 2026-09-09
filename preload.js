@@ -24,6 +24,13 @@ contextBridge.exposeInMainWorld('uhm', {
   detectSystemSpecs: () => ipcRenderer.invoke('system:detect-specs'),
   suggestTier: (specs) => ipcRenderer.invoke('system:suggest-tier', specs),
 
+  // کتابخانه‌ی محتوا (مودها / ماشین‌ها / مپ‌ها)
+  scanLibrary: (gamePath) => ipcRenderer.invoke('library:scan', gamePath),
+  getContentPreview: (payload) => ipcRenderer.invoke('library:get-preview', payload),
+  deleteContent: (payload) => ipcRenderer.invoke('library:delete', payload),
+  restoreContent: (payload) => ipcRenderer.invoke('library:restore', payload),
+  listTrash: () => ipcRenderer.invoke('library:trash'),
+
   // نصب / حذف
   runInstall: (payload) => ipcRenderer.invoke('install:run', payload),
   cancelInstall: () => ipcRenderer.invoke('install:cancel'),

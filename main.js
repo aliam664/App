@@ -17,6 +17,7 @@ const USER_DATA_DIR = app.getPath('userData');
 const SETTINGS_PATH = path.join(USER_DATA_DIR, 'settings.json');
 const MANIFEST_PATH = path.join(USER_DATA_DIR, 'manifest.json');
 const BACKUPS_DIR = path.join(USER_DATA_DIR, 'backups');
+const TRASH_PATH = path.join(USER_DATA_DIR, 'trash.json');
 
 // در نسخه‌ی بسته‌بندی‌شده، فایل‌های مود به‌صورت asarUnpack در آدرس .unpacked قرار می‌گیرند.
 const RESOURCE_ROOT = app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath();
@@ -116,6 +117,198 @@ function isSafeExternalUrl(url) {
   } catch (e) {
     return false;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Content library helpers (cars / tracks / mods)                     */
+/* ------------------------------------------------------------------ */
+
+function readJsonSilent(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch (e) {
+    return null;
+  }
+}
+
+function stringifyUiValue(value) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    return value.en || value.EN || value.English || value['en-US'] || Object.values(value)[0] || '';
+  }
+  return '';
+}
+
+function findPreviewFile(baseDir) {
+  const candidates = [
+    path.join(baseDir, 'ui', 'preview.png'),
+    path.join(baseDir, 'ui', 'preview.jpg'),
+    path.join(baseDir, 'preview.png'),
+    path.join(baseDir, 'preview.jpg'),
+    path.join(baseDir, 'ui', 'ui_preview.jpg')
+  ];
+  for (const c of candidates) if (fs.existsSync(c)) return c;
+  return null;
+}
+
+function safeLeaf(name) {
+  return String(name || '').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function listContentFolders(root) {
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+}
+
+function loadTrash() {
+  const data = readJsonSilent(TRASH_PATH);
+  return Array.isArray(data) ? data : [];
+}
+
+function saveTrash(list) {
+  safeWriteJson(TRASH_PATH, list);
+}
+
+function scanCars(gamePath) {
+  const carsRoot = path.join(gamePath, 'content', 'cars');
+  const result = [];
+  for (const folder of listContentFolders(carsRoot)) {
+    const carDir = path.join(carsRoot, folder);
+    const ui = readJsonSilent(path.join(carDir, 'ui', 'ui_car.json')) ||
+               readJsonSilent(path.join(carDir, 'ui', 'car.json')) || {};
+    const name = stringifyUiValue(ui.name) || folder;
+    const brand = stringifyUiValue(ui.brand) || '';
+    const klass = stringifyUiValue(ui['class']) || '';
+    const preview = findPreviewFile(carDir);
+    result.push({
+      type: 'car',
+      id: folder,
+      folder,
+      name,
+      brand,
+      klass: klass,
+      preview: preview ? path.relative(gamePath, preview) : null,
+      hasPreview: Boolean(preview),
+      isKunos: /^ks_/i.test(folder),
+      mod: !/^ks_/i.test(folder)
+    });
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+}
+
+function scanTracks(gamePath) {
+  const tracksRoot = path.join(gamePath, 'content', 'tracks');
+  const result = [];
+  for (const folder of listContentFolders(tracksRoot)) {
+    const trackDir = path.join(tracksRoot, folder);
+    const ui = readJsonSilent(path.join(trackDir, 'ui', 'ui_track.json')) ||
+               readJsonSilent(path.join(trackDir, 'ui', 'track.json')) || {};
+    const name = stringifyUiValue(ui.name) || folder;
+    const location = stringifyUiValue(ui.location) || '';
+    const country = stringifyUiValue(ui.country) || '';
+    const length = ui.length ? String(ui.length) : '';
+    const city = stringifyUiValue(ui.city) || '';
+    const preview = findPreviewFile(trackDir);
+    result.push({
+      type: 'track',
+      id: folder,
+      folder,
+      name,
+      location,
+      country,
+      city,
+      length,
+      preview: preview ? path.relative(gamePath, preview) : null,
+      hasPreview: Boolean(preview),
+      isKunos: /^ks_/i.test(folder),
+      mod: !/^ks_/i.test(folder)
+    });
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+}
+
+function scanContentLibrary(gamePath) {
+  if (!gamePath || !fs.existsSync(gamePath)) return { cars: [], tracks: [] };
+  return {
+    cars: scanCars(gamePath),
+    tracks: scanTracks(gamePath)
+  };
+}
+
+function previewToDataUrl(fullPath) {
+  try {
+    const ext = path.extname(fullPath).toLowerCase();
+    const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+    const buf = fs.readFileSync(fullPath);
+    if (buf.length > 900 * 1024) return null;
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch (e) {
+    return null;
+  }
+}
+
+function moveToTrash(gamePath, contentType, folder) {
+  const contentRoot = contentType === 'car'
+    ? path.join(gamePath, 'content', 'cars')
+    : contentType === 'track'
+      ? path.join(gamePath, 'content', 'tracks')
+      : null;
+  const source = contentRoot ? path.join(contentRoot, folder) : null;
+  if (!source || !fs.existsSync(source)) return { success: false, error: 'NOT_FOUND' };
+
+  const stamp = Date.now();
+  const entryDir = path.join(USER_DATA_DIR, 'trash', `${stamp}_${safeLeaf(folder)}`);
+  try {
+    fs.mkdirSync(path.dirname(entryDir), { recursive: true });
+    fs.cpSync(source, entryDir, { recursive: true });
+    fs.rmSync(source, { recursive: true, force: true });
+
+    const trash = loadTrash();
+    trash.unshift({
+      id: `${stamp}_${folder}`,
+      type: contentType,
+      folder,
+      originalPath: source,
+      trashPath: entryDir,
+      deletedAt: new Date().toISOString(),
+      isKunos: /^ks_/i.test(folder)
+    });
+    saveTrash(trash);
+    return { success: true, trashId: trash[0].id };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function restoreFromTrash(trashId) {
+  const trash = loadTrash();
+  const entry = trash.find((t) => t.id === trashId);
+  if (!entry) return { success: false, error: 'NOT_FOUND' };
+  try {
+    fs.mkdirSync(path.dirname(entry.originalPath), { recursive: true });
+    if (fs.existsSync(entry.trashPath)) {
+      fs.cpSync(entry.trashPath, entry.originalPath, { recursive: true });
+    }
+    fs.rmSync(entry.trashPath, { recursive: true, force: true });
+    saveTrash(trash.filter((t) => t.id !== trashId));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function listTrash() {
+  return loadTrash().map((t) => ({
+    id: t.id,
+    type: t.type,
+    folder: t.folder,
+    originalPath: t.originalPath,
+    trashPath: t.trashPath,
+    deletedAt: t.deletedAt,
+    isKunos: Boolean(t.isKunos)
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -295,6 +488,37 @@ ipcMain.handle('install:cancel', () => {
 ipcMain.handle('uninstall:run', (event, payload) => {
   return uninstallFiles((payload && payload.files) || []);
 });
+
+/* ------------------------------------------------------------------ */
+/*  Content library IPC (my mods / cars / tracks)                      */
+/* ------------------------------------------------------------------ */
+
+ipcMain.handle('library:scan', (event, gamePath) => {
+  return scanContentLibrary(gamePath);
+});
+
+ipcMain.handle('library:get-preview', (event, { gamePath, relPath }) => {
+  if (!gamePath || !relPath || !isSafePathUnder(gamePath, relPath)) return null;
+  return previewToDataUrl(path.join(gamePath, relPath));
+});
+
+ipcMain.handle('library:delete', (event, { gamePath, type, folder }) => {
+  return moveToTrash(gamePath, type === 'track' ? 'track' : 'car', folder);
+});
+
+ipcMain.handle('library:restore', (event, { trashId }) => {
+  return restoreFromTrash(trashId);
+});
+
+ipcMain.handle('library:trash', () => {
+  return listTrash();
+});
+
+function isSafePathUnder(base, rel) {
+  const resolved = path.resolve(base, rel);
+  const relToBase = path.relative(path.resolve(base), resolved);
+  return relToBase === '' || (!relToBase.startsWith('..') && !path.isAbsolute(relToBase));
+}
 
 /* ------------------------------------------------------------------ */
 /*  Hardware detection / smart tier                                    */
