@@ -71,6 +71,10 @@ async function bootstrap() {
 
   const container = document.getElementById('page-content');
   assert.ok(container.innerHTML.includes('UHM PACK'), 'showcase should render');
+  assert.ok(container.innerHTML.includes('btn-settings-home'), 'home should have settings button');
+  assert.ok(container.innerHTML.includes('btn-about'), 'home should have about button');
+  assert.ok(container.innerHTML.includes('btn-start-install'), 'home should have start install');
+  assert.ok(container.innerHTML.includes('Custom Shaders Patch'), 'home should show mods list');
 
   // ناوبری به تنظیمات
   window.navigate('settings');
