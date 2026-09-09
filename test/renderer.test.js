@@ -37,6 +37,8 @@ async function bootstrap() {
     restoreOrDelete: async () => ({ status: 'deleted' }),
     pathExists: async () => true,
     getLocalAppData: async () => 'C:\\AppData',
+    detectSystemSpecs: async () => ({ platform: 'win32', osVersion: '10', cpuName: 'i7', cpuCores: 12, totalMemGb: 32, gpuName: 'NVIDIA GeForce RTX 3060', gpuVramGb: 12, driverVersion: 'x', suggestedTier: 'ultra', detectedBy: 'gpu' }),
+    suggestTier: async () => ({ tier: 'ultra', detectedBy: 'gpu' }),
     runInstall: async (plan) => ({ success: true, mods: plan.mods.map((m) => ({ ...m, status: 'installed', installedFiles: [{ dest: '/x', backupPath: null }] })) }),
     cancelInstall: async () => true,
     runUninstall: async () => [],

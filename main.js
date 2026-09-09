@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
+const { detectSystemSpecs, suggestTierFromSpecs } = require('./src/lib/hardware');
 
 /* ------------------------------------------------------------------ */
 /*  Electron / window bootstrap                                        */
@@ -293,6 +294,18 @@ ipcMain.handle('install:cancel', () => {
 
 ipcMain.handle('uninstall:run', (event, payload) => {
   return uninstallFiles((payload && payload.files) || []);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Hardware detection / smart tier                                    */
+/* ------------------------------------------------------------------ */
+
+ipcMain.handle('system:detect-specs', async () => {
+  return detectSystemSpecs();
+});
+
+ipcMain.handle('system:suggest-tier', (event, specs) => {
+  return suggestTierFromSpecs(specs || {});
 });
 
 /* ------------------------------------------------------------------ */

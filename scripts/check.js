@@ -10,7 +10,9 @@ const files = [
   'src/pages/gamePath.js', 'src/pages/baseModsCheck.js', 'src/pages/tierSelect.js',
   'src/pages/install.js', 'src/pages/done.js', 'src/pages/manageMods.js',
   'src/lib/installer.js',
+  'src/lib/hardware.js',
   'test/installer.test.js',
+  'test/hardware.test.js',
   'test/renderer.test.js'
 ];
 
@@ -40,7 +42,7 @@ for (const a of requiredAssets) {
 
 if (ok) {
   console.log('✔ Syntax & assets OK');
-  for (const t of ['node test/installer.test.js', 'node test/renderer.test.js']) {
+  for (const t of ['node test/installer.test.js', 'node test/hardware.test.js', 'node test/renderer.test.js']) {
     try {
       execSync(t, { stdio: 'inherit' });
     } catch (e) {

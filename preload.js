@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('uhm', {
   autoDetectGamePath: () => ipcRenderer.invoke('game:auto-detect'),
   checkBaseMods: (gamePath) => ipcRenderer.invoke('game:check-base-mods', gamePath),
 
+  // تشخیص سخت‌افزار و پیشنهاد سطح
+  detectSystemSpecs: () => ipcRenderer.invoke('system:detect-specs'),
+  suggestTier: (specs) => ipcRenderer.invoke('system:suggest-tier', specs),
+
   // نصب / حذف
   runInstall: (payload) => ipcRenderer.invoke('install:run', payload),
   cancelInstall: () => ipcRenderer.invoke('install:cancel'),

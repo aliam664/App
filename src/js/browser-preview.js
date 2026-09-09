@@ -28,6 +28,23 @@
     async restoreOrDelete() { return { status: 'deleted' }; },
     async pathExists() { return true; },
     async getLocalAppData() { return 'C:\\AppData'; },
+    async detectSystemSpecs() {
+      return {
+        platform: 'win32',
+        osVersion: '10.0.22631',
+        cpuName: 'Intel(R) Core(TM) i7-12700K',
+        cpuCores: 12,
+        totalMemGb: 32,
+        gpuName: 'NVIDIA GeForce RTX 3060',
+        gpuVramGb: 12,
+        driverVersion: '31.0.15.3623',
+        gpuSource: 'nvidia-smi',
+        suggestedTier: 'ultra',
+        detectedBy: 'gpu',
+        tierReason: 'ultra'
+      };
+    },
+    async suggestTier() { return { tier: 'ultra', detectedBy: 'gpu', score: 5 }; },
     async runInstall(plan) {
       window.__previewIdx = 0;
       const mods = [];
