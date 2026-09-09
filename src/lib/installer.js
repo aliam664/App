@@ -129,9 +129,24 @@ async function installMods(options) {
 
   for (const mod of mods) {
     if (isCancelled()) break;
-    done++;
 
     const modId = String(mod.id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '');
+    if (mod.overwrite === false) {
+      const skipped = {
+        id: modId,
+        tier: tier || mod.tier || null,
+        status: 'skipped',
+        installedFiles: [],
+        message: 'SKIPPED_KEEP_EXISTING'
+      };
+      done++;
+      onProgress({ done, total, mod: skipped, stage: 'skipped' });
+      results.push(skipped);
+      continue;
+    }
+
+    done++;
+
     const source = mod.source || path.join(assetsModDir, modId);
     const destRoot = resolveInside(gamePath, mod.dest || '');
     const modResult = {
@@ -191,8 +206,10 @@ async function installMods(options) {
   }
 
   const cancelled = isCancelled();
+  const hasErrors = results.some((r) => r.status === 'error');
+  const hasInstalled = results.some((r) => r.status === 'installed');
   return {
-    success: !cancelled && results.every((r) => r.status !== 'error' && r.status !== 'missing'),
+    success: !cancelled && !hasErrors && hasInstalled,
     cancelled,
     mods: results
   };

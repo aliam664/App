@@ -29,6 +29,7 @@
     async pathExists() { return true; },
     async getLocalAppData() { return 'C:\\AppData'; },
     async runInstall(plan) {
+      window.__previewIdx = 0;
       const mods = [];
       for (const m of plan.mods) {
         mods.push({ id: m.id, status: 'installed', tier: plan.tier, installedFiles: [{ dest: `/game/${m.id}/file`, backupPath: null }] });

@@ -3,10 +3,12 @@
   let currentResults = [];
   let cancelled = false;
   let active = false;
+  let logged = {};
 
   function render(container, params) {
     active = true;
     const lang = window.appState.lang;
+    const t = (k) => window.i18n.t(lang, k);
     const s = (k) => window.i18n.t(lang, 'install.' + k);
 
     const plan = (params && params.plan) || window.appState.installPlan;
@@ -17,11 +19,15 @@
 
     cancelled = false;
     currentResults = [];
+    logged = {};
 
     container.innerHTML = `
       <div class="page-header">
         <button class="back-btn" id="btn-back">${uhmBackArrow(lang)}</button>
-        <h2>${s('title')}</h2>
+        <div class="page-header-copy">
+          <div class="gamepath-step">${t('common.step4')}</div>
+          <h2>${s('title')}</h2>
+        </div>
       </div>
 
       <div class="install-wrap">
@@ -86,8 +92,19 @@
     if (item) {
       item.dataset.state = state;
       item.querySelector('.install-item-icon').textContent =
-        state === 'installed' ? '✅' : state === 'error' ? '❌' : state === 'missing' ? '⚠️' : state === 'running' ? '⚙️' : '⏳';
+        state === 'installed' ? '✅' : state === 'error' ? '❌' : state === 'missing' ? '⚠️' : state === 'skipped' ? '🕐' : state === 'running' ? '⚙️' : '⏳';
     }
+  }
+
+  function appendLog(mod, stateText) {
+    const log = document.getElementById('install-log');
+    if (!log) return;
+    const key = mod.id + ':' + mod.status;
+    if (logged[key]) return;
+    logged[key] = true;
+    const line = document.createElement('div');
+    line.innerHTML = `<strong>${uhmEsc(modLabel(mod.id, window.appState.lang))}</strong> — ${uhmEsc(stateText)}`;
+    log.appendChild(line);
   }
 
   function handleProgress(data) {
@@ -106,8 +123,12 @@
       let state = 'running';
       if (mod.status === 'installed') { text = s('statusInstalled'); state = 'installed'; }
       else if (mod.status === 'missing') { text = s('statusMissing'); state = 'missing'; }
+      else if (mod.status === 'skipped') { text = s('statusSkipped'); state = 'skipped'; }
       else if (mod.status === 'error') { text = s('statusError'); state = 'error'; }
       setItemState(idx, state, text);
+      if (mod.status !== 'pending' && mod.status !== 'running' && mod.status !== 'start') {
+        appendLog(mod, text);
+      }
     }
 
     const bar = document.getElementById('install-bar');
@@ -143,12 +164,14 @@
   }
 
   async function updateManifest(plan, result) {
-    const manifest = window.appState.manifest || { mods: {} };
+    const manifest = window.appState.manifest || {};
+    if (!manifest.mods) manifest.mods = {};
     const installedModules = (result && result.mods) || [];
 
     for (const mod of installedModules) {
       const id = mod.id;
-      const existingMods = manifest.mods[id] || [];
+      if (mod.status === 'skipped' || mod.status === 'pending') continue;
+      const existingMods = Array.isArray(manifest.mods[id]) ? manifest.mods[id] : [];
       const newEntry = {
         status: mod.status,
         tier: plan.tier || null,
@@ -157,7 +180,7 @@
       };
       manifest.mods[id] = [newEntry, ...existingMods].slice(0, 3);
     }
-    manifest.appVersion = '1.0.0';
+    manifest.appVersion = manifest.appVersion || '1.0.0';
     manifest.gamePath = plan.gamePath;
     manifest.systemTier = plan.tier || null;
     manifest.lastInstallDate = new Date().toISOString();
@@ -167,8 +190,11 @@
 
   function handleFinalState(success) {
     const results = window.appState.lastInstallResult;
-    const installed = results ? results.mods.filter((m) => m.status === 'installed').length : 0;
-    const missing = results ? results.mods.filter((m) => m.status === 'missing').length : 0;
+    const mods = (results && results.mods) || [];
+    const installed = mods.filter((m) => m.status === 'installed').length;
+    const missing = mods.filter((m) => m.status === 'missing').length;
+    const errors = mods.filter((m) => m.status === 'error').length;
+    const skipped = mods.filter((m) => m.status === 'skipped').length;
 
     const list = document.getElementById('install-list');
     if (list) {
@@ -179,7 +205,14 @@
     }
 
     setTimeout(() => {
-      navigate('done', { installed, missing, cancelled: results && results.cancelled });
+      navigate('done', {
+        installed,
+        missing,
+        errors,
+        skipped,
+        cancelled: Boolean(results && results.cancelled),
+        success: Boolean(success)
+      });
     }, 800);
   }
 

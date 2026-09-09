@@ -3,13 +3,17 @@
 
   function render(container) {
     const lang = window.appState.lang;
+    const t = (k) => window.i18n.t(lang, k);
     const s = (k) => window.i18n.t(lang, 'baseModsCheck.' + k);
     checking = false;
 
     container.innerHTML = `
       <div class="page-header">
         <button class="back-btn" id="btn-back">${uhmBackArrow(lang)}</button>
-        <h2>${s('title')}</h2>
+        <div class="page-header-copy">
+          <div class="gamepath-step">${t('common.step2')}</div>
+          <h2>${s('title')}</h2>
+        </div>
       </div>
 
       <div class="basecheck-wrap" id="basecheck-wrap">

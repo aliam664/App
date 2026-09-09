@@ -20,19 +20,10 @@ contextBridge.exposeInMainWorld('uhm', {
   autoDetectGamePath: () => ipcRenderer.invoke('game:auto-detect'),
   checkBaseMods: (gamePath) => ipcRenderer.invoke('game:check-base-mods', gamePath),
 
-  // عملیات فایل
-  copyWithBackup: (args) => ipcRenderer.invoke('fs:copy-with-backup', args),
-  restoreOrDelete: (args) => ipcRenderer.invoke('fs:restore-or-delete', args),
-  pathExists: (p) => ipcRenderer.invoke('fs:path-exists', p),
-  getLocalAppData: () => ipcRenderer.invoke('system:get-local-appdata'),
-
   // نصب / حذف
   runInstall: (payload) => ipcRenderer.invoke('install:run', payload),
   cancelInstall: () => ipcRenderer.invoke('install:cancel'),
   runUninstall: (payload) => ipcRenderer.invoke('uninstall:run', payload),
-
-  // دارایی مودها
-  listModAssets: () => ipcRenderer.invoke('mods:list-assets'),
 
   // رویدادهای پیشرفت نصب
   onInstallProgress: (callback) => {

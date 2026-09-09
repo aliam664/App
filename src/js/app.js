@@ -52,7 +52,7 @@ function renderPage(pageName, params) {
       </div>
       <div class="empty-state">
         <div class="empty-icon">🚧</div>
-        <div class="text-dim">${window.appState.lang === 'fa' ? 'این بخش هنوز ساخته نشده است' : 'This page is not built yet'}</div>
+        <div class="text-dim">${window.i18n.t(window.appState.lang, 'common.pageMissing')}</div>
       </div>
     `;
     document.getElementById('btn-back-fallback').addEventListener('click', () => navigate('showcase'));

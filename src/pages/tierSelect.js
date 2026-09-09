@@ -10,16 +10,19 @@
     container.innerHTML = `
       <div class="page-header">
         <button class="back-btn" id="btn-back">${uhmBackArrow(lang)}</button>
-        <h2>${s('title')}</h2>
+        <div class="page-header-copy">
+          <div class="gamepath-step">${t('common.step3')}</div>
+          <h2>${s('title')}</h2>
+        </div>
       </div>
 
       <div class="tier-wrap">
-        <div class="gamepath-step">${lang === 'fa' ? 'مرحله ۳ از ۵' : 'Step 3 of 5'}</div>
         <div class="text-dim tier-subtitle">${s('subtitle')}</div>
 
         <div class="tier-grid">
           ${window.TIER_DEFINITIONS.map((tier) => `
             <button class="tier-card ${selectedTier === tier.id ? 'selected' : ''}" data-tier="${tier.id}">
+              <img class="tier-img" src="${tier.image}" alt="${s(tier.id)}" />
               <div class="tier-icon">${tier.icon}</div>
               <div class="tier-name">${s(tier.id)}</div>
               <div class="tier-desc text-dim">${s(tier.id + 'Desc')}</div>
@@ -61,20 +64,22 @@
     const existing = window.appState.overwriteDecisions || {};
     const enabledMods = window.MOD_DEFINITIONS.filter((m) => m.enabled);
 
+    // اگر کاربر برای CSP/PURE «خیر - حفظ کن» را انتخاب کرده باشد،
+    // همان مود از پلن نصب حذف می‌شود تا نسخه‌ی قبلی بازنویسی نشود.
+    const mods = enabledMods
+      .filter((m) => !((m.id === 'csp' || m.id === 'pure') && existing[m.id] === false))
+      .map((m) => ({
+        id: m.id,
+        dest: m.dest || '',
+        type: m.type || 'copy',
+        source: undefined,
+        overwrite: true
+      }));
+
     return {
       tier,
       gamePath: window.appState.settings.gamePath,
-      mods: enabledMods.map((m) => {
-        const force = m.id === 'csp' || m.id === 'pure' ? !existing[m.id] : true;
-        return {
-          id: m.id,
-          dest: m.dest || '',
-          type: m.type || 'copy',
-          source: undefined,
-          assumeInstalled: false,
-          overwrite: force
-        };
-      })
+      mods
     };
   }
 

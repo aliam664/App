@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
 
 /* ------------------------------------------------------------------ */
@@ -17,7 +16,10 @@ const USER_DATA_DIR = app.getPath('userData');
 const SETTINGS_PATH = path.join(USER_DATA_DIR, 'settings.json');
 const MANIFEST_PATH = path.join(USER_DATA_DIR, 'manifest.json');
 const BACKUPS_DIR = path.join(USER_DATA_DIR, 'backups');
-const ASSETS_MOD_DIR = path.join(app.getAppPath(), 'src', 'assets', 'mod-files');
+
+// در نسخه‌ی بسته‌بندی‌شده، فایل‌های مود به‌صورت asarUnpack در آدرس .unpacked قرار می‌گیرند.
+const RESOURCE_ROOT = app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath();
+const ASSETS_MOD_DIR = path.join(RESOURCE_ROOT, 'src', 'assets', 'mod-files');
 
 let installCancelled = false;
 
@@ -263,52 +265,6 @@ ipcMain.handle('game:check-base-mods', (event, gamePath) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  Simple fs helpers                                                  */
-/* ------------------------------------------------------------------ */
-
-ipcMain.handle('fs:path-exists', (event, targetPath) => {
-  try { return fs.existsSync(targetPath); } catch (e) { return false; }
-});
-
-ipcMain.handle('fs:copy-with-backup', (event, { source, destination, takeBackup }) => {
-  try {
-    if (!source || !destination || !fs.existsSync(source)) {
-      return { success: false, error: 'INVALID_ARGS' };
-    }
-    const destDir = path.dirname(destination);
-    fs.mkdirSync(destDir, { recursive: true });
-
-    let backupPath = null;
-    if (takeBackup && fs.existsSync(destination)) {
-      const modBackupDir = path.join(BACKUPS_DIR, path.basename(destDir));
-      fs.mkdirSync(modBackupDir, { recursive: true });
-      backupPath = path.join(modBackupDir, path.basename(destination) + '.bak');
-      fs.copyFileSync(destination, backupPath);
-    }
-    fs.copyFileSync(source, destination);
-    return { success: true, backupPath };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-});
-
-ipcMain.handle('fs:restore-or-delete', (event, { destination, backupPath }) => {
-  try {
-    if (backupPath && fs.existsSync(backupPath)) {
-      fs.copyFileSync(backupPath, destination);
-      fs.unlinkSync(backupPath);
-      return { status: 'restored' };
-    }
-    if (!backupPath && fs.existsSync(destination)) {
-      fs.unlinkSync(destination);
-    }
-    return { status: backupPath ? 'backup_not_found' : 'deleted' };
-  } catch (e) {
-    return { status: 'error', message: e.message };
-  }
-});
-
-/* ------------------------------------------------------------------ */
 /*  Install / uninstall via installer core                             */
 /* ------------------------------------------------------------------ */
 
@@ -340,24 +296,9 @@ ipcMain.handle('uninstall:run', (event, payload) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  System / shell                                                     */
+/*  Shell                                                              */
 /* ------------------------------------------------------------------ */
-
-ipcMain.handle('system:get-local-appdata', () => {
-  return process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-});
 
 ipcMain.on('shell:open-external', (event, url) => {
   if (isSafeExternalUrl(url)) shell.openExternal(url);
-});
-
-/* ------------------------------------------------------------------ */
-/*  Assets manifest (list available mod folders)                       */
-/* ------------------------------------------------------------------ */
-
-ipcMain.handle('mods:list-assets', () => {
-  if (!fs.existsSync(ASSETS_MOD_DIR)) return [];
-  return fs.readdirSync(ASSETS_MOD_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name);
 });

@@ -18,7 +18,7 @@
       </div>
 
       <div class="gamepath-wrap">
-        <div class="gamepath-step">${lang === 'fa' ? 'مرحله ۱ از ۵' : 'Step 1 of 5'}</div>
+        <div class="gamepath-step">${t('common.step1')}</div>
         <div class="gamepath-icon">📁</div>
 
         <button class="btn-secondary" id="btn-auto-detect">${s('autoDetect')}</button>

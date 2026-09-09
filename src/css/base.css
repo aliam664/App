@@ -257,6 +257,8 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
 .page-header .back-btn:hover { background: var(--color-card-border); transform: translateX(-2px); }
 body[dir='ltr'] .page-header .back-btn:hover { transform: translateX(2px); }
 .page-header h2 { font-size: 17px; font-weight: 800; }
+.page-header-copy { display: flex; flex-direction: column; gap: 6px; }
+.page-header-copy .gamepath-step { align-self: flex-start; }
 
 /* ============================= toasts ============================ */
 .toast-wrap {

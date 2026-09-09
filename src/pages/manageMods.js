@@ -40,7 +40,8 @@
   }
 
   function renderModCard(id, entries, lang, s) {
-    const latest = entries[entries.length - 1] || entries[0] || {};
+    // در install.js هر نصب جدید با [newEntry, ...existing] در ابتدا ذخیره می‌شود.
+    const latest = entries[0] || entries[entries.length - 1] || {};
     const name = modLabel(id, lang);
     const installedCount = Array.isArray(latest.files) ? latest.files.length : 0;
     const status = latest.status || 'missing';
@@ -61,6 +62,7 @@
           <span>${s('tier')}: ${tierValue}</span>
           <span>${s('date')}: ${date}</span>
           <span>${s('files')}: ${installedCount}</span>
+          <span>${s('versions')}: ${entries.length}</span>
         </div>
       </div>
     `;
@@ -88,7 +90,7 @@
 
     const manifest = window.appState.manifest;
     const entries = manifest.mods[modId] || [];
-    const latest = entries[entries.length - 1] || entries[0] || {};
+    const latest = entries[0] || entries[entries.length - 1] || {};
     const files = latest.files || [];
 
     if (!files.length) {

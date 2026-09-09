@@ -70,6 +70,17 @@ fs.writeFileSync(path.join(game, 'acs.exe'), '');
   });
   assert.strictEqual(r3.mods[0].status, 'missing');
 
+  // 5.1 overwrite=false -> skipped and existing file untouched
+  const beforeSkip = fs.readFileSync(path.join(game, 'extension', 'config', 'data_manifest.ini'), 'utf8');
+  const rSkip = await installMods({
+    gamePath: game,
+    assetsModDir: assets,
+    backupsDir: backups,
+    mods: [{ id: 'csp', dest: '', type: 'copy', overwrite: false }]
+  });
+  assert.strictEqual(rSkip.mods[0].status, 'skipped');
+  assert.strictEqual(fs.readFileSync(path.join(game, 'extension', 'config', 'data_manifest.ini'), 'utf8'), beforeSkip);
+
   // 6. zip extraction
   const zipPath = path.join(tmp, 'mod.zip');
   const admzip = new (require('adm-zip'))();

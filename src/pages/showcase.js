@@ -19,7 +19,9 @@
     const t = (k) => window.i18n.t(lang, k);
     const manifest = window.appState.manifest;
     const hasAnyInstalledMod = manifest && manifest.mods &&
-      Object.values(manifest.mods).some((m) => m.status === 'installed' || (Array.isArray(m) && m.length > 0));
+      Object.values(manifest.mods).some((arr) =>
+        Array.isArray(arr) && arr.some((e) => e.status === 'installed' || ((e.files || []).length > 0))
+      );
 
     container.innerHTML = `
       <div class="showcase">
