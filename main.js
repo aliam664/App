@@ -2,24 +2,29 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { installMods, uninstallFiles } = require('./src/lib/installer');
 
-// رفع یک باگ شناخته‌شده‌ی الکترون روی ویندوز: وقتی پنجره transparent باشه،
-// رندر شتاب‌دهی‌شده‌ی سخت‌افزاری باعث می‌شه پس‌زمینه از گوشه‌های گرد (clip-path) بیرون بزنه.
-// غیرفعال کردن GPU acceleration این مشکل رو حل می‌کنه.
+/* ------------------------------------------------------------------ */
+/*  Electron / window bootstrap                                        */
+/* ------------------------------------------------------------------ */
+
 app.commandLine.appendSwitch('enable-transparent-visuals');
 app.disableHardwareAcceleration();
 
-let mainWindow;
+let mainWindow = null;
 
-// مسیر ذخیره‌ی داده‌های برنامه (تنظیمات + مانیفست نصب)
 const USER_DATA_DIR = app.getPath('userData');
 const SETTINGS_PATH = path.join(USER_DATA_DIR, 'settings.json');
 const MANIFEST_PATH = path.join(USER_DATA_DIR, 'manifest.json');
 const BACKUPS_DIR = path.join(USER_DATA_DIR, 'backups');
+const ASSETS_MOD_DIR = path.join(app.getAppPath(), 'src', 'assets', 'mod-files');
+
+let installCancelled = false;
 
 function ensureUserDataFiles() {
-  if (!fs.existsSync(USER_DATA_DIR)) fs.mkdirSync(USER_DATA_DIR, { recursive: true });
-  if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  fs.mkdirSync(USER_DATA_DIR, { recursive: true });
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+
   if (!fs.existsSync(SETTINGS_PATH)) {
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify({
       language: 'fa',
@@ -48,17 +53,22 @@ function createWindow() {
     transparent: true,
     resizable: true,
     backgroundColor: '#00000000',
+    icon: path.join(__dirname, 'src', 'assets', 'images', 'icon.png'),
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true
     }
   });
 
+  mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 
-  // مفید برای دیباگ در حین توسعه - بعدا حذف شود
-  // mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (process.argv.includes('--dev')) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 }
 
 app.whenReady().then(() => {
@@ -74,35 +84,73 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-/* ---------------- کنترل پنجره (چون فریملسه) ---------------- */
-ipcMain.on('window:minimize', () => mainWindow.minimize());
+/* ------------------------------------------------------------------ */
+/*  Utilities                                                          */
+/* ------------------------------------------------------------------ */
+
+function safeReadJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function safeWriteJson(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function broadcast(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function isSafeExternalUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch (e) {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Window controls                                                    */
+/* ------------------------------------------------------------------ */
+
+ipcMain.on('window:minimize', () => mainWindow && mainWindow.minimize());
 ipcMain.on('window:toggle-maximize', () => {
+  if (!mainWindow) return;
   if (mainWindow.isMaximized()) mainWindow.unmaximize();
   else mainWindow.maximize();
 });
-ipcMain.on('window:close', () => mainWindow.close());
+ipcMain.on('window:close', () => mainWindow && mainWindow.close());
 
-/* ---------------- تنظیمات ---------------- */
-ipcMain.handle('settings:get', () => {
-  return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-});
+/* ------------------------------------------------------------------ */
+/*  Settings / manifest                                                */
+/* ------------------------------------------------------------------ */
+
+ipcMain.handle('settings:get', () => safeReadJson(SETTINGS_PATH, {}));
+
 ipcMain.handle('settings:set', (event, partialSettings) => {
-  const current = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-  const updated = { ...current, ...partialSettings };
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(updated, null, 2));
+  const current = safeReadJson(SETTINGS_PATH, {});
+  const updated = { ...current, ...(partialSettings || {}) };
+  safeWriteJson(SETTINGS_PATH, updated);
   return updated;
 });
 
-/* ---------------- مانیفست نصب ---------------- */
-ipcMain.handle('manifest:get', () => {
-  return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
-});
+ipcMain.handle('manifest:get', () => safeReadJson(MANIFEST_PATH, {}));
+
 ipcMain.handle('manifest:save', (event, manifestData) => {
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifestData, null, 2));
+  safeWriteJson(MANIFEST_PATH, manifestData);
   return true;
 });
 
-/* ---------------- انتخاب مسیر بازی (دستی) ---------------- */
+/* ------------------------------------------------------------------ */
+/*  Game path handling                                                 */
+/* ------------------------------------------------------------------ */
+
 ipcMain.handle('game:browse-path', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
@@ -112,102 +160,204 @@ ipcMain.handle('game:browse-path', async () => {
   return result.filePaths[0];
 });
 
-/* ---------------- اعتبارسنجی مسیر بازی ---------------- */
 ipcMain.handle('game:validate-path', (event, gamePath) => {
   if (!gamePath) return { valid: false, reason: 'EMPTY' };
-  const acsExe = path.join(gamePath, 'acs.exe');
   const contentDir = path.join(gamePath, 'content');
-  if (!fs.existsSync(acsExe)) return { valid: false, reason: 'NO_ACS_EXE' };
+  const hasExe = fs.existsSync(path.join(gamePath, 'acs.exe')) ||
+                 fs.existsSync(path.join(gamePath, 'assettocorsa.exe'));
+  if (!hasExe) return { valid: false, reason: 'NO_ACS_EXE' };
   if (!fs.existsSync(contentDir)) return { valid: false, reason: 'NO_CONTENT_DIR' };
   return { valid: true };
 });
 
-/* ---------------- جستجوی خودکار مسیر استیم ---------------- */
-ipcMain.handle('game:auto-detect', async () => {
-  const candidates = [];
-  const drives = ['C', 'D', 'E', 'F', 'G', 'H'];
+function parseSteamLibraryFolders(vdfPath) {
+  const results = [];
+  if (!fs.existsSync(vdfPath)) return results;
+  try {
+    const text = fs.readFileSync(vdfPath, 'utf-8');
+    const matches = text.match(/"path"\s+"([^"]+)"/g) || [];
+    for (const m of matches) {
+      const p = m.replace(/"path"\s+"([^"]+)"/, '$1').replace(/\\\\/g, '\\');
+      results.push(path.join(p, 'steamapps', 'common', 'assettocorsa'));
+    }
+  } catch (e) { /* ignore */ }
+  return results;
+}
 
-  // مسیرهای معمول نصب استیم روی درایوهای مختلف
-  for (const drive of drives) {
-    candidates.push(`${drive}:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa`);
-    candidates.push(`${drive}:\\Steam\\steamapps\\common\\assettocorsa`);
-    candidates.push(`${drive}:\\SteamLibrary\\steamapps\\common\\assettocorsa`);
+ipcMain.handle('game:auto-detect', async () => {
+  const candidates = new Set();
+
+  const programFiles = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const programFilesX64 = process.env.ProgramFiles || 'C:\\Program Files';
+  const steamDefault = [
+    path.join(programFiles, 'Steam', 'steamapps', 'common', 'assettocorsa'),
+    path.join(programFilesX64, 'Steam', 'steamapps', 'common', 'assettocorsa'),
+    'C:\\Steam\\steamapps\\common\\assettocorsa'
+  ];
+  for (const p of steamDefault) candidates.add(p);
+
+  for (const drive of 'DEFGHIJKLMNOPQRSTUVWXYZ'.split('')) {
+    candidates.add(`${drive}:\\SteamLibrary\\steamapps\\common\\assettocorsa`);
+    candidates.add(`${drive}:\\Steam\\steamapps\\common\\assettocorsa`);
+    candidates.add(`${drive}:\\Games\\Steam\\steamapps\\common\\assettocorsa`);
+  }
+
+  for (const base of steamDefault) {
+    const steamApps = path.dirname(path.dirname(base));
+    const vdf = path.join(steamApps, 'libraryfolders.vdf');
+    for (const p of parseSteamLibraryFolders(vdf)) candidates.add(p);
+  }
+  for (const drive of 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('')) {
+    for (const steel of ['Steam', 'SteamLibrary', 'Games\\Steam']) {
+      const vdf = `${drive}:\\${steel}\\steamapps\\libraryfolders.vdf`;
+      for (const p of parseSteamLibraryFolders(vdf)) candidates.add(p);
+    }
   }
 
   for (const candidate of candidates) {
-    if (fs.existsSync(path.join(candidate, 'acs.exe'))) {
+    if (fs.existsSync(candidate) &&
+        (fs.existsSync(path.join(candidate, 'acs.exe')) ||
+         fs.existsSync(path.join(candidate, 'assettocorsa.exe')))) {
       return candidate;
     }
   }
   return null;
 });
 
-/* ---------------- چک وجود CSP / PURE از قبل ---------------- */
+/* ------------------------------------------------------------------ */
+/*  Base mods detection (CSP / PURE)                                   */
+/* ------------------------------------------------------------------ */
+
 ipcMain.handle('game:check-base-mods', (event, gamePath) => {
-  const result = { csp: { found: false }, pure: { found: false } };
-  try {
-    const cspMarker = path.join(gamePath, 'extension', 'config', 'data_manifest.ini');
-    if (fs.existsSync(cspMarker)) {
+  const result = {
+    csp: { found: false, markers: [] },
+    pure: { found: false, markers: [] }
+  };
+  if (!gamePath) return result;
+
+  const cspMarkers = [
+    path.join(gamePath, 'extension', 'config', 'data_manifest.ini'),
+    path.join(gamePath, 'extension', 'config', 'data_manifest'),
+    path.join(gamePath, 'extension', 'dwrite.ini')
+  ];
+  const pureMarkers = [
+    path.join(gamePath, 'extension', 'config-ext', 'Pure'),
+    path.join(gamePath, 'extension', 'config-ext', 'pure'),
+    path.join(gamePath, 'extension', 'pure'),
+    path.join(gamePath, 'extension', 'config', 'pure.ini')
+  ];
+
+  for (const p of cspMarkers) {
+    if (fs.existsSync(p)) {
       result.csp.found = true;
+      result.csp.markers.push(p);
     }
-    const pureMarker = path.join(gamePath, 'extension', 'config-ext', 'Pure');
-    if (fs.existsSync(pureMarker)) {
+  }
+  for (const p of pureMarkers) {
+    if (fs.existsSync(p)) {
       result.pure.found = true;
+      result.pure.markers.push(p);
     }
-  } catch (e) {
-    // اگر مسیر نامعتبر بود، همان مقدار پیش‌فرض false برمی‌گردد
   }
   return result;
 });
 
-/* ---------------- عملیات فایل: کپی ساده با پشتیبان‌گیری اختیاری ---------------- */
-ipcMain.handle('fs:copy-with-backup', (event, { source, destination, takeBackup }) => {
-  const destDir = path.dirname(destination);
-  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+/* ------------------------------------------------------------------ */
+/*  Simple fs helpers                                                  */
+/* ------------------------------------------------------------------ */
 
-  let backupPath = null;
-  if (takeBackup && fs.existsSync(destination)) {
-    const modBackupDir = path.join(BACKUPS_DIR, path.basename(destDir));
-    if (!fs.existsSync(modBackupDir)) fs.mkdirSync(modBackupDir, { recursive: true });
-    backupPath = path.join(modBackupDir, path.basename(destination) + '.bak');
-    fs.copyFileSync(destination, backupPath);
-  }
-
-  fs.copyFileSync(source, destination);
-  return { success: true, backupPath };
+ipcMain.handle('fs:path-exists', (event, targetPath) => {
+  try { return fs.existsSync(targetPath); } catch (e) { return false; }
 });
 
-/* ---------------- بازگرداندن فایل از بکاپ یا حذف مستقیم ---------------- */
+ipcMain.handle('fs:copy-with-backup', (event, { source, destination, takeBackup }) => {
+  try {
+    if (!source || !destination || !fs.existsSync(source)) {
+      return { success: false, error: 'INVALID_ARGS' };
+    }
+    const destDir = path.dirname(destination);
+    fs.mkdirSync(destDir, { recursive: true });
+
+    let backupPath = null;
+    if (takeBackup && fs.existsSync(destination)) {
+      const modBackupDir = path.join(BACKUPS_DIR, path.basename(destDir));
+      fs.mkdirSync(modBackupDir, { recursive: true });
+      backupPath = path.join(modBackupDir, path.basename(destination) + '.bak');
+      fs.copyFileSync(destination, backupPath);
+    }
+    fs.copyFileSync(source, destination);
+    return { success: true, backupPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('fs:restore-or-delete', (event, { destination, backupPath }) => {
   try {
-    if (backupPath) {
-      if (fs.existsSync(backupPath)) {
-        fs.copyFileSync(backupPath, destination);
-        fs.unlinkSync(backupPath);
-        return { status: 'restored' };
-      } else {
-        return { status: 'backup_not_found' };
-      }
-    } else {
-      if (fs.existsSync(destination)) fs.unlinkSync(destination);
-      return { status: 'deleted' };
+    if (backupPath && fs.existsSync(backupPath)) {
+      fs.copyFileSync(backupPath, destination);
+      fs.unlinkSync(backupPath);
+      return { status: 'restored' };
     }
+    if (!backupPath && fs.existsSync(destination)) {
+      fs.unlinkSync(destination);
+    }
+    return { status: backupPath ? 'backup_not_found' : 'deleted' };
   } catch (e) {
     return { status: 'error', message: e.message };
   }
 });
 
-/* ---------------- چک وجود پوشه (برای پیش‌شرط SRP Light) ---------------- */
-ipcMain.handle('fs:path-exists', (event, targetPath) => {
-  return fs.existsSync(targetPath);
+/* ------------------------------------------------------------------ */
+/*  Install / uninstall via installer core                             */
+/* ------------------------------------------------------------------ */
+
+ipcMain.handle('install:run', async (event, payload) => {
+  installCancelled = false;
+  const { gamePath = '', tier = null, mods = [] } = payload || {};
+
+  const result = await installMods({
+    gamePath,
+    tier,
+    mods,
+    assetsModDir: ASSETS_MOD_DIR,
+    backupsDir: BACKUPS_DIR,
+    onProgress: (data) => broadcast('install:progress', data),
+    isCancelled: () => installCancelled
+  });
+
+  installCancelled = false;
+  return result;
 });
 
-/* ---------------- باز کردن لینک خارجی با مرورگر پیش‌فرض ---------------- */
-ipcMain.on('shell:open-external', (event, url) => {
-  shell.openExternal(url);
+ipcMain.handle('install:cancel', () => {
+  installCancelled = true;
+  return true;
 });
 
-/* ---------------- مسیر %LOCALAPPDATA% پویا ---------------- */
+ipcMain.handle('uninstall:run', (event, payload) => {
+  return uninstallFiles((payload && payload.files) || []);
+});
+
+/* ------------------------------------------------------------------ */
+/*  System / shell                                                     */
+/* ------------------------------------------------------------------ */
+
 ipcMain.handle('system:get-local-appdata', () => {
   return process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+});
+
+ipcMain.on('shell:open-external', (event, url) => {
+  if (isSafeExternalUrl(url)) shell.openExternal(url);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Assets manifest (list available mod folders)                       */
+/* ------------------------------------------------------------------ */
+
+ipcMain.handle('mods:list-assets', () => {
+  if (!fs.existsSync(ASSETS_MOD_DIR)) return [];
+  return fs.readdirSync(ASSETS_MOD_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
 });

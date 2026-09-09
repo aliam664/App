@@ -7,11 +7,15 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "dev": "electron . --dev",
+    "serve": "node scripts/serve.js",
+    "dist": "electron-builder --win",
+    "check": "node scripts/check.js"
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "linkedom": "^0.18.13"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
@@ -20,15 +24,30 @@
   "build": {
     "appId": "com.uhm.packinstaller",
     "productName": "UHM Pack Installer",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "compression": "maximum",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/node-unrar-js/**/*",
+      "node_modules/**/*.wasm",
+      "src/assets/mod-files/**/*"
+    ],
     "win": {
       "target": "nsis",
       "icon": "src/assets/images/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "UHM Pack Installer"
     },
     "files": [
       "main.js",
       "preload.js",
       "src/**/*",
-      "assets/**/*"
+      "package.json"
     ]
   }
 }

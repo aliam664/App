@@ -1,51 +1,91 @@
-// وضعیت سراسری برنامه که همه‌ی صفحات بهش دسترسی دارن
+/* ------------------------------------------------------------------ */
+/*  Global state                                                       */
+/* ------------------------------------------------------------------ */
 window.appState = {
   lang: 'fa',
   theme: 'night',
   settings: null,
-  manifest: null
+  manifest: null,
+  navStack: [],
+  currentPage: null,
+  installPlan: null,
+  overwriteDecisions: null,
+  lastInstallResult: null
 };
 
 const pageContainer = document.getElementById('page-content');
-
-// ثبت صفحات - هر صفحه یه فایل جدا با تابع render(container) هست
 window.pages = {};
 
-function navigate(pageName, params) {
-  const page = window.pages[pageName];
-  if (!page) {
-    console.error('صفحه پیدا نشد:', pageName);
-    pageContainer.innerHTML = `
-      <div class="page-header">
-        <button class="back-btn" id="btn-back-fallback">${window.appState.lang === 'fa' ? '←' : '→'}</button>
-        <h2>${window.appState.lang === 'fa' ? 'به‌زودی' : 'Coming soon'}</h2>
-      </div>
-      <div class="text-dim">
-        ${window.appState.lang === 'fa'
-          ? 'این بخش هنوز ساخته نشده (صفحه: ' + pageName + ')'
-          : 'This page is not built yet (' + pageName + ')'}
-      </div>
-    `;
-    document.getElementById('btn-back-fallback').addEventListener('click', () => navigate('showcase'));
-    return;
-  }
-  pageContainer.innerHTML = '';
-  page.render(pageContainer, params || {});
-}
-window.navigate = navigate;
-
+/* ------------------------------------------------------------------ */
+/*  Theme / language                                                   */
+/* ------------------------------------------------------------------ */
 function applyTheme(theme) {
-  document.body.setAttribute('data-theme', theme);
-  window.appState.theme = theme;
+  document.body.setAttribute('data-theme', theme || 'night');
+  window.appState.theme = theme || 'night';
 }
 
 function applyLanguage(lang) {
   const dir = window.i18n.t(lang, 'dir');
   document.body.setAttribute('dir', dir);
-  window.appState.lang = lang;
-  document.getElementById('app-name-label').textContent = window.i18n.t(lang, 'appName');
+  window.appState.lang = lang || 'fa';
+  const label = document.getElementById('app-name-label');
+  if (label) label.textContent = window.i18n.t(lang, 'appName');
 }
 
+function destroyCurrentPage() {
+  const page = window.pages[window.appState.currentPage];
+  if (page && typeof page.destroy === 'function') {
+    try { page.destroy(); } catch (e) { /* noop */ }
+  }
+  window.appState.currentPage = null;
+}
+
+function renderPage(pageName, params) {
+  destroyCurrentPage();
+
+  const page = window.pages[pageName];
+  if (!page) {
+    pageContainer.innerHTML = `
+      <div class="page-header">
+        <button class="back-btn" id="btn-back-fallback">${uhmBackArrow(window.appState.lang)}</button>
+        <h2>${window.i18n.t(window.appState.lang, 'common.back')} / Coming soon</h2>
+      </div>
+      <div class="empty-state">
+        <div class="empty-icon">🚧</div>
+        <div class="text-dim">${window.appState.lang === 'fa' ? 'این بخش هنوز ساخته نشده است' : 'This page is not built yet'}</div>
+      </div>
+    `;
+    document.getElementById('btn-back-fallback').addEventListener('click', () => navigate('showcase'));
+    return;
+  }
+
+  pageContainer.innerHTML = '';
+  window.appState.currentPage = pageName;
+  page.render(pageContainer, params || {});
+}
+
+function navigate(pageName, params, options = {}) {
+  const { replace = false } = options;
+  if (!replace && window.appState.currentPage) {
+    window.appState.navStack.push(window.appState.currentPage);
+  }
+  renderPage(pageName, params);
+  document.getElementById('page-content').scrollTop = 0;
+}
+
+function goBack(fallback = 'showcase') {
+  destroyCurrentPage();
+  const target = window.appState.navStack.pop() || fallback;
+  renderPage(target, {});
+  document.getElementById('page-content').scrollTop = 0;
+}
+
+window.navigate = navigate;
+window.goBack = goBack;
+
+/* ------------------------------------------------------------------ */
+/*  Titlebar                                                           */
+/* ------------------------------------------------------------------ */
 function wireTitlebar() {
   document.getElementById('btn-minimize').addEventListener('click', () => window.uhm.windowMinimize());
   document.getElementById('btn-maximize').addEventListener('click', () => window.uhm.windowToggleMaximize());
@@ -55,24 +95,28 @@ function wireTitlebar() {
     const newTheme = window.appState.theme === 'night' ? 'day' : 'night';
     applyTheme(newTheme);
     await window.uhm.setSettings({ theme: newTheme });
+    window.appState.settings.theme = newTheme;
+    uhmToast(window.i18n.t(window.appState.lang, 'toast.theme'), 'success', 1300);
   });
 
-  document.getElementById('btn-settings').addEventListener('click', () => {
-    navigate('settings');
-  });
+  document.getElementById('btn-settings').addEventListener('click', () => navigate('settings'));
 }
 
+/* ------------------------------------------------------------------ */
+/*  Bootstrap                                                          */
+/* ------------------------------------------------------------------ */
 async function bootstrap() {
   const settings = await window.uhm.getSettings();
   const manifest = await window.uhm.getManifest();
-  window.appState.settings = settings;
-  window.appState.manifest = manifest;
+  window.appState.settings = settings || {};
+  window.appState.manifest = manifest || {};
 
   applyTheme(settings.theme || 'night');
   applyLanguage(settings.language || 'fa');
-
   wireTitlebar();
-  navigate('showcase');
+
+  window.appState.navStack = [];
+  renderPage('showcase', {});
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);

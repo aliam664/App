@@ -1,52 +1,92 @@
+/* ================================================================= */
+/*  UHM Pack Installer — Base styles                                  */
+/* ================================================================= */
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../assets/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../assets/fonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../assets/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../assets/fonts/Vazirmatn-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../assets/fonts/Vazirmatn-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
 :root {
   --color-accent: #1e90ff;
-  --color-accent-light: #3aa0ff;
-  --color-white: #ffffff;
-  --radius-window: 16px;
-  --radius-card: 12px;
-  --titlebar-height: 44px;
+  --color-accent-2: #4facfe;
+  --color-accent-soft: rgba(30, 144, 255, 0.22);
+  --color-success: #3ddc84;
+  --color-error: #ff5b6e;
+  --color-warn: #ffc24b;
+  --radius-window: 18px;
+  --radius-card: 14px;
+  --radius-sm: 10px;
+  --titlebar-height: 46px;
+  --font: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+  --shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
 
-/* --------- تم شب (پیش‌فرض) --------- */
+/* ---------------------------- Themes ----------------------------- */
 body[data-theme='night'] {
   --bg-image: url('../assets/images/backgrounds/night.jpg');
-  --color-bg: #000000;
-  --color-text: #ffffff;
-  --color-text-dim: #b8c2cc;
-  --color-card-bg: rgba(255, 255, 255, 0.06);
+  --color-bg: #0b0e14;
+  --color-bg-2: #111827;
+  --color-text: #f4f8ff;
+  --color-text-dim: #a6b2c0;
+  --color-card-bg: rgba(255, 255, 255, 0.055);
   --color-card-border: rgba(255, 255, 255, 0.12);
+  --overlay: rgba(3, 6, 12, 0.68);
+  --glass: rgba(14, 18, 28, 0.72);
+  --titlebar-bg: rgba(8, 11, 18, 0.75);
 }
 
-/* --------- تم روز --------- */
 body[data-theme='day'] {
   --bg-image: url('../assets/images/backgrounds/day.jpg');
-  --color-bg: #eef5fb;
-  --color-text: #10202e;
+  --color-bg: #eef4fb;
+  --color-bg-2: #ffffff;
+  --color-text: #10233a;
   --color-text-dim: #4d6474;
-  --color-card-bg: rgba(0, 0, 0, 0.04);
-  --color-card-border: rgba(0, 40, 80, 0.12);
+  --color-card-bg: rgba(255, 255, 255, 0.62);
+  --color-card-border: rgba(20, 60, 110, 0.14);
+  --overlay: rgba(240, 246, 253, 0.6);
+  --glass: rgba(255, 255, 255, 0.74);
+  --titlebar-bg: rgba(255, 255, 255, 0.7);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   overflow: hidden;
   background: transparent;
 }
-
-html {
-  border-radius: var(--radius-window);
-  overflow: hidden;
-}
+html { border-radius: var(--radius-window); overflow: hidden; }
 
 body {
-  font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--font);
   color: var(--color-text);
   background-image: var(--bg-image);
   background-size: cover;
@@ -55,17 +95,24 @@ body {
   flex-direction: column;
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-window);
-  /* clip-path به‌جای overflow:hidden چون توی پنجره‌های transparent الکترون،
-     overflow:hidden به‌تنهایی گوشه‌های گرد رو درست برش نمی‌زنه و
-     پس‌زمینه از گوشه‌ها بیرون می‌زنه */
   clip-path: inset(0 round var(--radius-window));
+  overflow: hidden;
 }
 
-/* --------- جهت‌دهی RTL/LTR --------- */
 body[dir='rtl'] { direction: rtl; text-align: right; }
 body[dir='ltr'] { direction: ltr; text-align: left; }
 
-/* --------- نوار عنوان سفارشی (فریملس) --------- */
+::selection { background: var(--color-accent-soft); color: var(--color-text); }
+
+/* ------------------------- custom scrollbar ----------------------- */
+#page-content::-webkit-scrollbar { width: 7px; }
+#page-content::-webkit-scrollbar-track { background: transparent; }
+#page-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--color-accent), var(--color-accent-2));
+  border-radius: 8px;
+}
+
+/* ===================== titlebar ================================== */
 #titlebar {
   height: var(--titlebar-height);
   display: flex;
@@ -74,111 +121,212 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
   padding: 0 12px;
   -webkit-app-region: drag;
   flex-shrink: 0;
+  background: var(--titlebar-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-card-border);
+  z-index: 10;
 }
 
 #titlebar .brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 13px;
+  display: flex; align-items: center; gap: 9px;
+  font-weight: 700; font-size: 13px; letter-spacing: 0.2px;
 }
-
 #titlebar .brand img {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
+  width: 24px; height: 24px; border-radius: 6px;
+  box-shadow: 0 0 10px var(--color-accent-soft);
 }
-
 #titlebar .titlebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  display: flex; align-items: center; gap: 4px;
   -webkit-app-region: no-drag;
 }
 
 .titlebar-btn {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
+  width: 31px; height: 30px;
+  border: none; background: transparent;
   color: var(--color-text);
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  transition: background 0.15s ease;
+  border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; transition: background .18s ease, transform .12s ease;
 }
-.titlebar-btn:hover { background: var(--color-card-bg); }
+.titlebar-btn:hover { background: var(--color-card-bg); transform: translateY(-1px); }
 .titlebar-btn.close:hover { background: #e0433d; color: #fff; }
 
-/* --------- محتوای صفحات --------- */
+/* ========================= page content ========================== */
 #page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 32px;
+  padding: 24px 32px 20px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
-/* --------- اسکرول‌بار ظریف --------- */
-#page-content::-webkit-scrollbar { width: 6px; }
-#page-content::-webkit-scrollbar-thumb {
-  background: var(--color-accent);
-  border-radius: 4px;
+/* soft vignette over bg */
+#page-content::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  pointer-events: none;
+  z-index: 0;
 }
+#page-content > * { position: relative; z-index: 1; }
 
-/* --------- دکمه‌ی اصلی برند --------- */
+/* ============================ buttons ============================= */
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
   color: #fff;
   border: none;
-  padding: 12px 28px;
+  padding: 12px 26px;
   border-radius: var(--radius-card);
-  font-size: 15px;
-  font-weight: 600;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 8px 22px rgba(30, 144, 255, 0.32);
+  transition: filter .18s ease, transform .15s ease, box-shadow .18s ease;
+  display: inline-flex; align-items: center; gap: 8px; justify-content: center;
 }
-.btn-primary:hover { filter: brightness(1.1); }
-.btn-primary:active { transform: scale(0.98); }
-.btn-primary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  filter: none;
-}
+.btn-primary:hover { filter: brightness(1.09); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(30, 144, 255, 0.4); }
+.btn-primary:active { transform: scale(0.98) translateY(0); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; filter: none; transform: none; box-shadow: none; }
 
 .btn-secondary {
   background: var(--color-card-bg);
   color: var(--color-text);
   border: 1px solid var(--color-card-border);
-  padding: 10px 22px;
+  padding: 10px 20px;
   border-radius: var(--radius-card);
-  font-size: 14px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  backdrop-filter: blur(8px);
+  transition: background .18s ease, transform .15s ease, border-color .18s;
+  display: inline-flex; align-items: center; gap: 7px; justify-content: center;
 }
-.btn-secondary:hover { background: var(--color-card-border); }
-.btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary:hover { background: var(--color-card-border); transform: translateY(-1px); }
+.btn-secondary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
+.btn-lg { padding: 15px 34px; font-size: 15px; border-radius: 16px; }
+.btn-arrow { font-size: 12px; opacity: .85; }
+.btn-icon { font-size: 17px; }
+
+/* ============================= cards ============================== */
 .card {
   background: var(--color-card-bg);
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-card);
   padding: 16px 18px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-soft);
 }
 
 .text-dim { color: var(--color-text-dim); font-size: 13px; }
+.empty-state { text-align: center; padding: 40px 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.empty-icon { font-size: 46px; opacity: .8; }
 
-/* --------- منابع تغییر اندازه‌ی پنجره‌ی فریملس --------- */
-.resize-handle { position: fixed; z-index: 999; }
-.resize-handle.top { top: 0; left: 0; right: 0; height: 5px; cursor: n-resize; }
-.resize-handle.bottom { bottom: 0; left: 0; right: 0; height: 5px; cursor: s-resize; }
-.resize-handle.left { top: 0; bottom: 0; left: 0; width: 5px; cursor: w-resize; }
-.resize-handle.right { top: 0; bottom: 0; right: 0; width: 5px; cursor: e-resize; }
-.resize-handle.top-left { top: 0; left: 0; width: 10px; height: 10px; cursor: nw-resize; }
-.resize-handle.top-right { top: 0; right: 0; width: 10px; height: 10px; cursor: ne-resize; }
-.resize-handle.bottom-left { bottom: 0; left: 0; width: 10px; height: 10px; cursor: sw-resize; }
-.resize-handle.bottom-right { bottom: 0; right: 0; width: 10px; height: 10px; cursor: se-resize; }
+/* ============================= step chip ========================= */
+.gamepath-step {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent-2);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-soft);
+  padding: 4px 14px;
+  border-radius: 999px;
+  letter-spacing: .3px;
+}
+
+/* ========================== page header =========================== */
+.page-header {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 20px;
+}
+.page-header .back-btn {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text);
+  width: 36px; height: 36px;
+  border-radius: 10px; cursor: pointer;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+  transition: background .18s, transform .15s;
+}
+.page-header .back-btn:hover { background: var(--color-card-border); transform: translateX(-2px); }
+body[dir='ltr'] .page-header .back-btn:hover { transform: translateX(2px); }
+.page-header h2 { font-size: 17px; font-weight: 800; }
+
+/* ============================= toasts ============================ */
+.toast-wrap {
+  position: fixed; z-index: 2000;
+  top: 54px; inset-inline-end: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  min-width: 190px; max-width: 320px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px; font-weight: 600;
+  box-shadow: var(--shadow);
+  opacity: 0; transform: translateX(18px);
+  transition: opacity .3s ease, transform .3s ease;
+}
+body[dir='ltr'] .toast { transform: translateX(-18px); }
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast-success { border-inline-start: 4px solid var(--color-success); }
+.toast-error { border-inline-start: 4px solid var(--color-error); }
+.toast-info { border-inline-start: 4px solid var(--color-accent); }
+
+/* ============================= modal ============================= */
+.modal-wrap { position: fixed; inset: 0; z-index: 3000; display: none; }
+.modal-wrap.open { display: block; }
+.modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  animation: uhmFade .2s ease;
+}
+.modal-card {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90%, 420px);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-card-border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  animation: uhmPop .25s cubic-bezier(.2, .8, .3, 1.2);
+}
+.modal-title { font-size: 16px; font-weight: 800; margin-bottom: 10px; }
+.modal-body { font-size: 13px; color: var(--color-text-dim); line-height: 1.8; margin-bottom: 18px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-danger .btn-primary { background: linear-gradient(135deg, #ff5b6e, #ff8a6e); box-shadow: 0 8px 18px rgba(255, 91, 110, .3); }
+
+/* =========================== loader ============================== */
+.loader {
+  width: 22px; height: 22px;
+  margin: 8px auto;
+  border: 3px solid var(--color-card-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: uhmSpin 0.8s linear infinite;
+}
+
+/* ========================== animations =========================== */
+@keyframes uhmSpin { to { transform: rotate(360deg); } }
+@keyframes uhmFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes uhmPop { from { opacity: 0; transform: translate(-50%, -46%) scale(.95); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes uhmFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes uhmShine { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+@keyframes uhmSlideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
