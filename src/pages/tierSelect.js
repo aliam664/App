@@ -99,6 +99,12 @@
       : '—';
     const cores = specs.cpuCores ? `${specs.cpuCores} ${s('cores')}` : '—';
     const gpuName = specs.gpuName || s('unknownGpu');
+    const reasonKey = specs.detectedBy === 'vram'
+      ? 'reasonVram'
+      : specs.detectedBy === 'gpu'
+        ? 'reasonGpu'
+        : 'reasonSpec';
+    const reason = s(reasonKey);
 
     info.innerHTML = `
       <div class="tier-auto-title">${s('detected')} ✅</div>
@@ -107,6 +113,8 @@
       ${specs.driverVersion ? `<div class="tier-auto-row"><span>${s('driver')}:</span><strong>${uhmEsc(specs.driverVersion)}</strong></div>` : ''}
       <div class="tier-auto-row"><span>${s('cpu')}:</span><strong>${uhmEsc(specs.cpuName || '—')} (${cores})</strong></div>
       <div class="tier-auto-row"><span>${s('ram')}:</span><strong>${uhmEsc(specs.totalMemGb || 0)} GB</strong></div>
+      <div class="tier-auto-row text-dim">📌 ${reason}</div>
+      ${specs.gpuVramGb && specs.gpuVramGb <= 2 ? `<div class="tier-auto-row text-dim">${s('vramLowNote')}</div>` : ''}
       <button class="btn-primary btn-suggest" id="btn-use-suggest">
         ${s('useSuggestion')} <strong>${tierLabel}</strong>
       </button>

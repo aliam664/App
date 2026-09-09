@@ -29,27 +29,30 @@ function parseVramToGb(raw) {
 /*  High       = GTX 1660 Ti                                           */
 /*  VeryHigh   = RTX 2060 SUPER                                        */
 /*  Ultra      = RTX 3060 and newer                                    */
+/*                                                                     */
+/*  If a GPU is not in the known list, we fall back to VRAM as the     */
+/*  secondary metric. All GPUs with 1GB or 2GB VRAM are always Low.    */
 /* ------------------------------------------------------------------ */
 const GPU_CHECKS = [
   {
     tier: 'ultra',
-    re: /\b(rtx\s*(3060|3070|3080|3090|4060|4070|4080|4090))\b|\brx\s*(6600|6700|6800|6900|7600|7700|7800|7900)\b/i
+    re: /\b(rtx\s*(3060(\s*ti)?|3070(\s*ti)?|3080(\s*ti)?|3090(\s*ti)?|4060(\s*ti)?|4070(\s*ti|super)?|4080(\s*super)?|4090(\s*ti)?))\b|\brx\s*(6600(\s*xt)?|6700(\s*xt)?|6800(\s*xt)?|6900(\s*xt)?|7600(\s*xt)?|7700(\s*xt)?|7800(\s*xt)?|7900(\s*xt|xtx)?)\b/i
   },
   {
     tier: 'veryhigh',
-    re: /(2060\s*super|2070|2080|5700\s*xt|5600\s*xt|gtx\s*1080)/i
+    re: /(2060\s*super|2070(\s*super)?|2080(\s*super)?|gtx\s*1080(\s*ti)?|rx\s*5700(\s*xt)?|rtx\s*3050\s*ti)/i
   },
   {
     tier: 'high',
-    re: /(1660\s*ti|1660\s*super|2060|3050|gtx\s*1070|rx\s*590|rx\s*5500)/i
+    re: /(1660\s*ti|1660\s*super|2060|2050|3050|gtx\s*1070(\s*ti)?|gtx\s*980\s*ti|rx\s*590|rx\s*5600(\s*xt)?|rx\s*5700|vega\s*56|radeon\s*rx\s*5500\s*xt)/i
   },
   {
     tier: 'medium',
-    re: /(1650\s*super|1660|1060|rx\s*580|rx\s*570|rx\s*480|970|980)/i
+    re: /(1650\s*super|1660|1060(\s*ti)?|gtx\s*970|gtx\s*980|rx\s*580|rx\s*570|rx\s*480|rx\s*470|rx\s*5500(\s*xt)?|rx\s*6500\s*xt|r9\s*380|r9\s*390|vega\s*8)/i
   },
   {
     tier: 'low',
-    re: /(1650|1050|1030|rx\s*550|rx\s*560|750|760|integrated|intel|vega)/i
+    re: /(1650|1050(\s*ti)?|1030|gtx\s*950|gtx\s*960|gtx\s*750(\s*ti)?|gtx\s*740|gtx\s*730|gtx\s*710|gtx\s*720|gt\s*1030|gt\s*710|rx\s*550|rx\s*560|rx\s*540|rx\s*530|r7\s*240|r7\s*250|r7\s*260|r7\s*360|hd\s*7750|hd\s*7770|hd\s*6870|intel[^0-9]*uhd|intel\s*hd|intel\s*iris\s*xe|intel\s*arc\s*a380|vega\s*3|vega\s*11|integrated|radeon\s*vega\s*8)/i
   }
 ];
 
@@ -64,11 +67,27 @@ function suggestTierFromGpu(gpuName) {
   return null;
 }
 
-function suggestTierFromSpecs({ gpuName = '', cpuCores = 0, totalMemGb = 0 } = {}) {
+/* Secondary criterion: VRAM. Unknown GPUs are mapped by video memory.
+   Every GPU with 1GB or 2GB VRAM goes to Low. */
+function suggestTierFromVram(vramGb) {
+  if (!vramGb || vramGb <= 0) return null;
+  if (vramGb <= 2) return { tier: 'low', reason: 'vram', detectedBy: 'vram' };
+  if (vramGb <= 4) return { tier: 'medium', reason: 'vram', detectedBy: 'vram' };
+  if (vramGb <= 6) return { tier: 'high', reason: 'vram', detectedBy: 'vram' };
+  if (vramGb <= 8) return { tier: 'veryhigh', reason: 'vram', detectedBy: 'vram' };
+  return { tier: 'ultra', reason: 'vram', detectedBy: 'vram' };
+}
+
+function suggestTierFromSpecs({ gpuName = '', gpuVramGb = null, cpuCores = 0, totalMemGb = 0 } = {}) {
+  // 1) Known GPU list first
   const byGpu = suggestTierFromGpu(gpuName);
   if (byGpu) return { ...byGpu, score: tierScore(byGpu.tier) };
 
-  // Fallback: اگر GPU قابل تشخیص نبود، بر اساس CPU/RAM پیشنهاد بده
+  // 2) Unknown GPU: use VRAM as the secondary metric
+  const byVram = suggestTierFromVram(gpuVramGb);
+  if (byVram) return { ...byVram, score: tierScore(byVram.tier) };
+
+  // 3) Fallback: CPU / RAM if we have nothing else
   const memGb = Number(totalMemGb) || 0;
   const cores = Number(cpuCores) || 0;
 
@@ -199,6 +218,7 @@ async function detectSystemSpecs() {
 module.exports = {
   parseVramToGb,
   suggestTierFromGpu,
+  suggestTierFromVram,
   suggestTierFromSpecs,
   tierScore,
   detectSystemSpecs
