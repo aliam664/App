@@ -133,8 +133,6 @@
       window.appState.settings.gamePath = selectedPath;
       navigate('baseModsCheck');
     });
-
-    if (selectedPath) validateAndRender(container);
   }
 
   async function setPath(container, value, forceValidation = true) {

@@ -9,7 +9,9 @@ const {
   buildPlan,
   executeInstall,
   analyzeSource,
-  targetRelative
+  targetRelative,
+  probeRar,
+  verifyRarPassword
 } = require('../src/lib/modInstaller');
 
 async function main() {
@@ -137,6 +139,16 @@ async function main() {
     assert.ok(fs.existsSync(overwritten.backupPath), 'backup file should exist');
     assert.ok(progress.some((p) => p.stage === 'start'));
     assert.ok(progress.some((p) => p.stage === 'installed'));
+
+    // 4b) every expected source file is missing → explicit error, never a
+    // silent "installed" with zero files.
+    const missingRes = await executeInstall(src, [{
+      id: 'car:ghost', type: 'car', name: 'ghost', sourceRoot: 'does-not-exist',
+      files: [{ rel: 'a.txt', size: 1 }]
+    }], { gamePath: game, backupsDir: backups, isCancelled: () => false });
+    assert.strictEqual(missingRes.success, false);
+    assert.strictEqual(missingRes.items[0].status, 'error');
+    assert.strictEqual(missingRes.items[0].error, 'FILES_MISSING');
   }
 
   /* ===================================================================
@@ -266,6 +278,24 @@ async function main() {
     a = await analyzeSource(fileEnc, game, { password: 'definitely-wrong' });
     assert.strictEqual(a.ok, false);
     assert.strictEqual(a.error, 'PASSWORD_INCORRECT');
+
+    // (e2) file-encrypted, correct per-file password → analysis proceeds
+    // (each entry has its own password; any one that matches must unlock it)
+    a = await analyzeSource(fileEnc, game, { password: '2中文' });
+    assert.strictEqual(a.ok, true);
+    assert.strictEqual(a.source.entryCount, 3);
+    a = await analyzeSource(fileEnc, game, { password: '3Sec' });
+    assert.strictEqual(a.ok, true);
+
+    // (e3) verifyRarPassword accepts a password that decrypts ANY encrypted
+    // entry (previously it only tested the single smallest file, so a valid
+    // per-file password like '2中文' was wrongly rejected).
+    const fileEncMeta = await probeRar(fileEnc, '');
+    assert.strictEqual(fileEncMeta.encrypted, true);
+    assert.strictEqual(fileEncMeta.encryptedFiles.length, 2);
+    assert.strictEqual(await verifyRarPassword(fileEnc, fileEncMeta.encryptedFiles, '2中文'), true);
+    assert.strictEqual(await verifyRarPassword(fileEnc, fileEncMeta.encryptedFiles, '3Sec'), true);
+    assert.strictEqual(await verifyRarPassword(fileEnc, fileEncMeta.encryptedFiles, 'nope'), false);
 
     // (f) plain (unencrypted) rar installs real files end-to-end
     const mirror = { id: 'mirror:folder', type: 'mirror', name: 'mirror', sourceRoot: '', files: [

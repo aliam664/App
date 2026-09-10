@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('ele
 const path = require('path');
 const fs = require('fs');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
-const { analyzeSource, executeInstall, buildPlan, sanitizeInstallItems } = require('./src/lib/modInstaller');
+const { analyzeSource, executeInstall, sanitizeInstallItems } = require('./src/lib/modInstaller');
 const { detectSystemSpecs, suggestTierFromSpecs } = require('./src/lib/hardware');
 const {
   scanLibrary,
@@ -371,7 +371,10 @@ ipcMain.handle('mods:install', async (event, payload) => {
   const { sourcePath = '', items = [], gamePath = '', password = '' } = payload || {};
 
   // Never trust renderer-supplied targets: rebuild a sanitized, typed plan.
-  const safeItems = buildPlan(gamePath, sanitizeInstallItems(items));
+  // (executeInstall recomputes every target from type/name itself, so we only
+  // need the sanitized items here — no redundant conflict scan of the game
+  // folder, which could be expensive for large mirror installs.)
+  const safeItems = sanitizeInstallItems(items);
 
   const result = await executeInstall(
     sourcePath,
@@ -385,8 +388,10 @@ ipcMain.handle('mods:install', async (event, payload) => {
     }
   );
 
-  // Record the installation in the manifest for auditability.
-  if (result.success && Array.isArray(result.items)) {
+  // Record the installation in the manifest for auditability. Record every
+  // item that actually installed, even when another item in the same batch
+  // failed, so partial installs remain auditable.
+  if (result && Array.isArray(result.items)) {
     const manifest = safeReadJson(MANIFEST_PATH, {});
     if (!manifest.installs) manifest.installs = [];
     for (const r of result.items) {
@@ -396,7 +401,7 @@ ipcMain.handle('mods:install', async (event, payload) => {
         type: r.type,
         name: r.name,
         installedAt: new Date().toISOString(),
-        files: r.installedFiles.map((f) => ({ rel: f.rel, dest: f.dest, backupPath: f.backupPath }))
+        files: (r.installedFiles || []).map((f) => ({ rel: f.rel, dest: f.dest, backupPath: f.backupPath }))
       });
       manifest.installs = manifest.installs.slice(0, 200);
     }

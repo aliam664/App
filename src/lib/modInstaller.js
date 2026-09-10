@@ -439,27 +439,36 @@ async function readRarFiles(file, rels, password) {
   return result;
 }
 
-/* Verify a user-supplied password by actually decrypting the smallest
-   encrypted entry in the archive. Returns true when the password unlocks the
-   content, false when it is wrong (or the archive cannot be read). */
+/* Verify a user-supplied password by actually decrypting an encrypted entry.
+   Returns true when the password unlocks the archive, false when it is wrong
+   (or the archive cannot be read).
+
+   A per-file-encrypted RAR can use a DIFFERENT password for each entry, so a
+   single user password may only unlock a subset of files. We therefore accept
+   the password when it decrypts ANY encrypted entry (trying each candidate,
+   smallest first) instead of failing if one arbitrary file does not match. */
 async function verifyRarPassword(file, encryptedFiles, password) {
   if (!rar) rar = require('node-unrar-js');
   const candidates = (encryptedFiles || []).filter((f) => f && f.name && !String(f.name).endsWith('/'));
   if (!candidates.length) return true; // nothing to verify against
   candidates.sort((a, b) => (a.size || 0) - (b.size || 0));
-  const target = candidates[0].name;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'uhm-verify-'));
   try {
-    const extractor = await rar.createExtractorFromFile({
-      filepath: file,
-      password: password || undefined,
-      targetPath: tmp
-    });
-    const { files } = extractor.extract({ files: [target] });
-    let extracted = false;
-    for (const f of files) { extracted = true; } // consume the lazy iterator
-    return extracted;
-  } catch (e) {
+    for (const candidate of candidates) {
+      try {
+        const extractor = await rar.createExtractorFromFile({
+          filepath: file,
+          password: password || undefined,
+          targetPath: tmp
+        });
+        const { files } = extractor.extract({ files: [candidate.name] });
+        let extracted = false;
+        for (const f of files) { extracted = true; } // consume the lazy iterator
+        if (extracted) return true;
+      } catch (e) {
+        // This entry did not decrypt with the given password — try the next.
+      }
+    }
     return false;
   } finally {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* ignore */ }
@@ -764,7 +773,16 @@ async function executeInstall(sourcePath, items, options = {}) {
             const r = copyWithBackup(srcFile, destFile, backupFn, it.id);
             result.installedFiles.push({ rel, dest: destFile, existed: r.existed, backupPath: r.backupPath });
           }
-          result.status = cancelled ? 'skipped' : 'installed';
+          if (cancelled) {
+            result.status = 'skipped';
+          } else if (result.installedFiles.length === 0) {
+            // Every expected source file was missing from the extracted tree.
+            // Report an explicit error instead of silently claiming success.
+            result.status = 'error';
+            result.error = 'FILES_MISSING';
+          } else {
+            result.status = 'installed';
+          }
         } catch (e) {
           result.status = 'error';
           result.error = e.message;

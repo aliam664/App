@@ -74,7 +74,10 @@ async function extractArchive(source, destRoot, modId, records, backupFn) {
     const data = fs.readFileSync(source);
     const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
     const extractor = await rar.createExtractorFromData({ data: buffer });
-    const list = extractor.extract({ files: [] });
+    // NOTE: node-unrar-js treats an EMPTY `files` array as "extract nothing",
+    // so we omit `files` entirely to extract every entry, then fully traverse
+    // the lazy iterator (this also avoids a WASM memory leak).
+    const list = extractor.extract();
     for (const item of list.files) {
       const file = item.fileHeader.name.replace(/\\/g, '/');
       const isDir = Boolean(item.fileHeader.flags && item.fileHeader.flags.directory);

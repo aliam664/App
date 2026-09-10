@@ -9,6 +9,7 @@
   let active = false;
   let logged = {};
   let startTs = 0;
+  let modIndex = {}; // mod id -> fixed slot in the plan list (DOM row index)
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'install.' + key); }
@@ -32,6 +33,8 @@
     currentResults = [];
     logged = {};
     startTs = Date.now();
+    modIndex = {};
+    plan.mods.forEach((m, i) => { modIndex[m.id] = i; });
 
     container.innerHTML = `
       <div class="page-header">
@@ -148,7 +151,12 @@
     if (mod && mod.id) {
       const idx = currentResults.findIndex((r) => r.id === mod.id);
       if (idx === -1) currentResults.push(mod); else currentResults[idx] = mod;
-      const itemIndex = currentResults.findIndex((r) => r.id === mod.id);
+      // Use the mod's fixed slot in the plan list (not its arrival order in
+      // currentResults) so out-of-order/repeated progress events always update
+      // the correct row.
+      const itemIndex = Object.prototype.hasOwnProperty.call(modIndex, mod.id)
+        ? modIndex[mod.id]
+        : currentResults.findIndex((r) => r.id === mod.id);
       let text = s('statusRunning');
       let state = 'running';
       if (mod.status === 'installed') { text = s('statusInstalled'); state = 'installed'; }

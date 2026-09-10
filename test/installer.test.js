@@ -97,6 +97,18 @@ fs.writeFileSync(path.join(game, 'acs.exe'), '');
   assert.ok(fs.existsSync(path.join(game, 'extension', 'config', 'data_manifest.ini')));
   assert.strictEqual(fs.readFileSync(path.join(game, 'extension', 'config', 'data_manifest.ini'), 'utf8'), 'zipdata');
 
+  // 7. rar extraction (regression: extract({ files: [] }) used to extract nothing)
+  const rarPath = path.join(__dirname, 'fixtures', 'FolderTest.rar');
+  const r5 = await installMods({
+    gamePath: game,
+    assetsModDir: path.dirname(rarPath),
+    backupsDir: backups,
+    mods: [{ id: 'rarmod', source: rarPath, dest: '', type: 'extract' }]
+  });
+  assert.strictEqual(r5.mods[0].status, 'installed');
+  assert.ok(fs.existsSync(path.join(game, 'Folder1', 'Folder Space', 'long.txt')), 'rar nested space path extracted');
+  assert.ok(fs.existsSync(path.join(game, 'Folder1', 'Folder 中文', '2中文.txt')), 'rar unicode path extracted');
+
   console.log('ALL TESTS PASSED');
   fs.rmSync(tmp, { recursive: true, force: true });
 })().catch((e) => { console.error('TEST FAILED', e); process.exit(1); });

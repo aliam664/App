@@ -32,6 +32,8 @@
     password: ''         // resolved archive password (if any)
   };
 
+  let installRows = {};  // item id -> fixed status-row index during install
+
   function lang() { return window.appState.lang; }
   function t(key) { return window.i18n.t(lang(), key); }
   function s(key) { return window.i18n.t(lang(), 'modInstall.' + key); }
@@ -392,6 +394,11 @@
     state.phase = 'installing';
     state.busy = true;
 
+    // Track each item's fixed row slot so progress events can always find the
+    // right row even when several sources are installed one after another.
+    installRows = {};
+    items.forEach((it, i) => { installRows[it.id || `${it.type}:${it.name}`] = i; });
+
     container.innerHTML = `
       <div class="page-header">
         <button class="back-btn" id="btn-back">${uhmBackArrow(lang())}</button>
@@ -409,7 +416,7 @@
             </div>
             <div class="ui-progress-track"><div class="ui-progress-bar" id="mi-progress-bar" style="width:0%"></div></div>
             <div class="mi-status-list" id="mi-status-list">
-              ${items.map((it, i) => `<div class="mi-status-row" data-index="${i}">
+              ${items.map((it, i) => `<div class="mi-status-row" data-index="${i}" data-id="${uhmEsc(it.id || `${it.type}:${it.name}`)}">
                 <span class="mi-status-icon">⏳</span>
                 <span class="mi-status-name">${uhmEsc(it.displayName || it.name)}</span>
               </div>`).join('')}
@@ -435,26 +442,50 @@
       ? window.uhm.onModInstallProgress(handleProgress)
       : null;
 
-    const payloadItems = items.map((it) => ({
-      id: it.id || `${it.type}:${it.name}`,
-      type: it.type,
-      name: it.name,
-      car: it.car,
-      sourceRoot: it.sourceRoot,
-      files: it.files
-    }));
+    // Group the selected items by the source archive they came from. A single
+    // `mods:install` call can only extract one source, so a multi-file drop
+    // used to install ONLY the first archive while silently skipping the rest.
+    const groups = [];
+    const groupIndexOf = new Map();
+    for (const it of items) {
+      let srcIdx = parseInt(String(it._key || '').split(':')[0], 10);
+      if (!Number.isFinite(srcIdx) || srcIdx < 0 || srcIdx >= state.sources.length) srcIdx = 0;
+      const source = state.sources[srcIdx];
+      if (!groupIndexOf.has(source)) {
+        groupIndexOf.set(source, groups.length);
+        groups.push({ source, items: [] });
+      }
+      groups[groupIndexOf.get(source)].items.push(it);
+    }
 
-    const sourcePath = state.sources[0];
+    runInstallGroups(container, groups);
+  }
 
-    window.uhm.installMod({
-      sourcePath,
-      items: payloadItems,
-      gamePath: state.gamePath,
-      password: state.password || ''
-    })
-      .then((result) => {
-        if (state.progressUnsub) { state.progressUnsub(); state.progressUnsub = null; }
-        state.busy = false;
+  async function runInstallGroups(container, groups) {
+    const aggregate = { success: true, cancelled: false, installedCount: 0, items: [] };
+    try {
+      for (const group of groups) {
+        const payloadItems = group.items.map((it) => ({
+          id: it.id || `${it.type}:${it.name}`,
+          type: it.type,
+          name: it.name,
+          car: it.car,
+          sourceRoot: it.sourceRoot,
+          files: it.files
+        }));
+
+        let result;
+        try {
+          result = await window.uhm.installMod({
+            sourcePath: group.source,
+            items: payloadItems,
+            gamePath: state.gamePath,
+            password: state.password || ''
+          });
+        } catch (e) {
+          result = { success: false, cancelled: false, error: e.message, items: [] };
+        }
+
         // The archive may have changed on disk; if the password is no longer
         // valid, send the user back to the password prompt.
         if (result && result.error === 'PASSWORD_INCORRECT') {
@@ -462,13 +493,20 @@
           renderPasswordPrompt(container, true);
           return;
         }
-        renderDone(container, result);
-      })
-      .catch((e) => {
-        if (state.progressUnsub) { state.progressUnsub(); state.progressUnsub = null; }
-        state.busy = false;
-        renderDone(container, { success: false, cancelled: false, error: e.message, items: [] });
-      });
+
+        for (const itemResult of (result && result.items) || []) {
+          aggregate.items.push(itemResult);
+        }
+        aggregate.installedCount += (result && result.installedCount) || 0;
+        if (!result || !result.success) aggregate.success = false;
+        if (result && result.cancelled) { aggregate.cancelled = true; break; }
+      }
+    } finally {
+      if (state.progressUnsub) { state.progressUnsub(); state.progressUnsub = null; }
+      state.busy = false;
+    }
+
+    renderDone(container, aggregate);
   }
 
   function handleProgress(p) {
@@ -481,7 +519,14 @@
     if (count) count.textContent = `${p.done} / ${p.total}`;
     if (label && p.item) label.textContent = `${typeLabel(p.item.type)} · ${p.item.name}`;
 
-    const row = document.querySelector(`.mi-status-row[data-index="${(p.done || 1) - 1}"]`);
+    // Match the row by item id first (robust across multiple sources), then
+    // fall back to the reported position for legacy progress payloads.
+    let row = null;
+    if (p.item && p.item.id && Object.prototype.hasOwnProperty.call(installRows, p.item.id)) {
+      row = document.querySelector(`.mi-status-row[data-index="${installRows[p.item.id]}"]`);
+    }
+    if (!row) row = document.querySelector(`.mi-status-row[data-index="${(p.done || 1) - 1}"]`);
+
     if (row && p.item) {
       const icon = row.querySelector('.mi-status-icon');
       if (icon) {
