@@ -179,7 +179,7 @@ function setup() {
   assert.strictEqual(formatBytes(5 * 1024 * 1024), '5.0 MB');
 
   // -- trash: move a car, verify removed from game and tracked -- //
-  const del = moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
+  const del = await moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
   assert.strictEqual(del.success, true);
   assert.ok(!fs.existsSync(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk')));
   assert.ok(fs.existsSync(del.trashPath));
@@ -189,46 +189,46 @@ function setup() {
   assert.strictEqual(trash1[0].existsOnDisk, true);
 
   // deleting again -> NOT_FOUND
-  const del2 = moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
+  const del2 = await moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
   assert.strictEqual(del2.success, false);
   assert.strictEqual(del2.error, 'NOT_FOUND');
 
   // invalid folder guard
-  const bad = moveToTrash(game, 'car', '..', trashPath, trashDir);
+  const bad = await moveToTrash(game, 'car', '..', trashPath, trashDir);
   assert.strictEqual(bad.success, false);
 
   // -- restore -- //
-  const restored = restoreTrashItem(trashPath, trash1[0].id);
+  const restored = await restoreTrashItem(trashPath, trash1[0].id);
   assert.strictEqual(restored.success, true);
   assert.ok(fs.existsSync(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk')));
   assert.strictEqual(listTrash(trashPath).length, 0);
 
   // restore missing id
-  const missingRestore = restoreTrashItem(trashPath, 'nope');
+  const missingRestore = await restoreTrashItem(trashPath, 'nope');
   assert.strictEqual(missingRestore.success, false);
 
   // -- restore creates a conflict backup if target exists -- //
-  const del3 = moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
+  const del3 = await moveToTrash(game, 'car', 'ks_ferrari_fxxk', trashPath, trashDir);
   assert.strictEqual(del3.success, true);
   fs.mkdirSync(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk'), { recursive: true });
   write(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk', 'marker.txt'), 'foo');
-  const restored2 = restoreTrashItem(trashPath, del3.trashId);
+  const restored2 = await restoreTrashItem(trashPath, del3.trashId);
   assert.strictEqual(restored2.success, true);
   assert.ok(restored2.conflictPath && fs.existsSync(restored2.conflictPath));
   assert.ok(fs.existsSync(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk', 'ui', 'preview.png')));
 
   // -- permanent delete -- //
-  const del4 = moveToTrash(game, 'track', 'drift_city', trashPath, trashDir);
-  const del5 = moveToTrash(game, 'car', 'bmw_m3_e30', trashPath, trashDir);
+  const del4 = await moveToTrash(game, 'track', 'drift_city', trashPath, trashDir);
+  const del5 = await moveToTrash(game, 'car', 'bmw_m3_e30', trashPath, trashDir);
   assert.strictEqual(del4.success, true);
   assert.strictEqual(del5.success, true);
   const list4 = listTrash(trashPath);
-  const purge = permanentlyDeleteTrashItem(trashPath, list4[0].id);
+  const purge = await permanentlyDeleteTrashItem(trashPath, list4[0].id);
   assert.strictEqual(purge.success, true);
   assert.strictEqual(listTrash(trashPath).length, 1);
 
   // -- empty trash -- //
-  const emptied = emptyTrash(trashPath);
+  const emptied = await emptyTrash(trashPath);
   assert.strictEqual(emptied.success, true);
   assert.strictEqual(listTrash(trashPath).length, 0);
 

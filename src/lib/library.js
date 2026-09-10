@@ -530,7 +530,7 @@ function contentRootFor(gamePath, contentType) {
   return null;
 }
 
-function moveToTrash(gamePath, contentType, folder, trashPath, trashDir) {
+async function moveToTrash(gamePath, contentType, folder, trashPath, trashDir) {
   const contentRoot = contentRootFor(gamePath, contentType);
   if (!contentRoot) return { success: false, error: 'INVALID_TYPE' };
   if (!folder || typeof folder !== 'string' || folder.includes('..') || path.isAbsolute(folder)) {
@@ -547,8 +547,10 @@ function moveToTrash(gamePath, contentType, folder, trashPath, trashDir) {
   const trashRoot = path.join(trashDir, `${stamp}_${safeLeaf(folder)}`);
   try {
     fs.mkdirSync(path.dirname(trashRoot), { recursive: true });
-    fs.cpSync(source, trashRoot, { recursive: true });
-    fs.rmSync(source, { recursive: true, force: true });
+    // Async copy/remove so moving a large content folder never blocks the
+    // main process (and therefore the window) for seconds.
+    await fs.promises.cp(source, trashRoot, { recursive: true });
+    await fs.promises.rm(source, { recursive: true, force: true });
 
     const trash = loadTrash(trashPath);
     const cls = classifyContent(folder, contentType);
@@ -571,7 +573,7 @@ function moveToTrash(gamePath, contentType, folder, trashPath, trashDir) {
   }
 }
 
-function restoreTrashItem(trashPath, trashId) {
+async function restoreTrashItem(trashPath, trashId) {
   const trash = loadTrash(trashPath);
   const entry = trash.find((t) => t.id === trashId);
   if (!entry) return { success: false, error: 'NOT_FOUND' };
@@ -587,12 +589,12 @@ function restoreTrashItem(trashPath, trashId) {
     let conflictPath = null;
     if (fs.existsSync(target)) {
       conflictPath = `${target}.trash-conflict-${Date.now()}`;
-      fs.cpSync(target, conflictPath, { recursive: true });
-      fs.rmSync(target, { recursive: true, force: true });
+      await fs.promises.cp(target, conflictPath, { recursive: true });
+      await fs.promises.rm(target, { recursive: true, force: true });
     }
 
-    fs.cpSync(entry.trashPath, target, { recursive: true });
-    fs.rmSync(entry.trashPath, { recursive: true, force: true });
+    await fs.promises.cp(entry.trashPath, target, { recursive: true });
+    await fs.promises.rm(entry.trashPath, { recursive: true, force: true });
     saveTrash(trashPath, trash.filter((t) => t.id !== trashId));
     return { success: true, conflictPath };
   } catch (e) {
@@ -600,13 +602,13 @@ function restoreTrashItem(trashPath, trashId) {
   }
 }
 
-function permanentlyDeleteTrashItem(trashPath, trashId) {
+async function permanentlyDeleteTrashItem(trashPath, trashId) {
   const trash = loadTrash(trashPath);
   const entry = trash.find((t) => t.id === trashId);
   if (!entry) return { success: false, error: 'NOT_FOUND', deleted: [] };
   try {
     if (entry.trashPath && fs.existsSync(entry.trashPath)) {
-      fs.rmSync(entry.trashPath, { recursive: true, force: true });
+      await fs.promises.rm(entry.trashPath, { recursive: true, force: true });
     }
     saveTrash(trashPath, trash.filter((t) => t.id !== trashId));
     return { success: true, deleted: [entry.folder] };
@@ -615,14 +617,14 @@ function permanentlyDeleteTrashItem(trashPath, trashId) {
   }
 }
 
-function emptyTrash(trashPath) {
+async function emptyTrash(trashPath) {
   const trash = loadTrash(trashPath);
   const deleted = [];
   let error = null;
   for (const entry of trash) {
     try {
       if (entry.trashPath && fs.existsSync(entry.trashPath)) {
-        fs.rmSync(entry.trashPath, { recursive: true, force: true });
+        await fs.promises.rm(entry.trashPath, { recursive: true, force: true });
       }
       deleted.push(entry.folder);
     } catch (e) {
