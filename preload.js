@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('uhm', {
   checkBaseMods: (gamePath) => ipcRenderer.invoke('game:check-base-mods', gamePath),
 
   // تشخیص سخت‌افزار و پیشنهاد سطح
-  detectSystemSpecs: () => ipcRenderer.invoke('system:detect-specs'),
+  detectSystemSpecs: (options) => ipcRenderer.invoke('system:detect-specs', options),
   suggestTier: (specs) => ipcRenderer.invoke('system:suggest-tier', specs),
 
   // کتابخانه‌ی محتوا (مودها / ماشین‌ها / مپ‌ها)

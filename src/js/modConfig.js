@@ -4,7 +4,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'csp',
     icon: '🌓',
-    nameKey: 'csp',
+    nameKey: 'modCsp',
+    descKey: 'modCspDesc',
     dest: '',
     type: 'copy',
     enabled: true,
@@ -13,7 +14,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'pure',
     icon: '✨',
-    nameKey: 'pure',
+    nameKey: 'modPure',
+    descKey: 'modPureDesc',
     dest: '',
     type: 'copy',
     enabled: true,
@@ -22,7 +24,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'ppfilter',
     icon: '🎨',
-    nameKey: 'ppfilter',
+    nameKey: 'modPp',
+    descKey: 'modPpDesc',
     dest: 'system/cfg',
     type: 'copy',
     enabled: true,
@@ -31,7 +34,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'chasecam',
     icon: '📷',
-    nameKey: 'chasecam',
+    nameKey: 'modChase',
+    descKey: 'modChaseDesc',
     dest: 'system/cfg',
     type: 'copy',
     enabled: true,
@@ -40,7 +44,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'hud',
     icon: '🖥',
-    nameKey: 'hud',
+    nameKey: 'modHud',
+    descKey: 'modHudDesc',
     dest: '',
     type: 'copy',
     enabled: true,
@@ -49,7 +54,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'srp',
     icon: '💡',
-    nameKey: 'srp',
+    nameKey: 'modSrp',
+    descKey: 'modSrpDesc',
     dest: 'extension/config-ext/pure',
     type: 'copy',
     enabled: true,
@@ -59,7 +65,8 @@ const MOD_DEFINITIONS = [
   {
     id: 'video',
     icon: '⚙️',
-    nameKey: 'video',
+    nameKey: 'modVideo',
+    descKey: 'modVideoDesc',
     dest: 'system/cfg',
     type: 'copy',
     enabled: true,

@@ -36,6 +36,11 @@
 
   var D = null;
 
+  // Preview data-URL cache (keyed by rel path) so re-renders (tab switches,
+  // search, sort) do not re-request/re-encode the same preview over IPC.
+  var previewCache = {};
+  var previewCacheGamePath = null;
+
   function initData() {
     D = window.libraryData;
     if (!D) throw new Error('libraryData missing');
@@ -69,6 +74,25 @@
     state.trash = [];
     state.selected = null;
     state.gamePath = window.appState.settings && window.appState.settings.gamePath;
+
+    // Reset transient UI state so the toolbar and the rendered grid can never
+    // desync when the user revisits the page (e.g. leaving on the "Trash" tab
+    // while the toolbar still highlights "All").
+    state.search = '';
+    state.tab = 'all';
+    state.sortKey = 'name';
+    state.sortDir = 'asc';
+    state.view = 'grid';
+    state.origin = 'all';
+    state.country = 'all';
+    state.brand = 'all';
+    state.withPreview = false;
+    state.modsOnly = false;
+
+    if (previewCacheGamePath !== state.gamePath) {
+      previewCache = {};
+      previewCacheGamePath = state.gamePath;
+    }
 
     if (!state.gamePath) {
       renderNoPath(container);
@@ -299,8 +323,7 @@
       }
       try { state.trash = await window.uhm.listTrash(); } catch (e) { state.trash = []; }
       renderStats();
-      renderGrid();
-      hydratePreviews();
+      renderGrid(); // renderGrid() hydrates previews itself
     } catch (e) {
       state.items = [];
       renderStats();
@@ -332,7 +355,7 @@
       ${statCard('📍', s('statsTracks'), D.formatCount(agg.tracks))}
       ${statCard('🧩', s('statsMods'), D.formatCount(agg.mods))}
       ${statCard('📦', s('statsSize'), size)}
-      ${statCard('🖼', 'Preview', D.formatCount(previews))}
+      ${statCard('🖼', s('statsPreviews'), D.formatCount(previews))}
     `;
   }
 
@@ -442,6 +465,10 @@
         <strong>${D.formatCount(filtered.length)}</strong> ${s('count')}
         <span class="text-dim">· ${s('sortBy')}: ${s('sort' + capitalize(state.sortKey))}</span>
       </div>`;
+
+    // Previews are lazy and the grid is rebuilt on tab/search/sort changes, so
+    // hydrate after every render (cached per path — only new items hit IPC).
+    hydratePreviews();
   }
 
   function capitalize(str) {
@@ -615,7 +642,7 @@
     summary.innerHTML = `
       <div class="library-summary-text">
         <strong>${D.formatCount(items.length)}</strong> ${s('count')}
-        <button class="btn-secondary btn-sm" id="btn-empty-trash" data-op="empty">${s('emptyTrash')}</button>
+        <button class="btn-secondary btn-sm" id="btn-empty-trash" data-op="empty">${s('emptyTrashAction')}</button>
       </div>`;
     const emptyBtn = document.getElementById('btn-empty-trash');
     if (emptyBtn) emptyBtn.addEventListener('click', doEmptyTrash);
@@ -660,18 +687,28 @@
   /*  Preview hydration (lazy)                                           */
   /* ------------------------------------------------------------------ */
 
+  function applyPreview(el, url) {
+    el.innerHTML = `<img src="${url}" alt="" loading="lazy" />`;
+    el.classList.remove('no-preview');
+  }
+
   async function hydratePreviews() {
     const nodes = document.querySelectorAll('[data-preview]');
     for (const el of nodes) {
       const rel = el.getAttribute('data-preview');
       if (!rel) continue;
       el.removeAttribute('data-preview');
+      if (previewCache[rel]) {
+        applyPreview(el, previewCache[rel]);
+        continue;
+      }
       try {
         const url = await window.uhm.getContentPreview({ gamePath: state.gamePath, relPath: rel });
         if (url && typeof url === 'string') {
-          el.innerHTML = `<img src="${url}" alt="" loading="lazy" />`;
-          el.classList.remove('no-preview');
+          previewCache[rel] = url;
+          applyPreview(el, url);
         } else if (url && url.tooLarge) {
+          previewCache[rel] = 'TOO_LARGE';
           el.insertAdjacentHTML('beforeend', `<span class="preview-too-large">${s('noPreview')}</span>`);
         }
       } catch (e) { /* fallback stays */ }
@@ -703,11 +740,15 @@
 
   async function hydrateSinglePreview(el, rel) {
     if (!el || !rel) return;
+    if (previewCache[rel] && previewCache[rel] !== 'TOO_LARGE') {
+      applyPreview(el, previewCache[rel]);
+      return;
+    }
     try {
       const url = await window.uhm.getContentPreview({ gamePath: state.gamePath, relPath: rel });
       if (url && typeof url === 'string') {
-        el.innerHTML = `<img src="${url}" alt="" />`;
-        el.classList.remove('no-preview');
+        previewCache[rel] = url;
+        applyPreview(el, url);
       }
     } catch (e) { /* keep fallback */ }
   }
@@ -816,8 +857,7 @@
         state.trash = await window.uhm.listTrash();
         closeDetail();
         renderStats();
-        renderGrid();
-        hydratePreviews();
+        renderGrid(); // renderGrid() hydrates previews itself
         uhmToast(s('deleteDone'), 'success');
       } else {
         uhmToast(result && result.error === 'NOT_FOUND' ? t('common.pageMissing') : t('toast.error'), 'error');

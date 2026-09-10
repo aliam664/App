@@ -185,7 +185,11 @@
   function buildPlan(tier) {
     const existing = window.appState.overwriteDecisions || {};
     const enabledMods = window.MOD_DEFINITIONS.filter((m) => m.enabled);
+    // A tier is not cosmetic: each preset installs a specific subset of mods.
+    // (Previously every tier silently installed ALL 7 mods.)
+    const tierMods = TIER_MODS[tier] || [];
     const mods = enabledMods
+      .filter((m) => tierMods.includes(m.id))
       .filter((m) => !((m.id === 'csp' || m.id === 'pure') && existing[m.id] === false))
       .map((m) => ({ id: m.id, dest: m.dest || '', type: m.type || 'copy', source: undefined, overwrite: true }));
     return { tier, gamePath: window.appState.settings.gamePath, mods };

@@ -56,7 +56,9 @@ body[data-theme='night'] {
   --color-bg-2: #111827;
   --color-text: #f4f8ff;
   --color-text-dim: #a6b2c0;
-  --color-card-bg: rgba(255, 255, 255, 0.055);
+  /* Opaque-ish dark glass instead of a white tint: reads well now that the
+     expensive per-card backdrop-filter blur is removed. */
+  --color-card-bg: rgba(17, 24, 39, 0.82);
   --color-card-border: rgba(255, 255, 255, 0.12);
   --overlay: rgba(3, 6, 12, 0.68);
   --glass: rgba(14, 18, 28, 0.72);
@@ -69,7 +71,7 @@ body[data-theme='day'] {
   --color-bg-2: #ffffff;
   --color-text: #10233a;
   --color-text-dim: #4d6474;
-  --color-card-bg: rgba(255, 255, 255, 0.62);
+  --color-card-bg: rgba(255, 255, 255, 0.86);
   --color-card-border: rgba(20, 60, 110, 0.14);
   --overlay: rgba(240, 246, 253, 0.6);
   --glass: rgba(255, 255, 255, 0.74);
@@ -122,6 +124,7 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
   -webkit-app-region: drag;
   flex-shrink: 0;
   background: var(--titlebar-bg);
+  /* Keep a single small blur here only — one element, cheap, preserves the glass bar. */
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-card-border);
   z-index: 10;
@@ -201,7 +204,6 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  backdrop-filter: blur(8px);
   transition: background .18s ease, transform .15s ease, border-color .18s;
   display: inline-flex; align-items: center; gap: 7px; justify-content: center;
 }
@@ -218,7 +220,6 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-card);
   padding: 16px 18px;
-  backdrop-filter: blur(10px);
   box-shadow: var(--shadow-soft);
 }
 
@@ -251,7 +252,6 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
   border-radius: 10px; cursor: pointer;
   font-size: 15px;
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(8px);
   transition: background .18s, transform .15s;
 }
 .page-header .back-btn:hover { background: var(--color-card-border); transform: translateX(-2px); }

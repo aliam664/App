@@ -208,16 +208,16 @@
   }
 
   function wireSystem(container) {
-    document.getElementById('btn-detect-specs').addEventListener('click', detectSystem);
+    document.getElementById('btn-detect-specs').addEventListener('click', () => detectSystem(true));
   }
 
-  async function detectSystem() {
+  async function detectSystem(force = false) {
     if (specBusy) return;
     specBusy = true;
     const info = document.getElementById('system-info');
     if (info) info.innerHTML = '<div class="loader"></div><div class="text-dim" style="text-align:center;">' + s('detecting') + '</div>';
     try {
-      specs = await window.uhm.detectSystemSpecs();
+      specs = await window.uhm.detectSystemSpecs(force ? { force: true } : undefined);
       renderSystemInfo();
     } catch (e) {
       if (info) info.innerHTML = `<div class="text-dim">${s('notDetected')}</div>`;

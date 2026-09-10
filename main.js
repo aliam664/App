@@ -21,9 +21,16 @@ const {
 /* ------------------------------------------------------------------ */
 
 app.commandLine.appendSwitch('enable-transparent-visuals');
-app.disableHardwareAcceleration();
+// NOTE: hardware acceleration is intentionally left ENABLED.
+// The previous `app.disableHardwareAcceleration()` forced the entire UI to be
+// software-rendered, which — combined with the many backdrop-filter/blur effects
+// in the UI — made browsing the app very laggy (low FPS). Transparent frameless
+// windows composite fine on the GPU on Windows/Linux. Re-enable the call below
+// only as a fallback for specific GPU drivers that glitch with transparent windows.
+// app.disableHardwareAcceleration();
 
 let mainWindow = null;
+let cachedSystemSpecs = null;
 
 const USER_DATA_DIR = app.getPath('userData');
 const SETTINGS_PATH = path.join(USER_DATA_DIR, 'settings.json');
@@ -354,8 +361,14 @@ ipcMain.handle('library:preview-candidates', (event, type) => {
 /*  Hardware detection / smart tier                                    */
 /* ------------------------------------------------------------------ */
 
-ipcMain.handle('system:detect-specs', async () => {
-  return detectSystemSpecs();
+ipcMain.handle('system:detect-specs', async (event, options) => {
+  // System specs are expensive to collect (spawns nvidia-smi / powershell / wmic,
+  // each with a timeout) and they do not change at runtime. Cache the result and
+  // only re-run when the caller explicitly asks to force a fresh detection.
+  const force = Boolean(options && options.force);
+  if (cachedSystemSpecs && !force) return cachedSystemSpecs;
+  cachedSystemSpecs = await detectSystemSpecs();
+  return cachedSystemSpecs;
 });
 
 ipcMain.handle('system:suggest-tier', (event, specs) => {

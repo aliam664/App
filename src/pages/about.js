@@ -85,7 +85,7 @@
   function renderInsidePack(lang) {
     const mods = (window.MOD_DEFINITIONS || []).map((m) => {
       const name = t('showcase.' + (m.nameKey || m.id));
-      const desc = t('showcase.mod' + m.id.charAt(0).toUpperCase() + m.id.slice(1) + 'Desc');
+      const desc = t('showcase.' + (m.descKey || m.nameKey + 'Desc'));
       return `
         <div class="about-mod-row">
           <span class="about-mod-icon">${m.icon}</span>

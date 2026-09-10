@@ -10,6 +10,15 @@
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'gamePath.' + key); }
 
+  function debounce(fn, ms) {
+    let id = null;
+    return function inner() {
+      const args = arguments;
+      clearTimeout(id);
+      id = setTimeout(() => fn.apply(null, args), ms);
+    };
+  }
+
   function render(container) {
     const lang = window.appState.lang;
     selectedPath = window.appState.settings.gamePath || null;
@@ -107,12 +116,14 @@
       busy = false;
     });
 
-    document.getElementById('path-input').addEventListener('input', (e) => {
+    // Validate on a short debounce so we do not fire an IPC round-trip on every
+    // keystroke while the user types/pastes a path.
+    document.getElementById('path-input').addEventListener('input', debounce((e) => {
       const value = e.target.value.trim();
       if (!value) { clearValidation(); return; }
       selectedPath = value;
       validateAndRender(container);
-    });
+    }, 250));
 
     document.getElementById('btn-continue').addEventListener('click', async () => {
       if (!isValidNow()) return;

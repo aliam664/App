@@ -289,6 +289,7 @@ async function detectSystemSpecs() {
 
   const suggestion = suggestTierFromSpecs({
     gpuName: specs.gpuName,
+    gpuVramGb: specs.gpuVramGb,
     cpuCores: specs.cpuCores,
     totalMemGb: specs.totalMemGb
   });
