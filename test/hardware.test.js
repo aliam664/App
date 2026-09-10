@@ -171,5 +171,7 @@ assert.strictEqual(parseVramToGb(536870912, 'bytes'), 0.5); // 512 MB AdapterRAM
 assert.strictEqual(parseVramToGb(8589934592, 'bytes'), 8);
 assert.strictEqual(parseVramToGb('0', 'mib'), null);      // invalid → null
 assert.strictEqual(parseVramToGb(null), null);
+assert.strictEqual(parseVramToGb(0xFFFFFFFF, 'bytes'), null); // AdapterRAM "unknown" sentinel
+assert.strictEqual(parseVramToGb('4294967295', 'bytes'), null);
 
 console.log('HARDWARE TESTS PASSED');

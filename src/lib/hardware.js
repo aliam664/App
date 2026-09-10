@@ -16,6 +16,10 @@ function parseVramToGb(raw, unit) {
   if (!raw) return null;
   const num = parseFloat(String(raw).replace(/,/g, '').trim());
   if (!Number.isFinite(num) || num <= 0) return null;
+  // Win32_VideoController.AdapterRAM returns 0xFFFFFFFF (UINT32_MAX) when the
+  // driver does not expose the size. Treating it as a real byte count would
+  // wrongly report 4 GB, so treat it as "unknown" instead.
+  if (num === 0xFFFFFFFF) return null;
   let gb;
   if (unit === 'bytes') {
     gb = num / (1024 * 1024 * 1024);          // AdapterRAM (PowerShell / WMIC)

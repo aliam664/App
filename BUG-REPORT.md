@@ -5,6 +5,21 @@
 
 ---
 
+## 🖼 چرا عکس بعضی از مادها در کتابخانه نمایش داده نمی‌شود؟ (علت‌یابی دقیق)
+
+این مشکل **یک علت واحد نداشت**؛ چهار علت مستقل با هم ترکیب شده بودند که هرکدام به‌تنهایی می‌توانست عکسِ یک ماد را حذف کند:
+
+| # | علت ریشه‌ای | توضیح | وضعیت |
+|---|---|---|---|
+| 1 | **سقف ۹۰۰ کیلوبایتی** در `previewToDataUrl` | هر پیش‌نمایش بزرگ‌تر از ۹۰۰KB به‌جای تصویر، `{ tooLarge: true }` برمی‌گرداند و کارت خاکستری می‌ماند. بیشتر پیش‌نمایش‌های باکیفیت مادها (۱۰۲۴×۵۷۶ به بالا) از این سقف رد می‌شدند. | ✅ رفع شد — دیگر از خواندن خام فایل استفاده نمی‌شود؛ `nativeImage` در main process تصویر را تا ۶۴۰px کوچک می‌کند |
+| 2 | **فقط `ui/preview.*` بررسی می‌شد** | خیلی از مادها عکس سراسری ندارند؛ عکسشان فقط داخل `skins/<name>/preview.jpg` است. چون این مسیر هرگز چک نمی‌شد، `hasPreview=false` می‌شد. | ✅ رفع شد — تابع جدید `findCarPreview` در نبود `ui/preview.*` اولین پیش‌نمایش اسکین را برمی‌گرداند |
+| 3 | **پسوند `.jpeg` جا افتاده بود** | لیست کاندیداها فقط `.png` و `.jpg` داشت؛ مادهایی که `ui/preview.jpeg` داشتند دیده نمی‌شدند. | ✅ رفع شد — `.jpeg` به هر دو لیست ماشین/مپ اضافه شد |
+| 4 | **MIME پسوندهای ناشناخته اشتباه بود** | `.webp` و `.bmp` با `image/png` برچسب می‌خوردند و مرورگر نمی‌توانست decode کند. | ✅ رفع شد — نگاشت درست `image/webp` و `image/bmp` |
+
+**علاوه بر این‌ها** یک باگ جانبی هم پیدا و رفع شد: بعد از تعویض تب/جستجو/مرتب‌سازی، `hydratePreviews` دیگر صدا زده نمی‌شد و همه‌ی کارت‌ها (حتی آن‌هایی که عکس داشتند) خاکستری می‌ماندند؛ و سنتینل `TOO_LARGE` در کش، در رندر بعدی به‌عنوان URL تصویر استفاده می‌شد.
+
+---
+
 ## 🚀 ۱) چرا فریم پایین است؟ (علت‌یابی عملکرد)
 
 مشکل «لگ و فریم پایین هنگام چرخیدن داخل منوی اپ» یک علت واحد ندارد؛ ترکیبی از چند تصمیم است که روی هم رفته رندر را خیلی سنگین می‌کند:
@@ -69,16 +84,18 @@
 
 ## 🟡 ۳) موارد پیدا شده ولی عمداً دست‌نخورده (پیشنهادی)
 
-| # | موضوع | توضیح | پیشنهاد |
+> ✅ = در همین بازبینی حرفه‌ای رفع شد · ⚠️ = همچنان باز
+
+| # | موضوع | توضیح | وضعیت |
 |---|---|---|---|
-| 1 | اسکن کتابخانه همگام است | `scanLibrary`/`walkStats` در main process همه‌ی فایل‌ها را synchronous پیمایش می‌کند؛ در کتابخانه‌های بزرگ (صدها ماشین) پنجره لحظه‌ای منجمد می‌شود. | تبدیل به worker/async chunked یا محدودکردن عمق/تعداد فایل. |
-| 2 | قوانین GPU در `hardware.js` هم‌پوشانی دارند | مثلاً RX 6700 XT / 6800 XT / 6900 XT اول با regex «ultra» مچ می‌شوند و ردیف‌های `veryhigh` مربوطه dead هستند. | تعیین قصد نهایی (ultra یا veryhigh) و حذف ردیف‌های تکراری. |
-| 3 | `parseVramToGb` و AdapterRAM | وقتی PowerShell مقدار UINT32_MAX (۴۲۹۴۹۶۷۲۹۵) برگرداند، به‌اشتباه ۴GB گزارش می‌شود. | اگر مقدار == 0xFFFFFFFF بود، «نامشخص» در نظر بگیر و به سراغ nvidia-smi بعدی برو. |
-| 4 | `filterLibrary` در `src/lib/library.js` | شرط `onlyMods` با ternary تو در تو گیج‌کننده است (هرچند فعلاً dead code است چون UI آن را set نمی‌کند). | ساده‌سازی یا حذف مسیر بلااستفاده. |
-| 5 | `previewToDataUrl` برای پسوندهای ناشناخته | مثلاً `.webp` با mime `image/png` برمی‌گردد. | افزودن نگاشت webp یا عدم نمایش برای پسوندهای نامعلوم. |
-| 6 | `doRestore` آیتم بازیابی‌شده را به لیست محتوا اضافه نمی‌کند | بعد از بازیابی، آیتم فقط از trash حذف می‌شود و تا refresh بعدی در تب‌های محتوا دیده نمی‌شود. | اسکن مجدد یا افزودن مجدد آیتم به `state.items`. |
-| 7 | دکمه‌ی «نمایش پوشه» (reveal) واقعاً کاری نمی‌کند | `doReveal` فقط toast می‌دهد؛ ضمن اینکه هیچ دکمه‌ای در UI به آن متصل نیست. | یا حذف، یا پیاده‌سازی `shell.showItemInFolder` از طریق IPC. |
-| 8 | کش سخت‌افزار بعد از اولین تشخیص ثابت می‌ماند | قابل قبول است (سخت‌افزار در runtime عوض نمی‌شود) ولی اگر GPU اکسترنال قطع/وصل شود به‌روز نمی‌شود. | دکمه‌ی «تشخیص مجدد» در تنظیمات هم‌اکنون `force` می‌فرستد — کافی است. |
+| 1 | اسکن کتابخانه همگام بود | `scanLibrary`/`walkStats` در main process همه‌ی فایل‌ها را synchronous پیمایش می‌کرد؛ در کتابخانه‌های بزرگ پنجره منجمد می‌شد. | ✅ رفع شد — تبدیل به async با `fs.promises` و yield هر ۱۲۸ ورودی + پیشرفت زنده (`library:scan-progress`) |
+| 2 | قوانین GPU در `hardware.js` هم‌پوشانی دارند | RX 6700 XT / 6800 XT / 6900 XT اول با regex «ultra» مچ می‌شوند و ردیف‌های `veryhigh` مربوطه dead هستند. | ⚠️ طبقه‌بندی GPU یک تصمیم محصول است (تست‌ها هم «ultra» را تأیید می‌کنند)؛ ردیف‌های تکراری بی‌ضررند و دست نمی‌خورند. |
+| 3 | `parseVramToGb` و AdapterRAM | وقتی PowerShell مقدار UINT32_MAX (۰xFFFFFFFF) برگرداند، به‌اشتباه ۴GB گزارش می‌شد. | ✅ رفع شد — sentinel به‌صورت «نامشخص» (null) برگردانده می‌شود؛ واحد (MiB/bytes) هم حالا صریح از هر منبع پاس داده می‌شود. |
+| 4 | `filterLibrary` در `src/lib/library.js` | شرط `onlyMods` با ternary تو در تو گیج‌کننده بود. | ✅ رفع شد — به `if (onlyMods && !item.isMod) return false;` ساده شد. |
+| 5 | `previewToDataUrl` برای پسوندهای ناشناخته | مثلاً `.webp` با mime `image/png` برمی‌گشت. | ✅ رفع شد — نگاشت `image/webp` و `image/bmp` اضافه شد. |
+| 6 | `doRestore` آیتم بازیابی‌شده را به لیست محتوا اضافه نمی‌کرد | بعد از بازیابی، آیتم فقط از trash حذف می‌شد و در تب‌های محتوا دیده نمی‌شد. | ✅ رفع شد — بعد از بازیابی، trash و محتوا هر دو refresh می‌شوند. |
+| 7 | دکمه‌ی «نمایش پوشه» (reveal) واقعاً کاری نمی‌کرد | `doReveal` فقط toast می‌داد و دکمه‌ای هم به آن وصل نبود. | ✅ رفع شد — IPC جدید `library:reveal` + `shell.showItemInFolder` با گارد path-traversal، دکمه در کارت/لیست/جزئیات. |
+| 8 | کش سخت‌افزار بعد از اولین تشخیص ثابت می‌ماند | قابل قبول است (سخت‌افزار در runtime عوض نمی‌شود) ولی اگر GPU اکسترنال قطع/وصل شود به‌روز نمی‌شود. | ⚠️ دکمه‌ی «تشخیص مجدد» در تنظیمات `force` می‌فرستد — کافی است. |
 
 ---
 
@@ -93,22 +110,32 @@
 | `src/js/modConfig.js` | هماهنگ‌سازی `nameKey`/`descKey` با کلیدهای i18n |
 | `src/pages/about.js` | استفاده از `descKey` برای توضیح مودها |
 | `src/pages/settings.js` | دکمه‌ی «تشخیص مجدد» force می‌زند؛ رندر عادی از کش استفاده می‌کند |
-| `src/pages/gamePath.js` | debounce اعتبارسنجی مسیر |
-| `src/pages/library.js` | ریست state، هیدریت پیش‌نمایش در هر render + کش، برچسب‌های درست |
+| `src/pages/gamePath.js` | debounce اعتبارسنجی مسیر + گارد race با توکن توالی (پاسخ کهنه پاسخ جدید را بازنویسی نمی‌کند) |
+| `src/pages/library.js` | ریست state، هیدریت پیش‌نمایش در هر render + کش، برچسب‌های درست، کلیک کارت گرید → جزئیات، هیدریت موازی با همزمانی محدود (۸تایی) + dedup درخواست‌های در حال پرواز، رفع باگ سنتینل `TOO_LARGE` |
 | `src/js/i18n.js` | کلیدهای `emptyTrashAction` و `statsPreviews` (fa/en) |
 | `src/css/base.css` | حذف backdrop-filter از عناصر تکراری (فقط titlebar/toast/modal)، پس‌زمینه‌ی کارت‌ها کدرتر |
 | `src/css/pages.css` | حذف blur زنده‌ی اسلایدها، `visibility` برای اسلایدهای غیرفعال، حذف backdrop-filter |
-| `src/css/library.css` | حذف backdrop-filter از کارت/تب/جستجو/فیلتر |
+| `src/css/library.css` | حذف backdrop-filter از کارت/تب/جستجو/فیلتر + استایل نوار پیشرفت اسکن |
+| `src/lib/library.js` | اسکن async (cars/tracks) + `findCarPreview` (fallback اسکین) + کاندیداهای `.jpeg` + MIME صحیح + ساده‌سازی `filterLibrary` |
+| `main.js` | `library:scan` async با emit پیشرفت، `makePreviewDataUrl` (nativeImage تا ۶۴۰px)، IPC `library:reveal` |
+| `preload.js` | اکسپوز `revealContent` و `onScanProgress` |
+| `src/js/modConfig.js` | منبع واحد متادیتای مودها (`MOD_LABEL` / `MOD_LABEL_SHORT` / `MOD_ICON` / `TIER_MODS`) |
+| `src/pages/showcase.js`, `tierSelect.js`, `install.js`, `done.js`, `manageMods.js` | حذف تعریف‌های تکراری متادیتا و ارجاع به `window.*` |
+| `src/lib/hardware.js` | `parseVramToGb(raw, unit)` با واحد صریح + sentinel 0xFFFFFFFF + `specs.constrained` + گارد خطا در تشخیص GPU |
+| `src/js/ui.js` | escape کردن label/value در `infoRow` و `statCard` (جلوگیری از تزریق HTML) |
+| `test/hardware.test.js`, `test/library.test.js` | تست‌های جدید برای واحد VRAM، sentinel، و fallback پیش‌نمایش اسکین |
 
 ---
 
 ## 🧪 ۵) وضعیت تست‌ها
 
 ```
-node --check (همه‌ی فایل‌های تغییر‌یافته)  ✔
-test/hardware.test.js                      ✔ PASSED
-test/library.test.js                       ✔ PASSED
-test/libraryData.test.js                   ✔ PASSED
+node scripts/check.js            ✔ (syntax + assets + همه‌ی تست‌ها)
+test/installer.test.js           ✔ PASSED
+test/hardware.test.js            ✔ PASSED
+test/renderer.test.js            ✔ PASSED
+test/library.test.js             ✔ PASSED
+test/libraryData.test.js         ✔ PASSED
 ```
 
-> تست‌های `installer.test.js` و `renderer.test.js` به ماژول‌های `adm-zip` و `linkedom` نیاز دارند که در این سندباکس نصب نیستند (بدون دسترسی به npm)؛ syntax آن‌ها هم‌چنان سالم است و منطق تغییر‌یافته با آن‌ها ناسازگار نیست.
+> برای اجرای تست‌های `installer` و `renderer` وابستگی‌ها (`adm-zip`, `node-unrar-js`, `linkedom`) لازم است. در این سندباکس npm به‌دلیل TLS-intercept شبکه نمی‌توانست نصب کند، بنابراین بسته‌ها به‌صورت دستی از رجیستری (که مستقیم با Node در دسترس بود) وندور و نصب شدند و هر ۵ تست سبز هستند.
