@@ -229,6 +229,66 @@ async function main() {
     assert.strictEqual(analysis.items[0].name, 'my_car');
     assert.strictEqual(analysis.items[0].sourceRoot, 'content/cars/my_car');
   }
+
+  /* ===================================================================
+     9) RAR archives (plain, header-encrypted, file-encrypted + password)
+     =================================================================== */
+  {
+    const fixtures = path.join(__dirname, 'fixtures');
+    const headerEnc = path.join(fixtures, 'HeaderEnc1234.rar');   // password: 1234 (header-encrypted)
+    const fileEnc = path.join(fixtures, 'FileEncByName.rar');     // per-file passwords
+    const plain = path.join(fixtures, 'FolderTest.rar');          // not encrypted
+
+    // (a) header-encrypted, no password → PASSWORD_REQUIRED
+    let a = await analyzeSource(headerEnc, game);
+    assert.strictEqual(a.ok, false);
+    assert.strictEqual(a.error, 'PASSWORD_REQUIRED');
+    assert.strictEqual(a.encrypted, 'header');
+
+    // (b) header-encrypted, wrong password → PASSWORD_INCORRECT
+    a = await analyzeSource(headerEnc, game, { password: 'wrong' });
+    assert.strictEqual(a.ok, false);
+    assert.strictEqual(a.error, 'PASSWORD_INCORRECT');
+
+    // (c) header-encrypted, correct password → analysis proceeds
+    a = await analyzeSource(headerEnc, game, { password: '1234' });
+    assert.strictEqual(a.ok, true);
+    assert.strictEqual(a.source.archiveType, 'rar');
+    assert.strictEqual(a.source.entryCount, 2);
+
+    // (d) file-encrypted, no password → PASSWORD_REQUIRED
+    a = await analyzeSource(fileEnc, game);
+    assert.strictEqual(a.ok, false);
+    assert.strictEqual(a.error, 'PASSWORD_REQUIRED');
+    assert.strictEqual(a.encrypted, 'files');
+
+    // (e) file-encrypted, wrong password → PASSWORD_INCORRECT
+    a = await analyzeSource(fileEnc, game, { password: 'definitely-wrong' });
+    assert.strictEqual(a.ok, false);
+    assert.strictEqual(a.error, 'PASSWORD_INCORRECT');
+
+    // (f) plain (unencrypted) rar installs real files end-to-end
+    const mirror = { id: 'mirror:folder', type: 'mirror', name: 'mirror', sourceRoot: '', files: [
+      { rel: 'Folder1/Folder Space/long.txt', size: 1 },
+      { rel: 'Folder1/Folder 中文/2中文.txt', size: 1 }
+    ] };
+    let res = await executeInstall(plain, [mirror], { gamePath: game, backupsDir: backups });
+    assert.strictEqual(res.success, true);
+    assert.ok(fs.existsSync(path.join(game, 'Folder1', 'Folder Space', 'long.txt')), 'plain rar extracted');
+    assert.ok(fs.existsSync(path.join(game, 'Folder1', 'Folder 中文', '2中文.txt')), 'unicode rar path extracted');
+
+    // (g) password-protected install: correct password extracts, wrong fails
+    const encItem = { id: 'mirror:enc', type: 'mirror', name: 'mirror', sourceRoot: '', files: [{ rel: '1File.txt', size: 5 }] };
+    res = await executeInstall(headerEnc, [encItem], { gamePath: game, backupsDir: backups, password: '1234' });
+    assert.strictEqual(res.success, true);
+    const encDest = path.join(game, '1File.txt');
+    assert.ok(fs.existsSync(encDest), 'encrypted rar extracted with password');
+    assert.strictEqual(fs.readFileSync(encDest, 'utf8'), '1File');
+
+    res = await executeInstall(headerEnc, [encItem], { gamePath: game, backupsDir: backups, password: 'bad' });
+    assert.strictEqual(res.success, false);
+    assert.strictEqual(res.error, 'PASSWORD_INCORRECT');
+  }
 }
 
 main().then(() => console.log('MOD INSTALLER TESTS PASSED')).catch((e) => { console.error('MOD INSTALLER TEST FAILED', e); process.exit(1); });

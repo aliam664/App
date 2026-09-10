@@ -352,9 +352,9 @@ function previewBufferToDataUrl(mime, base64) {
   return `data:${mime || 'image/png'};base64,${base64}`;
 }
 
-ipcMain.handle('mods:analyze', async (event, { sourcePath, gamePath }) => {
+ipcMain.handle('mods:analyze', async (event, { sourcePath, gamePath, password }) => {
   if (!sourcePath) return { ok: false, error: 'SOURCE_MISSING' };
-  const analysis = await analyzeSource(sourcePath, gamePath);
+  const analysis = await analyzeSource(sourcePath, gamePath, { password: password || '' });
   if (analysis.ok && Array.isArray(analysis.items)) {
     for (const item of analysis.items) {
       if (item.preview) {
@@ -368,7 +368,7 @@ ipcMain.handle('mods:analyze', async (event, { sourcePath, gamePath }) => {
 
 ipcMain.handle('mods:install', async (event, payload) => {
   modInstallCancelled = false;
-  const { sourcePath = '', items = [], gamePath = '' } = payload || {};
+  const { sourcePath = '', items = [], gamePath = '', password = '' } = payload || {};
 
   // Never trust renderer-supplied targets: rebuild a sanitized, typed plan.
   const safeItems = buildPlan(gamePath, sanitizeInstallItems(items));
@@ -379,6 +379,7 @@ ipcMain.handle('mods:install', async (event, payload) => {
     {
       gamePath,
       backupsDir: BACKUPS_DIR,
+      password,
       onProgress: (data) => broadcast('mods:install-progress', data),
       isCancelled: () => modInstallCancelled
     }

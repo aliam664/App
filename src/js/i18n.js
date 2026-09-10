@@ -483,7 +483,12 @@ const translations = {
       mirrorWarn: 'ساختار ناشناخته؛ فایل‌ها عیناً در مسیر متناظر ریشهٔ بازی کپی می‌شوند.',
       noGamePath: 'ابتدا مسیر بازی را در مرحلهٔ ۱ تنظیم کن.',
       errorInstall: 'نصب ناموفق بود.',
-      fromFile: 'نصب از فایل'
+      fromFile: 'نصب از فایل',
+      passwordTitle: 'این فایل رمز دارد',
+      passwordSub: 'این آرشیو قفل است. رمز آن را وارد کن تا محتوا بررسی و نصب شود.',
+      passwordPlaceholder: 'رمز آرشیو...',
+      passwordSubmit: 'باز کردن',
+      passwordIncorrect: 'رمز اشتباه است؛ دوباره امتحان کن.'
     }
   },
   en: {
@@ -970,7 +975,12 @@ const translations = {
       mirrorWarn: 'Unknown structure; files will be copied as-is into the matching game-root path.',
       noGamePath: 'Set the game path in step 1 first.',
       errorInstall: 'Installation failed.',
-      fromFile: 'Install from file'
+      fromFile: 'Install from file',
+      passwordTitle: 'This file is password-protected',
+      passwordSub: 'This archive is locked. Enter its password to inspect and install the content.',
+      passwordPlaceholder: 'Archive password...',
+      passwordSubmit: 'Unlock',
+      passwordIncorrect: 'Incorrect password; please try again.'
     }
   }
 };

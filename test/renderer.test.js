@@ -65,18 +65,25 @@ async function bootstrap() {
     getPreviewCandidates: async () => [],
     getPathForFile: () => '/fake/dropped.zip',
     pickModFiles: async () => ['/fake/dropped.zip'],
-    analyzeModSource: async () => ({
-      ok: true,
-      source: { label: 'demo.zip', kind: 'archive', archiveType: 'zip', sizeBytes: 1024, entryCount: 3 },
-      totalItems: 1,
-      items: [{
-        id: 'car:demo_car', type: 'car', name: 'demo_car', displayName: 'Demo Car', brand: 'Demo',
-        sourceRoot: 'content/cars/demo_car', targetRelative: 'content/cars/demo_car',
-        fileCount: 2, sizeBytes: 500, status: 'new', overwriteCount: 0, addCount: 2,
-        previewDataUrl: null, files: [{ rel: 'data.acd', size: 100 }, { rel: 'ui/ui_car.json', size: 50 }]
-      }],
-      warnings: []
-    }),
+    analyzeModSource: async (payload) => {
+      // Simulate a password-protected RAR for the demo flow.
+      if (payload && payload.sourcePath && /\.rar$/i.test(payload.sourcePath)) {
+        if (!payload.password) return { ok: false, error: 'PASSWORD_REQUIRED', encrypted: 'header', source: { label: 'demo.rar' } };
+        if (payload.password !== 'secret') return { ok: false, error: 'PASSWORD_INCORRECT', source: { label: 'demo.rar' } };
+      }
+      return {
+        ok: true,
+        source: { label: 'demo.zip', kind: 'archive', archiveType: 'zip', sizeBytes: 1024, entryCount: 3 },
+        totalItems: 1,
+        items: [{
+          id: 'car:demo_car', type: 'car', name: 'demo_car', displayName: 'Demo Car', brand: 'Demo',
+          sourceRoot: 'content/cars/demo_car', targetRelative: 'content/cars/demo_car',
+          fileCount: 2, sizeBytes: 500, status: 'new', overwriteCount: 0, addCount: 2,
+          previewDataUrl: null, files: [{ rel: 'data.acd', size: 100 }, { rel: 'ui/ui_car.json', size: 50 }]
+        }],
+        warnings: []
+      };
+    },
     installMod: async (payload) => ({ success: true, cancelled: false, installedCount: 1, items: [{ id: 'car:demo_car', type: 'car', name: 'demo_car', status: 'installed' }] }),
     cancelModInstall: async () => true,
     onModInstallProgress: () => () => {}
@@ -157,6 +164,29 @@ async function bootstrap() {
   assert.ok(container.innerHTML.includes('mi-list'), 'modInstall should render review list');
   assert.ok(container.innerHTML.includes('Demo Car'), 'modInstall should render detected item');
   assert.ok(container.innerHTML.includes('btn-install'), 'modInstall should render install button');
+
+  // == Mod install: password-protected RAR ==
+  window.navigate('modInstall', { sources: ['/fake/demo.rar'] });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(container.innerHTML.includes('mi-password-input'), 'modInstall should prompt for password');
+  assert.ok(container.innerHTML.includes('mi-password-title'), 'password prompt should show title');
+
+  // wrong password → stays on prompt, error visible
+  let pwInput = document.getElementById('mi-password-input');
+  pwInput.value = 'wrong';
+  document.getElementById('btn-pw-unlock').dispatchEvent(new window.Event('click'));
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(container.innerHTML.includes('mi-password-input'), 'should re-prompt after wrong password');
+  const pwErr = document.getElementById('mi-password-error');
+  assert.ok(pwErr && pwErr.style.display !== 'none', 'password error should be visible after wrong password');
+
+  // correct password → proceeds to review
+  pwInput = document.getElementById('mi-password-input');
+  pwInput.value = 'secret';
+  document.getElementById('btn-pw-unlock').dispatchEvent(new window.Event('click'));
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(container.innerHTML.includes('mi-list'), 'review should render after correct password');
+  assert.ok(container.innerHTML.includes('Demo Car'), 'review should show detected item after unlock');
 
   const plan = {
     tier: 'ultra', gamePath: '/fake/game',

@@ -18,6 +18,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const AdmZip = require('adm-zip');
 let rar = null;
@@ -96,6 +97,16 @@ function segments(p) {
   return normRel(p).split('/').filter(Boolean);
 }
 
+/* Classify a node-unrar-js UnrarError into a small set of actionable kinds
+   so callers can translate raw failure reasons into UX decisions. */
+function rarErrorKind(e) {
+  const reason = e && e.reason;
+  if (reason === 'ERAR_MISSING_PASSWORD') return 'missing-password';
+  if (reason === 'ERAR_BAD_PASSWORD') return 'bad-password';
+  if (reason === 'ERAR_BAD_DATA') return 'bad-data';
+  return 'other';
+}
+
 /* ------------------------------------------------------------------ */
 /*  Source detection                                                   */
 /* ------------------------------------------------------------------ */
@@ -160,16 +171,36 @@ function listZipEntries(file) {
   });
 }
 
-async function listRarEntries(file) {
+/* Open a RAR and read its full file list. Returns entry rows plus a summary
+   of whether the archive is password-protected (header- or file-encrypted),
+   which the caller uses to decide whether to prompt for a password.
+   Throws a node-unrar-js UnrarError on failure (classify with rarErrorKind). */
+async function probeRar(file, password) {
   if (!rar) rar = require('node-unrar-js');
-  const extractor = await rar.createExtractorFromFile({ filepath: file });
+  const extractor = await rar.createExtractorFromFile({ filepath: file, password: password || undefined });
   const list = extractor.getFileList();
-  const out = [];
-  for (const h of list.fileHeaders) {
+  const fileHeaders = [...list.fileHeaders]; // traverse to the end (avoids WASM leak)
+  const entries = [];
+  const encryptedFiles = [];
+  let encrypted = Boolean(list.arcHeader.flags.headerEncrypted);
+  for (const h of fileHeaders) {
     const isDir = Boolean(h.flags && h.flags.directory);
-    out.push({ path: normRel(h.name), isDir, size: isDir ? 0 : (h.unpSize || 0) });
+    if (h.flags && h.flags.encrypted) {
+      encrypted = true;
+      if (!isDir) encryptedFiles.push({ name: h.name, size: h.unpSize || 0 });
+    }
+    entries.push({ path: normRel(h.name), isDir, size: isDir ? 0 : (h.unpSize || 0) });
   }
-  return out;
+  return {
+    entries,
+    encrypted,
+    headerEncrypted: Boolean(list.arcHeader.flags.headerEncrypted),
+    encryptedFiles
+  };
+}
+
+async function listRarEntries(file, password) {
+  return (await probeRar(file, password)).entries;
 }
 
 async function listSourceEntries(source) {
@@ -389,7 +420,7 @@ function readZipFile(file, rel) {
   } catch (e) { return null; }
 }
 
-async function readRarFiles(file, rels) {
+async function readRarFiles(file, rels, password) {
   if (!rar) rar = require('node-unrar-js');
   let stat;
   try { stat = fs.statSync(file); } catch (e) { return {}; }
@@ -398,14 +429,41 @@ async function readRarFiles(file, rels) {
   const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   const result = {};
   try {
-    const extractor = await rar.createExtractorFromData({ data: buffer });
+    const extractor = await rar.createExtractorFromData({ data: buffer, password: password || undefined });
     const extract = extractor.extract({ files: rels });
     for (const item of extract.files) {
       const name = normRel(item.fileHeader.name);
       if (item.extraction) result[name] = Buffer.from(item.extraction);
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { /* ignore — individual reads are best-effort */ }
   return result;
+}
+
+/* Verify a user-supplied password by actually decrypting the smallest
+   encrypted entry in the archive. Returns true when the password unlocks the
+   content, false when it is wrong (or the archive cannot be read). */
+async function verifyRarPassword(file, encryptedFiles, password) {
+  if (!rar) rar = require('node-unrar-js');
+  const candidates = (encryptedFiles || []).filter((f) => f && f.name && !String(f.name).endsWith('/'));
+  if (!candidates.length) return true; // nothing to verify against
+  candidates.sort((a, b) => (a.size || 0) - (b.size || 0));
+  const target = candidates[0].name;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'uhm-verify-'));
+  try {
+    const extractor = await rar.createExtractorFromFile({
+      filepath: file,
+      password: password || undefined,
+      targetPath: tmp
+    });
+    const { files } = extractor.extract({ files: [target] });
+    let extracted = false;
+    for (const f of files) { extracted = true; } // consume the lazy iterator
+    return extracted;
+  } catch (e) {
+    return false;
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* ignore */ }
+  }
 }
 
 function readSourceFile(source, rel) {
@@ -437,7 +495,7 @@ function pickMetaValue(obj, keys) {
   return '';
 }
 
-async function hydrateItems(source, detected) {
+async function hydrateItems(source, detected, password) {
   const items = detected.items;
   // Batch rar reads in a single pass (best-effort).
   let rarBufs = {};
@@ -448,7 +506,7 @@ async function hydrateItems(source, detected) {
       else if (it.type === 'track') rels.push(`${it.sourceRoot}/ui/ui_track.json`);
       else if (it.type === 'skin') rels.push(`${it.sourceRoot}/ui_skin.json`);
     }
-    rarBufs = await readRarFiles(source.path, rels.filter(Boolean));
+    rarBufs = await readRarFiles(source.path, rels.filter(Boolean), password);
   }
 
   for (const it of items) {
@@ -587,7 +645,7 @@ function buildPlan(gamePath, items) {
 /*  Execution                                                          */
 /* ------------------------------------------------------------------ */
 
-async function extractToStaging(source, stagingDir) {
+async function extractToStaging(source, stagingDir, password) {
   fs.mkdirSync(stagingDir, { recursive: true });
   if (source.kind === 'folder') return source.path; // already on disk
   if (source.kind === 'archive' && source.archiveType === 'zip') {
@@ -597,8 +655,16 @@ async function extractToStaging(source, stagingDir) {
   }
   if (source.kind === 'archive' && source.archiveType === 'rar') {
     if (!rar) rar = require('node-unrar-js');
-    const extractor = await rar.createExtractorFromFile({ filepath: source.path, targetPath: stagingDir });
-    extractor.extract({ files: [] });
+    const extractor = await rar.createExtractorFromFile({
+      filepath: source.path,
+      targetPath: stagingDir,
+      password: password || undefined
+    });
+    // NOTE: node-unrar-js treats an EMPTY files array as "extract nothing",
+    // so we omit `files` entirely to extract everything, then consume the
+    // lazy iterator to actually run the extraction (and avoid a WASM leak).
+    const { files } = extractor.extract();
+    for (const f of files) { /* traverse to completion */ }
     return stagingDir;
   }
   return null;
@@ -623,7 +689,8 @@ async function executeInstall(sourcePath, items, options = {}) {
     gamePath = '',
     backupsDir,
     onProgress = () => {},
-    isCancelled = () => false
+    isCancelled = () => false,
+    password = ''
   } = options;
 
   if (!gamePath || !fs.existsSync(gamePath)) {
@@ -642,7 +709,14 @@ async function executeInstall(sourcePath, items, options = {}) {
 
   const stamp = Date.now();
   const stagingRoot = path.join(gamePath, '.uhm-staging', String(stamp));
-  const stagingBase = await extractToStaging(source, stagingRoot);
+  let stagingBase;
+  try {
+    stagingBase = await extractToStaging(source, stagingRoot, password);
+  } catch (e) {
+    const kind = rarErrorKind(e);
+    const pwFail = kind === 'missing-password' || kind === 'bad-password' || kind === 'bad-data';
+    return { success: false, error: pwFail ? 'PASSWORD_INCORRECT' : 'EXTRACT_FAILED', cancelled: false, items: [] };
+  }
   if (!stagingBase) {
     return { success: false, error: 'EXTRACT_FAILED', cancelled: false, items: [] };
   }
@@ -720,7 +794,8 @@ async function executeInstall(sourcePath, items, options = {}) {
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-async function analyzeSource(sourcePath, gamePath) {
+async function analyzeSource(sourcePath, gamePath, options = {}) {
+  const password = (options && typeof options.password === 'string' && options.password) ? options.password : '';
   const source = detectSourceKind(sourcePath);
   if (source.kind === 'invalid' || source.kind === 'missing') {
     return { ok: false, error: 'SOURCE_MISSING', source: { label: path.basename(sourcePath || '') } };
@@ -733,14 +808,44 @@ async function analyzeSource(sourcePath, gamePath) {
   }
 
   let entries;
+  let rarMeta = null;
   try {
-    entries = await listSourceEntries(source);
+    if (source.kind === 'archive' && source.archiveType === 'rar') {
+      rarMeta = await probeRar(source.path, password);
+      entries = rarMeta.entries;
+      if (rarMeta.encrypted && !password) {
+        return {
+          ok: false,
+          error: 'PASSWORD_REQUIRED',
+          encrypted: rarMeta.headerEncrypted ? 'header' : 'files',
+          source
+        };
+      }
+      if (rarMeta.encrypted && password) {
+        const verified = await verifyRarPassword(source.path, rarMeta.encryptedFiles, password);
+        if (!verified) return { ok: false, error: 'PASSWORD_INCORRECT', source };
+      }
+    } else {
+      entries = await listSourceEntries(source);
+    }
   } catch (e) {
+    const kind = rarErrorKind(e);
+    if (kind === 'missing-password') {
+      return { ok: false, error: 'PASSWORD_REQUIRED', encrypted: 'header', source };
+    }
+    if (kind === 'bad-password' || kind === 'bad-data') {
+      return { ok: false, error: password ? 'PASSWORD_INCORRECT' : 'READ_FAILED', source };
+    }
     return { ok: false, error: 'READ_FAILED', source };
   }
 
   const detected = detectMods(entries);
-  let items = await hydrateItems(source, detected);
+  let items;
+  try {
+    items = await hydrateItems(source, detected, password);
+  } catch (e) {
+    return { ok: false, error: 'READ_FAILED', source };
+  }
   if (gamePath && typeof gamePath === 'string') {
     items = buildPlan(gamePath, items);
   } else {
@@ -771,6 +876,9 @@ module.exports = {
   listFolderEntries,
   listZipEntries,
   listRarEntries,
+  probeRar,
+  verifyRarPassword,
+  rarErrorKind,
   buildTree,
   detectMods,
   buildPlan,

@@ -24,11 +24,12 @@
   let state = {
     sources: [],
     gamePath: null,
-    phase: 'idle',       // idle | analyzing | review | installing | done
+    phase: 'idle',       // idle | analyzing | password | review | installing | done
     results: [],         // analyzeSource results (one per source)
     selected: {},        // item key -> boolean
     progressUnsub: null,
-    busy: false
+    busy: false,
+    password: ''         // resolved archive password (if any)
   };
 
   function lang() { return window.appState.lang; }
@@ -49,6 +50,7 @@
     state.results = [];
     state.selected = {};
     state.busy = false;
+    state.password = '';
     if (state.progressUnsub) { state.progressUnsub(); state.progressUnsub = null; }
 
     if (!state.gamePath) {
@@ -114,7 +116,7 @@
   /*  Analyze                                                            */
   /* ------------------------------------------------------------------ */
 
-  async function runAnalyze(container) {
+  async function runAnalyze(container, password) {
     state.phase = 'analyzing';
     container.innerHTML = `
       <div class="page-header">
@@ -133,7 +135,11 @@
     for (let i = 0; i < state.sources.length; i += 1) {
       const src = state.sources[i];
       try {
-        const r = await window.uhm.analyzeModSource({ sourcePath: src, gamePath: state.gamePath });
+        const r = await window.uhm.analyzeModSource({
+          sourcePath: src,
+          gamePath: state.gamePath,
+          password: password || ''
+        });
         if (r && Array.isArray(r.items)) {
           r.items.forEach((it) => { it._key = i + ':' + (it.id || it.name); it._srcLabel = basename(src); });
         }
@@ -143,7 +149,69 @@
       }
     }
     state.results = results;
+
+    // A password-protected archive needs a password before we can review it.
+    const pwNeeded = results.find((r) => r && r.error === 'PASSWORD_REQUIRED');
+    const pwWrong = results.find((r) => r && r.error === 'PASSWORD_INCORRECT');
+    if (pwNeeded || pwWrong) {
+      renderPasswordPrompt(container, Boolean(pwWrong));
+      return;
+    }
+
+    state.password = password || '';
     renderReview(container);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Password prompt (encrypted RAR)                                    */
+  /* ------------------------------------------------------------------ */
+
+  function renderPasswordPrompt(container, incorrect) {
+    state.phase = 'password';
+    const label = state.sources.map(basename).filter(Boolean).join(' · ') || '—';
+    container.innerHTML = `
+      <div class="page-header">
+        <button class="back-btn" id="btn-back">${uhmBackArrow(lang())}</button>
+        <div class="page-header-copy">
+          <h2>${s('title')}</h2>
+        </div>
+      </div>
+      <div class="page-stack">
+        <section class="card-sec mi-password">
+          <div class="mi-password-icon">🔒</div>
+          <div class="mi-password-title">${s('passwordTitle')}</div>
+          <div class="text-dim mi-password-sub">${s('passwordSub')}</div>
+          <div class="mi-chip">📄 ${uhmEsc(label)}</div>
+          <input type="password" id="mi-password-input" class="mi-password-input"
+                 placeholder="${s('passwordPlaceholder')}" autocomplete="off"
+                 spellcheck="false" autocapitalize="off" />
+          <div class="mi-password-error" id="mi-password-error" ${incorrect ? '' : 'style="display:none"'}>
+            ${s('passwordIncorrect')}
+          </div>
+          <div class="wizard-footer">
+            <button class="btn-secondary" id="btn-pw-cancel">${s('cancel')}</button>
+            <button class="btn-primary" id="btn-pw-unlock">${s('passwordSubmit')}</button>
+          </div>
+        </section>
+      </div>`;
+
+    document.getElementById('btn-back').addEventListener('click', () => goBack('library'));
+    document.getElementById('btn-pw-cancel').addEventListener('click', () => goBack('library'));
+
+    const input = document.getElementById('mi-password-input');
+    const submit = () => {
+      const pw = input.value;
+      if (!pw) {
+        input.focus();
+        const err = document.getElementById('mi-password-error');
+        if (err) err.style.display = '';
+        return;
+      }
+      runAnalyze(container, pw);
+    };
+    document.getElementById('btn-pw-unlock').addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    input.focus();
   }
 
   /* ------------------------------------------------------------------ */
@@ -378,10 +446,22 @@
 
     const sourcePath = state.sources[0];
 
-    window.uhm.installMod({ sourcePath, items: payloadItems, gamePath: state.gamePath })
+    window.uhm.installMod({
+      sourcePath,
+      items: payloadItems,
+      gamePath: state.gamePath,
+      password: state.password || ''
+    })
       .then((result) => {
         if (state.progressUnsub) { state.progressUnsub(); state.progressUnsub = null; }
         state.busy = false;
+        // The archive may have changed on disk; if the password is no longer
+        // valid, send the user back to the password prompt.
+        if (result && result.error === 'PASSWORD_INCORRECT') {
+          state.password = '';
+          renderPasswordPrompt(container, true);
+          return;
+        }
         renderDone(container, result);
       })
       .catch((e) => {
