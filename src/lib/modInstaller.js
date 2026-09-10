@@ -36,7 +36,7 @@ const CONTENT_TYPES = new Set(['car', 'track', 'skin', 'app', 'ppfilter', 'font'
 /* ------------------------------------------------------------------ */
 
 function normRel(p) {
-  return String(p || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+  return String(p || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
 /* A relative path that can never escape its root (no "..", no absolute). */

@@ -171,6 +171,64 @@ async function main() {
     assert.strictEqual(analysis.error, 'UNSUPPORTED_FORMAT');
     assert.strictEqual(analysis.format, '7z');
   }
+
+  /* ===================================================================
+     7) real ZIP archive round-trip (analyze + install)
+     =================================================================== */
+  {
+    const AdmZip = require('adm-zip');
+    const zipSrc = path.join(tmp, 'zip_src');
+    write(path.join(zipSrc, 'content', 'cars', 'zip_car', 'ui', 'ui_car.json'), '{"name":"Zip Car","brand":"Z"}');
+    write(path.join(zipSrc, 'content', 'cars', 'zip_car', 'data.acd'), 'zip-data');
+
+    const zipFile = path.join(tmp, 'car.zip');
+    const zip = new AdmZip();
+    zip.addLocalFolder(zipSrc);
+    zip.writeZip(zipFile);
+
+    const analysis = await analyzeSource(zipFile, game);
+    assert.strictEqual(analysis.ok, true);
+    assert.strictEqual(analysis.items.length, 1);
+    assert.strictEqual(analysis.items[0].type, 'car');
+    assert.strictEqual(analysis.items[0].displayName, 'Zip Car');
+
+    const it = analysis.items[0];
+    const res = await executeInstall(zipFile, [{ id: it.id, type: it.type, name: it.name, car: it.car, sourceRoot: it.sourceRoot, files: it.files }], {
+      gamePath: game,
+      backupsDir: backups,
+      onProgress: () => {},
+      isCancelled: () => false
+    });
+    assert.strictEqual(res.success, true);
+    assert.ok(fs.existsSync(path.join(game, 'content', 'cars', 'zip_car', 'data.acd')), 'zip car extracted to game');
+    assert.strictEqual(fs.readFileSync(path.join(game, 'content', 'cars', 'zip_car', 'data.acd'), 'utf8'), 'zip-data');
+  }
+
+  /* ===================================================================
+     8) bare car folder (no content wrapper) + versioned wrapper folder
+     =================================================================== */
+  {
+    // (a) bare car folder at archive root
+    const bare = path.join(tmp, 'bare_src');
+    write(path.join(bare, 'bare_car', 'ui', 'ui_car.json'), '{"name":"Bare Car"}');
+    write(path.join(bare, 'bare_car', 'data.acd'), 'bare');
+    let analysis = await analyzeSource(bare, game);
+    assert.strictEqual(analysis.ok, true);
+    assert.strictEqual(analysis.items.length, 1);
+    assert.strictEqual(analysis.items[0].type, 'car');
+    assert.strictEqual(analysis.items[0].name, 'bare_car');
+
+    // (b) extra versioned wrapper: my_car_v1.2/content/cars/my_car/...
+    const wrapped = path.join(tmp, 'wrapped_src');
+    write(path.join(wrapped, 'my_car_v1.2', 'content', 'cars', 'my_car', 'ui', 'ui_car.json'), '{"name":"Wrapped Car"}');
+    write(path.join(wrapped, 'my_car_v1.2', 'content', 'cars', 'my_car', 'data.acd'), 'wrapped');
+    analysis = await analyzeSource(wrapped, game);
+    assert.strictEqual(analysis.ok, true);
+    assert.strictEqual(analysis.items.length, 1);
+    assert.strictEqual(analysis.items[0].type, 'car');
+    assert.strictEqual(analysis.items[0].name, 'my_car');
+    assert.strictEqual(analysis.items[0].sourceRoot, 'content/cars/my_car');
+  }
 }
 
 main().then(() => console.log('MOD INSTALLER TESTS PASSED')).catch((e) => { console.error('MOD INSTALLER TEST FAILED', e); process.exit(1); });
