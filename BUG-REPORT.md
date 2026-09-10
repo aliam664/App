@@ -80,6 +80,12 @@
 - `src/pages/gamePath.js`: رویداد `input` بدون debounce به ازای هر حرف `validateGamePath` صدا می‌زد.
 - ✅ **رفع شد:** debounce ۲۵۰ms اضافه شد.
 
+### ۲-۹) نصب از آرشیو RAR هیچ فایلی استخراج نمی‌کرد + پشتیبانی رمز ⭐
+- **فایل:** `src/lib/modInstaller.js`
+- `extractToStaging` برای RAR از `extractor.extract({ files: [] })` استفاده می‌کرد؛ در `node-unrar-js` آرایه‌ی خالی یعنی «هیچ‌چیز استخراج نکن» → استیج خالی می‌ماند و هیچ فایلی کپی نمی‌شد. بنابراین نصب مود از فایل `.rar` عملاً بی‌اثر بود.
+- ✅ **رفع شد:** با حذف گزینه‌ی `files` (استخراج همه) و پیمایش کامل iterator، استخراج واقعی انجام می‌شود.
+- **پشتیبانی رمز (جدید):** آرشیوهای رمزدار حالا در تحلیل شناسایی می‌شوند (`header-encrypted` از خطای `ERAR_MISSING_PASSWORD` هنگام فهرست‌خوانی، و `file-encrypted` از فلگ `flags.encrypted` هر ورودی). اگر رمز لازم باشد صفحه‌ی درخواست رمز نشان داده می‌شود؛ رمز اشتباه → `PASSWORD_INCORRECT` با امکان تلاش مجدد، و رمز درست در تحلیل و نصب استفاده و یک‌بار با استخراج کوچک‌ترین فایل رمزدار اعتبارسنجی می‌شود.
+
 ---
 
 ## 🟡 ۳) موارد پیدا شده ولی عمداً دست‌نخورده (پیشنهادی)
@@ -124,6 +130,10 @@
 | `src/lib/hardware.js` | `parseVramToGb(raw, unit)` با واحد صریح + sentinel 0xFFFFFFFF + `specs.constrained` + گارد خطا در تشخیص GPU |
 | `src/js/ui.js` | escape کردن label/value در `infoRow` و `statCard` (جلوگیری از تزریق HTML) |
 | `test/hardware.test.js`, `test/library.test.js` | تست‌های جدید برای واحد VRAM، sentinel، و fallback پیش‌نمایش اسکین |
+| `src/lib/modInstaller.js` | پشتیبانی RAR رمزدار (تشخیص header/file-encrypted، اعتبارسنجی رمز، نصب با رمز) + رفع باگ استخراج کامل RAR (`extract({files:[]})` هیچ فایلی استخراج نمی‌کرد) |
+| `main.js`, `preload.js`, `src/pages/modInstall.js` | عبور `password` در IPC و ویزارد؛ صفحه‌ی درخواست رمز با retry و پیام «رمز اشتباه» |
+| `src/js/i18n.js` | کلیدهای `passwordTitle/passwordSub/passwordPlaceholder/passwordSubmit/passwordIncorrect` (fa/en) |
+| `test/modInstaller.test.js` + `test/fixtures/*.rar` | تست‌های RAR ساده/رمزدار (header/file encryption) و نصب end-to-end با فیکسچرهای واقعی |
 
 ---
 
@@ -136,6 +146,7 @@ test/hardware.test.js            ✔ PASSED
 test/renderer.test.js            ✔ PASSED
 test/library.test.js             ✔ PASSED
 test/libraryData.test.js         ✔ PASSED
+test/modInstaller.test.js        ✔ PASSED
 ```
 
 > برای اجرای تست‌های `installer` و `renderer` وابستگی‌ها (`adm-zip`, `node-unrar-js`, `linkedom`) لازم است. در این سندباکس npm به‌دلیل TLS-intercept شبکه نمی‌توانست نصب کند، بنابراین بسته‌ها به‌صورت دستی از رجیستری (که مستقیم با Node در دسترس بود) وندور و نصب شدند و هر ۵ تست سبز هستند.
