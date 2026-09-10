@@ -14,12 +14,19 @@
 
 /* ---------- Hero ---------- */
 .home-hero { display: flex; flex-direction: column; gap: 16px; }
-.home-hero-main { display: flex; gap: 22px; align-items: stretch; }
+/* Force a physical left→right row regardless of the UI direction, so the
+   smaller showcase slideshow always sits on the LEFT and the action buttons
+   always sit on its RIGHT (both in RTL Persian and LTR languages). */
+.home-hero-main { display: flex; gap: 22px; align-items: stretch; direction: ltr; }
 .home-hero-media { flex: 1.15; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .home-hero-copy {
   flex: 1; display: flex; flex-direction: column; justify-content: center;
   gap: 12px; min-width: 0; padding: 6px 0;
+  /* Restore the natural reading direction inside the copy column so Persian
+     text stays right-aligned while the column itself is on the right side. */
+  direction: rtl; text-align: right;
 }
+body[dir='ltr'] .home-hero-copy { direction: ltr; text-align: left; }
 .home-hero-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 .home-hero-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
 .home-action-main { width: 100%; justify-content: center; }
