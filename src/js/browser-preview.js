@@ -26,6 +26,35 @@
     async checkBaseMods() { return { csp: { found: true, markers: [] }, pure: { found: false, markers: [] } }; },
     async copyWithBackup() { return { success: true }; },
     async restoreOrDelete() { return { status: 'deleted' }; },
+    async scanLibrary() {
+      const mk = (type, folder, name, extra) => ({
+        type, id: type + ':' + folder, folder, name,
+        brand: '', 'class': '', klass: '', country: '', city: '', location: '',
+        length: '', year: '', description: '',
+        specs: {}, hasPreview: false, preview: null, previewVariants: [],
+        isKunos: false, isDlc: false, isMod: true, origin: 'mod',
+        skinCount: 0, skins: [], layouts: [], hasData: true, hasSound: true, hasCamera: false,
+        sizeBytes: 0, fileCount: 0, modifiedAt: new Date().toISOString(), hasUi: true,
+        ...extra
+      });
+      return {
+        cars: [
+          mk('car', 'ks_ferrari_fxxk', 'Ferrari FXX-K', { isKunos: true, isMod: false, origin: 'kunos', brand: 'Ferrari', 'class': 'Race', year: '2014', specs: { power: '860', weight: '1150' }, skinCount: 4, skins: ['Red', 'Black'] }),
+          mk('car', 'bmw_m3_e30', 'BMW M3 E30', { brand: 'BMW', 'class': 'Road', year: '1986', specs: { power: '230', weight: '1200' }, skinCount: 2, isMod: true })
+        ],
+        tracks: [
+          mk('track', 'ks_monza', 'Monza', { isKunos: true, isMod: false, origin: 'kunos', country: 'Italy', length: '5.79 km', layoutCount: 2, layouts: [{ name: 'GP', length: '5.79 km', country: 'Italy' }, { name: 'Junior', length: '3.3 km', country: 'Italy' }] }),
+          mk('track', 'drift_city', 'Drift City', { country: 'Japan', length: '2.1 km', layoutCount: 1 })
+        ]
+      };
+    },
+    async getContentPreview() { return null; },
+    async deleteContent() { return { success: true }; },
+    async restoreContent() { return { success: true }; },
+    async purgeContent() { return { success: true }; },
+    async emptyTrash() { return { success: true }; },
+    async listTrash() { return []; },
+    async getPreviewCandidates() { return []; },
     async pathExists() { return true; },
     async getLocalAppData() { return 'C:\\AppData'; },
     async detectSystemSpecs() {

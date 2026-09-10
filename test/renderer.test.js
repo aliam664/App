@@ -44,7 +44,25 @@ async function bootstrap() {
     runUninstall: async () => [],
     listModAssets: async () => ['csp', 'pure'],
     onInstallProgress: () => () => {},
-    openExternal: () => {}
+    openExternal: () => {},
+    scanLibrary: async () => ({
+      cars: [{
+        type: 'car', id: 'car:ks_ferrari_fxxk', folder: 'ks_ferrari_fxxk', name: 'Ferrari FXX K',
+        brand: 'Ferrari', klass: 'Race', country: 'Italy', year: '2014', specs: { power: '860' },
+        preview: 'content/cars/ks_ferrari_fxxk/ui/preview.png', hasPreview: true,
+        isKunos: true, isMod: false, isDlc: false, origin: 'kunos',
+        skinCount: 2, skins: ['red'], layoutCount: 0, layouts: [],
+        sizeBytes: 100, fileCount: 2, modifiedAt: '2024-01-01', hasUi: true
+      }],
+      tracks: []
+    }),
+    getContentPreview: async () => null,
+    deleteContent: async () => ({ success: true }),
+    restoreContent: async () => ({ success: true }),
+    purgeContent: async () => ({ success: true }),
+    emptyTrash: async () => ({ success: true }),
+    listTrash: async () => [],
+    getPreviewCandidates: async () => []
   };
 
   // بارگذاری اسکریپت‌ها (به همان ترتیب index.html)
@@ -61,7 +79,9 @@ async function bootstrap() {
     'src/pages/tierSelect.js',
     'src/pages/install.js',
     'src/pages/done.js',
-    'src/pages/manageMods.js'
+    'src/pages/manageMods.js',
+    'src/js/libraryData.js',
+    'src/pages/library.js'
   ];
   for (const f of files) loadScript(ctx, f);
 
@@ -92,6 +112,15 @@ async function bootstrap() {
 
   window.navigate('tierSelect');
   assert.ok(container.innerHTML.includes('شروع نصب') || container.innerHTML.includes('low'), 'tierSelect should render');
+
+  // == Content Library page ==
+  window.navigate('library');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(container.innerHTML.includes('کتابخانه'), 'library should render title');
+  assert.ok(container.innerHTML.includes('library-stats'), 'library should render stats');
+  assert.ok(container.innerHTML.includes('library-tabs'), 'library should render tabs');
+  assert.ok(container.innerHTML.includes('library-search'), 'library should render search');
+  assert.ok(container.innerHTML.includes('Ferrari FXX K'), 'library should render scanned car');
 
   const plan = {
     tier: 'ultra', gamePath: '/fake/game',

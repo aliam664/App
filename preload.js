@@ -29,7 +29,10 @@ contextBridge.exposeInMainWorld('uhm', {
   getContentPreview: (payload) => ipcRenderer.invoke('library:get-preview', payload),
   deleteContent: (payload) => ipcRenderer.invoke('library:delete', payload),
   restoreContent: (payload) => ipcRenderer.invoke('library:restore', payload),
+  purgeContent: (payload) => ipcRenderer.invoke('library:purge', payload),
+  emptyTrash: () => ipcRenderer.invoke('library:empty-trash'),
   listTrash: () => ipcRenderer.invoke('library:trash'),
+  getPreviewCandidates: (type) => ipcRenderer.invoke('library:preview-candidates', type),
 
   // نصب / حذف
   runInstall: (payload) => ipcRenderer.invoke('install:run', payload),
