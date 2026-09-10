@@ -27,9 +27,23 @@ function applyTheme(theme) {
 function applyLanguage(lang) {
   const dir = window.i18n.t(lang, 'dir');
   document.body.setAttribute('dir', dir);
+  document.documentElement.setAttribute('lang', lang || 'fa');
   window.appState.lang = lang || 'fa';
   const label = document.getElementById('app-name-label');
   if (label) label.textContent = window.i18n.t(lang, 'appName');
+
+  // Localize the static titlebar controls' tooltips too.
+  const titlebarTitles = {
+    'btn-theme-toggle': 'window.theme',
+    'btn-settings': 'window.settings',
+    'btn-minimize': 'window.minimize',
+    'btn-maximize': 'window.maximize',
+    'btn-close': 'window.close'
+  };
+  Object.keys(titlebarTitles).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.title = window.i18n.t(lang, titlebarTitles[id]);
+  });
 }
 
 function destroyCurrentPage() {
@@ -82,6 +96,10 @@ function goBack(fallback = 'showcase') {
 
 window.navigate = navigate;
 window.goBack = goBack;
+// Exposed so other page modules (loaded as separate classic scripts) can call
+// them directly, mirroring the existing navigate/goBack globals.
+window.applyTheme = applyTheme;
+window.applyLanguage = applyLanguage;
 
 /* ------------------------------------------------------------------ */
 /*  Titlebar                                                           */

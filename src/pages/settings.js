@@ -66,6 +66,8 @@
             <div class="toggle-group" id="lang-toggle">
               <button data-lang="fa" class="${lang === 'fa' ? 'active' : ''}">فارسی</button>
               <button data-lang="en" class="${lang === 'en' ? 'active' : ''}">English</button>
+              <button data-lang="zh" class="${lang === 'zh' ? 'active' : ''}">中文</button>
+              <button data-lang="ja" class="${lang === 'ja' ? 'active' : ''}">日本語</button>
             </div>
           </div>
 

@@ -220,6 +220,23 @@ async function bootstrap() {
   assert.ok(copyBtn.classList.contains('copied'), 'copy button should enter the copied state');
   assert.ok(container.innerHTML.includes('کپی شد'), 'copy button should show the copied label');
 
+  // == Language switching (中文 / 日本語) ==
+  window.navigate('settings');
+  const zhBtn = document.querySelector('#lang-toggle button[data-lang="zh"]');
+  const jaBtn = document.querySelector('#lang-toggle button[data-lang="ja"]');
+  assert.ok(zhBtn, 'settings should offer Chinese');
+  assert.ok(jaBtn, 'settings should offer Japanese');
+
+  zhBtn.dispatchEvent(new window.Event('click'));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(window.appState.lang, 'zh');
+  assert.ok(container.innerHTML.includes('设置'), 'settings should render in Chinese');
+
+  jaBtn.dispatchEvent(new window.Event('click'));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(window.appState.lang, 'ja');
+  assert.ok(container.innerHTML.includes('設定'), 'settings should render in Japanese');
+
   // == تست mock پیش‌نمایش مرورگر (npm run serve) ==
   const { window: pw, document: pd } = parseHTML('<!DOCTYPE html><body></body>');
   pw.localStorage = { getItem: () => null, setItem: () => {} };

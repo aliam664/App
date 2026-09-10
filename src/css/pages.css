@@ -368,6 +368,7 @@ body[dir='ltr'] .settings-row.clickable:hover { transform: translateX(2px); }
 
 .toggle-group {
   display: flex;
+  flex-wrap: wrap;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 10px; padding: 3px; gap: 3px;
 }

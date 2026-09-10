@@ -17,8 +17,12 @@ function uhmFormatDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
+  // Format dates in the current UI language's locale so Persian, English,
+  // Chinese and Japanese users each see a familiar calendar/format.
+  const lang = (window.appState && window.appState.lang) || 'fa';
+  const locale = { fa: 'fa-IR', en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' }[lang] || 'en-US';
   try {
-    return d.toLocaleString('fa-IR', {
+    return d.toLocaleString(locale, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',

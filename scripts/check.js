@@ -22,7 +22,8 @@ const files = [
   'test/renderer.test.js',
   'test/library.test.js',
   'test/libraryData.test.js',
-  'test/modInstaller.test.js'
+  'test/modInstaller.test.js',
+  'test/i18n.test.js'
 ];
 
 let ok = true;
@@ -57,7 +58,8 @@ if (ok) {
     'node test/renderer.test.js',
     'node test/library.test.js',
     'node test/libraryData.test.js',
-    'node test/modInstaller.test.js'
+    'node test/modInstaller.test.js',
+    'node test/i18n.test.js'
   ]) {
     try {
       execSync(t, { stdio: 'inherit' });
