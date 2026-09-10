@@ -56,11 +56,11 @@
     const tierName = manifest.systemTier ? t('tierSelect.' + manifest.systemTier) : t('settings.notDetected');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🎛️', kicker: 'Appearance', title: s('appearanceTitle'), subtitle: s('appearanceSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Appearance', title: s('appearanceTitle'), subtitle: s('appearanceSub') })}
         <div class="stack-gap">
           <div class="card-sec settings-row">
             <div class="settings-row-body">
-              <div class="card-sec-title">🌐 ${s('language')}</div>
+              <div class="card-sec-title"> ${s('language')}</div>
               <div class="card-sec-sub">${s('languageSub')}</div>
             </div>
             <div class="toggle-group" id="lang-toggle">
@@ -73,7 +73,7 @@
 
           <div class="card-sec settings-row">
             <div class="settings-row-body">
-              <div class="card-sec-title">${window.appState.theme === 'night' ? '🌙' : '☀️'} ${s('theme')}</div>
+              <div class="card-sec-title">${s('theme')}</div>
               <div class="card-sec-sub">${s('themeSub')}</div>
             </div>
             <div class="toggle-group" id="theme-toggle">
@@ -84,7 +84,7 @@
 
           <div class="card-sec settings-row">
             <div class="settings-row-body">
-              <div class="card-sec-title">📊 ${s('installInfo')}</div>
+              <div class="card-sec-title"> ${s('installInfo')}</div>
               <div class="card-sec-sub">${s('installInfoSub')}</div>
             </div>
             <div class="settings-info-value">
@@ -100,7 +100,7 @@
   function renderSystemCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🖥️', kicker: 'System', title: s('systemTitle'), subtitle: s('systemSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'System', title: s('systemTitle'), subtitle: s('systemSub') })}
         <div class="card-sec">
           <div class="settings-row" style="align-items:center;">
             <div class="settings-row-body">
@@ -122,7 +122,7 @@
     const has = Boolean(settings.gamePath);
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '📁', kicker: 'Game', title: s('gamePath'), subtitle: s('gamePathSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Game', title: s('gamePath'), subtitle: s('gamePathSub') })}
         <div class="card-sec settings-row clickable" id="row-game-path">
           <div class="settings-row-body">
             <div class="card-sec-title">${s('gamePath')}</div>
@@ -139,7 +139,7 @@
     const tierName = manifest.systemTier ? t('tierSelect.' + manifest.systemTier) : t('settings.notDetected');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🗂️', kicker: 'Install', title: s('installSummary'), subtitle: s('installSummarySub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Install', title: s('installSummary'), subtitle: s('installSummarySub') })}
         <div class="stack-gap">
           ${window.ui.infoRow(s('tier'), tierName, 'accent')}
           ${window.ui.infoRow(s('lastInstall'), lastInstall)}
@@ -152,11 +152,11 @@
   function renderDataCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🧹', kicker: 'Storage', title: s('dataTitle'), subtitle: s('dataSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Storage', title: s('dataTitle'), subtitle: s('dataSub') })}
         <div class="card-sec">
           <div class="settings-row">
             <div class="settings-row-body">
-              <div class="card-sec-title">🗑 ${s('trashTitle')}</div>
+              <div class="card-sec-title"> ${s('trashTitle')}</div>
               <div class="card-sec-sub">${s('trashSub')}</div>
             </div>
             <button class="btn-secondary" id="btn-empty-trash">${s('emptyTrash')} (<span id="trash-count">0</span>)</button>
@@ -169,7 +169,7 @@
   function renderAboutCard(lang) {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: 'ℹ️', kicker: 'About', title: s('about'), subtitle: s('aboutSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'About', title: s('about'), subtitle: s('aboutSub') })}
         <div class="card-sec settings-row clickable" id="row-about">
           <div class="settings-row-body">
             <div class="card-sec-title">${t('appName')}</div>

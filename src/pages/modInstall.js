@@ -9,18 +9,6 @@
 (function () {
   'use strict';
 
-  const TYPE_ICON = {
-    car: '🚗',
-    track: '📍',
-    skin: '🎨',
-    app: '🧩',
-    ppfilter: '🖼',
-    font: '🔤',
-    weather: '🌦',
-    driver: '🏁',
-    mirror: '📦'
-  };
-
   let state = {
     sources: [],
     gamePath: null,
@@ -38,7 +26,6 @@
   function t(key) { return window.i18n.t(lang(), key); }
   function s(key) { return window.i18n.t(lang(), 'modInstall.' + key); }
   function typeLabel(type) { return s('types' + type.charAt(0).toUpperCase() + type.slice(1)); }
-  function typeIcon(type) { return TYPE_ICON[type] || '📦'; }
   function basename(p) { return String(p || '').replace(/\\/g, '/').split('/').pop() || p; }
   function fmtBytes(n) { return window.libraryData ? window.libraryData.formatBytes(n) : String(n || 0); }
   function fmtCount(n) { return window.libraryData ? window.libraryData.formatCount(n) : String(n || 0); }
@@ -79,7 +66,7 @@
         </div>
       </div>
       <section class="empty-state">
-        <div class="empty-icon">📁</div>
+        <div class="empty-icon"></div>
         <div class="empty-title">${s('noGamePath')}</div>
         <button class="btn-primary" id="btn-set-path">${t('gamePath.title')}</button>
       </section>`;
@@ -97,7 +84,7 @@
         </div>
       </div>
       <section class="mi-dropzone" id="mi-dropzone">
-        <div class="mi-dropzone-icon">📦</div>
+        <div class="mi-dropzone-icon"></div>
         <div class="mi-dropzone-title">${s('dropTitle')}</div>
         <div class="text-dim">${s('dropSub')}</div>
         <button class="btn-primary" id="btn-browse">${s('browse')}</button>
@@ -180,10 +167,10 @@
       </div>
       <div class="page-stack">
         <section class="card-sec mi-password">
-          <div class="mi-password-icon">🔒</div>
+          <div class="mi-password-icon"></div>
           <div class="mi-password-title">${s('passwordTitle')}</div>
           <div class="text-dim mi-password-sub">${s('passwordSub')}</div>
-          <div class="mi-chip">📄 ${uhmEsc(label)}</div>
+          <div class="mi-chip">${uhmEsc(label)}</div>
           <input type="password" id="mi-password-input" class="mi-password-input"
                  placeholder="${s('passwordPlaceholder')}" autocomplete="off"
                  spellcheck="false" autocapitalize="off" />
@@ -246,7 +233,7 @@
     const sourceSummary = state.results.map((r) => {
       const label = (r && r.source && r.source.label) || '—';
       const size = (r && r.source && r.source.sizeBytes) ? fmtBytes(r.source.sizeBytes) : '—';
-      return `<span class="mi-chip">📄 ${uhmEsc(label)} · ${uhmEsc(size)}</span>`;
+      return `<span class="mi-chip">${uhmEsc(label)} · ${uhmEsc(size)}</span>`;
     }).join('');
 
     container.innerHTML = `
@@ -260,7 +247,7 @@
 
       <div class="page-stack">
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '📦', kicker: 'Source', title: s('reviewTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: 'Source', title: s('reviewTitle'), subtitle: '' })}
           <div class="mi-source-strip">${sourceSummary || `<span class="text-dim">—</span>`}</div>
         </section>
 
@@ -280,7 +267,7 @@
           </div>
         </section>` : `
         <section class="empty-state">
-          <div class="empty-icon">🔍</div>
+          <div class="empty-icon"></div>
           <div class="empty-title">${s('nothing')}</div>
           <div class="text-dim">${s('nothingHint')}</div>
         </section>`}
@@ -322,7 +309,7 @@
       ? s('unsupportedHint') : s('readFailed');
     return `
       <div class="mi-banner mi-banner-warn">
-        <span>⚠️</span><span>${label}</span>
+        <span>${label}</span>
       </div>`;
   }
 
@@ -341,23 +328,23 @@
 
     let statusBadge = '';
     if (it.status === 'update') {
-      statusBadge = `<span class="mi-badge mi-badge-update">🔄 ${s('statusUpdate')}</span>`;
+      statusBadge = `<span class="mi-badge mi-badge-update">${s('statusUpdate')}</span>`;
     } else if (it.status === 'same') {
-      statusBadge = `<span class="mi-badge mi-badge-same">✓ ${s('statusSame')}</span>`;
+      statusBadge = `<span class="mi-badge mi-badge-same">${s('statusSame')}</span>`;
     } else {
-      statusBadge = `<span class="mi-badge mi-badge-new">✨ ${s('statusNew')}</span>`;
+      statusBadge = `<span class="mi-badge mi-badge-new">${s('statusNew')}</span>`;
     }
 
     const conflict = it.status === 'update'
-      ? `<div class="mi-conflict">⚠️ ${s('conflictWarn')}<br/>${s('overwrite').replace('{n}', fmtCount(it.overwriteCount || 0))}${it.addCount ? ' · ' + s('add').replace('{n}', fmtCount(it.addCount)) : ''}</div>`
+      ? `<div class="mi-conflict">${s('conflictWarn')}<br/>${s('overwrite').replace('{n}', fmtCount(it.overwriteCount || 0))}${it.addCount ? ' · ' + s('add').replace('{n}', fmtCount(it.addCount)) : ''}</div>`
       : (it.status === 'same' ? `<div class="text-dim">${s('statusSame')}</div>` : '');
 
-    const mirrorWarn = it.type === 'mirror' ? `<div class="mi-conflict">⚠️ ${s('mirrorWarn')}</div>` : '';
+    const mirrorWarn = it.type === 'mirror' ? `<div class="mi-conflict">${s('mirrorWarn')}</div>` : '';
     const skinNote = it.type === 'skin' && it.car ? `<div class="text-dim">${s('skinFor').replace('{car}', uhmEsc(it.car))}</div>` : '';
 
     const preview = it.previewDataUrl
       ? `<div class="mi-preview"><img src="${it.previewDataUrl}" alt="" /></div>`
-      : `<div class="mi-preview mi-preview-empty"><span>${typeIcon(it.type)}</span></div>`;
+      : `<div class="mi-preview mi-preview-empty" aria-hidden="true"></div>`;
 
     return `
       <div class="card-sec mi-item" data-key="${uhmEsc(it._key)}">
@@ -367,7 +354,7 @@
         ${preview}
         <div class="mi-item-body">
           <div class="mi-item-head">
-            <span class="mi-type">${typeIcon(it.type)} ${type}</span>
+            <span class="mi-type">${type}</span>
             ${statusBadge}
           </div>
           <div class="mi-item-name">${name}</div>
@@ -377,7 +364,7 @@
           ${conflict}
           ${mirrorWarn}
           <div class="mi-item-meta text-dim">
-            <span>📁 ${target}</span>
+            <span>${target}</span>
             <span>· ${fileCount} ${s('filesCount')}${size ? ' · ' + size : ''}</span>
           </div>
         </div>
@@ -417,7 +404,7 @@
             <div class="ui-progress-track"><div class="ui-progress-bar" id="mi-progress-bar" style="width:0%"></div></div>
             <div class="mi-status-list" id="mi-status-list">
               ${items.map((it, i) => `<div class="mi-status-row" data-index="${i}" data-id="${uhmEsc(it.id || `${it.type}:${it.name}`)}">
-                <span class="mi-status-icon">⏳</span>
+                <span class="mi-status-icon"></span>
                 <span class="mi-status-name">${uhmEsc(it.displayName || it.name)}</span>
               </div>`).join('')}
             </div>
@@ -530,9 +517,9 @@
     if (row && p.item) {
       const icon = row.querySelector('.mi-status-icon');
       if (icon) {
-        icon.textContent = p.item.status === 'installed' ? '✅'
-          : p.item.status === 'error' ? '❌'
-          : p.item.status === 'skipped' ? '🕐' : '⚙️';
+        icon.textContent = p.item.status === 'installed' ? ''
+          : p.item.status === 'error' ? ''
+          : p.item.status === 'skipped' ? '' : '';
       }
     }
   }
@@ -553,17 +540,17 @@
       </div>
       <div class="page-stack">
         <section class="card-sec done-hero ${success ? 'done-success' : 'done-error'}">
-          <div class="done-icon">${success ? '🎉' : '⚠️'}</div>
+          <div class="done-icon">${success ? '' : ''}</div>
           <h2 class="done-title">${success ? s('doneTitle') : (result && result.cancelled ? t('common.cancel') : s('donePartial'))}</h2>
           <div class="text-dim done-subtitle">${success ? s('doneSub') : s('errorInstall')}</div>
         </section>
 
         ${items.length ? `
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '🧾', kicker: 'Result', title: s('reviewTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: 'Result', title: s('reviewTitle'), subtitle: '' })}
           <div class="card-sec mi-status-list">
             ${items.map((r) => {
-              const icon = r.status === 'installed' ? '✅' : r.status === 'error' ? '❌' : '🕐';
+              const icon = r.status === 'installed' ? '' : r.status === 'error' ? '' : '';
               return `<div class="mi-status-row">
                 <span class="mi-status-icon">${icon}</span>
                 <span class="mi-status-name">${uhmEsc(r.name)}</span>

@@ -3,7 +3,7 @@
 const MOD_DEFINITIONS = [
   {
     id: 'csp',
-    icon: '🌓',
+    icon: '',
     nameKey: 'modCsp',
     descKey: 'modCspDesc',
     dest: '',
@@ -13,7 +13,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'pure',
-    icon: '✨',
+    icon: '',
     nameKey: 'modPure',
     descKey: 'modPureDesc',
     dest: '',
@@ -23,7 +23,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'ppfilter',
-    icon: '🎨',
+    icon: '',
     nameKey: 'modPp',
     descKey: 'modPpDesc',
     dest: 'system/cfg',
@@ -33,7 +33,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'chasecam',
-    icon: '📷',
+    icon: '',
     nameKey: 'modChase',
     descKey: 'modChaseDesc',
     dest: 'system/cfg',
@@ -43,7 +43,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'hud',
-    icon: '🖥',
+    icon: '',
     nameKey: 'modHud',
     descKey: 'modHudDesc',
     dest: '',
@@ -53,7 +53,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'srp',
-    icon: '💡',
+    icon: '',
     nameKey: 'modSrp',
     descKey: 'modSrpDesc',
     dest: 'extension/config-ext/pure',
@@ -64,7 +64,7 @@ const MOD_DEFINITIONS = [
   },
   {
     id: 'video',
-    icon: '⚙️',
+    icon: '',
     nameKey: 'modVideo',
     descKey: 'modVideoDesc',
     dest: 'system/cfg',
@@ -75,11 +75,11 @@ const MOD_DEFINITIONS = [
 ];
 
 const TIER_DEFINITIONS = [
-  { id: 'low', icon: '💻', image: 'assets/images/tiers/low.png', weight: 1 },
-  { id: 'medium', icon: '🖥️', image: 'assets/images/tiers/medium.png', weight: 2 },
-  { id: 'high', icon: '🎮', image: 'assets/images/tiers/high.png', weight: 3 },
-  { id: 'veryhigh', icon: '🔥', image: 'assets/images/tiers/veryhigh.png', weight: 4 },
-  { id: 'ultra', icon: '🏆', image: 'assets/images/tiers/ultra.png', weight: 5 }
+  { id: 'low', icon: '', image: 'assets/images/tiers/low.png', weight: 1 },
+  { id: 'medium', icon: '', image: 'assets/images/tiers/medium.png', weight: 2 },
+  { id: 'high', icon: '', image: 'assets/images/tiers/high.png', weight: 3 },
+  { id: 'veryhigh', icon: '', image: 'assets/images/tiers/veryhigh.png', weight: 4 },
+  { id: 'ultra', icon: '', image: 'assets/images/tiers/ultra.png', weight: 5 }
 ];
 
 /* ---------- Single source of truth for mod presentation ---------- */
@@ -107,13 +107,13 @@ const MOD_LABEL_SHORT = {
 };
 
 const MOD_ICON = {
-  csp: '🌓',
-  pure: '✨',
-  ppfilter: '🎨',
-  chasecam: '📷',
-  hud: '🖥',
-  srp: '💡',
-  video: '⚙️'
+  csp: '',
+  pure: '',
+  ppfilter: '',
+  chasecam: '',
+  hud: '',
+  srp: '',
+  video: ''
 };
 
 // هر سطح سیستم چه زیرمجموعه‌ای از مودها را نصب می‌کند.

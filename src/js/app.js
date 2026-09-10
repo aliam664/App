@@ -19,9 +19,16 @@ window.pages = {};
 /* ------------------------------------------------------------------ */
 /*  Theme / language                                                   */
 /* ------------------------------------------------------------------ */
+const THEME_ICONS = {
+  day: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>',
+  night: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>'
+};
+
 function applyTheme(theme) {
   document.body.setAttribute('data-theme', theme || 'night');
   window.appState.theme = theme || 'night';
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) btn.innerHTML = THEME_ICONS[window.appState.theme === 'day' ? 'day' : 'night'];
 }
 
 function applyLanguage(lang) {
@@ -65,7 +72,7 @@ function renderPage(pageName, params) {
         <h2>${window.i18n.t(window.appState.lang, 'common.back')} / Coming soon</h2>
       </div>
       <div class="empty-state">
-        <div class="empty-icon">🚧</div>
+        <div class="empty-icon"></div>
         <div class="text-dim">${window.i18n.t(window.appState.lang, 'common.pageMissing')}</div>
       </div>
     `;
@@ -102,6 +109,58 @@ window.applyTheme = applyTheme;
 window.applyLanguage = applyLanguage;
 
 /* ------------------------------------------------------------------ */
+/*  Global shortcuts & right-click back                                */
+/* ------------------------------------------------------------------ */
+const LANGUAGES = ['fa', 'en', 'zh', 'ja'];
+
+async function cycleLanguage() {
+  const current = window.appState.lang || 'fa';
+  const idx = LANGUAGES.indexOf(current);
+  const next = LANGUAGES[(idx + 1) % LANGUAGES.length];
+  await window.uhm.setSettings({ language: next });
+  applyLanguage(next);
+  if (window.appState.settings) window.appState.settings.language = next;
+  // Re-render the current page so all visible strings update immediately.
+  // Skip pages that depend on transient params (install / mod install / done).
+  const FLOW_PAGES = ['install', 'modInstall', 'done'];
+  if (window.appState.currentPage && FLOW_PAGES.indexOf(window.appState.currentPage) === -1) {
+    renderPage(window.appState.currentPage, {});
+  }
+  uhmToast(window.i18n.t(next, 'toast.lang'), 'success', 1300);
+}
+
+async function toggleTheme() {
+  const newTheme = window.appState.theme === 'night' ? 'day' : 'night';
+  applyTheme(newTheme);
+  await window.uhm.setSettings({ theme: newTheme });
+  if (window.appState.settings) window.appState.settings.theme = newTheme;
+  uhmToast(window.i18n.t(window.appState.lang, 'toast.theme'), 'success', 1300);
+}
+
+window.cycleLanguage = cycleLanguage;
+window.toggleTheme = toggleTheme;
+
+function wireGlobalShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    const key = (e.key || '').toLowerCase();
+    if (key === 'l') {
+      e.preventDefault();
+      cycleLanguage();
+    } else if (key === 'd') {
+      e.preventDefault();
+      toggleTheme();
+    }
+  });
+
+  // Right-click has no other use in the app: make it a browser-style Back.
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (window.appState.navStack.length) goBack();
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Titlebar                                                           */
 /* ------------------------------------------------------------------ */
 function wireTitlebar() {
@@ -109,13 +168,7 @@ function wireTitlebar() {
   document.getElementById('btn-maximize').addEventListener('click', () => window.uhm.windowToggleMaximize());
   document.getElementById('btn-close').addEventListener('click', () => window.uhm.windowClose());
 
-  document.getElementById('btn-theme-toggle').addEventListener('click', async () => {
-    const newTheme = window.appState.theme === 'night' ? 'day' : 'night';
-    applyTheme(newTheme);
-    await window.uhm.setSettings({ theme: newTheme });
-    window.appState.settings.theme = newTheme;
-    uhmToast(window.i18n.t(window.appState.lang, 'toast.theme'), 'success', 1300);
-  });
+  document.getElementById('btn-theme-toggle').addEventListener('click', () => toggleTheme());
 
   document.getElementById('btn-settings').addEventListener('click', () => navigate('settings'));
 }
@@ -129,7 +182,7 @@ function wireDropTarget() {
   overlay.className = 'drop-overlay';
   overlay.innerHTML = `
     <div class="drop-overlay-inner">
-      <div class="drop-overlay-icon">📦</div>
+      <div class="drop-overlay-icon"></div>
       <div class="drop-overlay-title">${window.i18n.t(window.appState.lang, 'modInstall.dropTitle')}</div>
       <div class="drop-overlay-sub">${window.i18n.t(window.appState.lang, 'modInstall.dropSub')}</div>
     </div>`;
@@ -189,6 +242,7 @@ async function bootstrap() {
   applyLanguage(settings.language || 'fa');
   wireTitlebar();
   wireDropTarget();
+  wireGlobalShortcuts();
 
   window.appState.navStack = [];
   renderPage('showcase', {});

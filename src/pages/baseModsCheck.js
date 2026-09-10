@@ -31,7 +31,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '⬅' : '➡'}</span>
+          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
         </button>
       </div>
     `;
@@ -56,7 +56,7 @@
     const wrap = document.getElementById('basecheck-wrap');
     wrap.innerHTML = `
       <div class="card-sec basecheck-note">
-        <span class="basecheck-note-icon">🛡️</span>
+        <span class="basecheck-note-icon"></span>
         <div>
           <div class="card-sec-title">${s('noteTitle')}</div>
           <div class="card-sec-sub">${s('noteInstalled')}</div>
@@ -81,7 +81,7 @@
     return `
       <div class="card-sec basecheck-row ${found ? 'found' : 'missing'}">
         <div class="basecheck-head">
-          <div class="basecheck-title">${found ? '✅' : '⬜'} ${s(key + 'Name')}</div>
+          <div class="basecheck-title">${s(key + 'Name')}</div>
           ${badge}
         </div>
         <div class="basecheck-action">${action}</div>
@@ -111,7 +111,7 @@
     const foundCount = (result.csp.found ? 1 : 0) + (result.pure.found ? 1 : 0);
     return `
       <div class="basecheck-summary">
-        ${window.ui.statCard('🧩', s('summaryTitle'), s('summaryValue').replace('{n}', foundCount), foundCount ? 'accent' : '')}
+        ${window.ui.statCard('', s('summaryTitle'), s('summaryValue').replace('{n}', foundCount), foundCount ? 'accent' : '')}
       </div>
     `;
   }

@@ -40,7 +40,6 @@
     const seed = String(relPath || 'demo');
     const [c1, c2] = PALETTES[hashStr(seed) % PALETTES.length];
     const isTrack = seed.indexOf('/tracks/') > -1;
-    const glyph = isTrack ? '📍' : '🏁';
     const label = seed.split('/').filter(Boolean).slice(-2)[0] || 'Content';
     const name = String(label).replace(/_/g, ' ').toUpperCase();
     const svg =
@@ -51,9 +50,11 @@
       `<rect width="640" height="360" fill="url(#g)"/>` +
       `<circle cx="120" cy="70" r="120" fill="rgba(255,255,255,0.08)"/>` +
       `<circle cx="560" cy="300" r="150" fill="rgba(0,0,0,0.10)"/>` +
-      `<text x="50%" y="42%" text-anchor="middle" font-size="76" font-family="Segoe UI, sans-serif">${glyph}</text>` +
-      `<text x="50%" y="68%" text-anchor="middle" font-size="26" font-family="Segoe UI, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="2">${name}</text>` +
-      `<text x="50%" y="82%" text-anchor="middle" font-size="13" font-family="Segoe UI, sans-serif" fill="rgba(255,255,255,0.65)">${isTrack ? 'TRACK' : 'CAR'} · UHM CONTENT LIBRARY</text>` +
+      `<rect x="278" y="150" width="84" height="60" rx="10" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="5"/>` +
+      `<line x1="300" y1="170" x2="300" y2="190" stroke="rgba(255,255,255,0.85)" stroke-width="5"/>` +
+      `<line x1="340" y1="170" x2="340" y2="190" stroke="rgba(255,255,255,0.85)" stroke-width="5"/>` +
+      `<text x="50%" y="72%" text-anchor="middle" font-size="24" font-family="Segoe UI, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="2">${name}</text>` +
+      `<text x="50%" y="84%" text-anchor="middle" font-size="13" font-family="Segoe UI, sans-serif" fill="rgba(255,255,255,0.65)">${isTrack ? 'TRACK' : 'CAR'} · UHM CONTENT LIBRARY</text>` +
       `</svg>`;
     return 'data:image/svg+xml;base64,' + btoa(svg);
   }

@@ -44,7 +44,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '⬅' : '➡'}</span>
+          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
         </button>
       </div>
     `;
@@ -57,17 +57,17 @@
   function renderSourceCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🧭', kicker: 'Locate', title: s('locateTitle'), subtitle: s('locateSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Locate', title: s('locateTitle'), subtitle: s('locateSub') })}
         <div class="grid-2">
           <button class="card-sec gamepath-action" id="btn-browse">
-            <div class="gamepath-action-icon">📂</div>
+            <div class="gamepath-action-icon"></div>
             <div>
               <div class="card-sec-title">${s('browse')}</div>
               <div class="card-sec-sub">${s('browseSub')}</div>
             </div>
           </button>
           <button class="card-sec gamepath-action" id="btn-auto-detect">
-            <div class="gamepath-action-icon">🔍</div>
+            <div class="gamepath-action-icon"></div>
             <div>
               <div class="card-sec-title">${s('autoDetect')}</div>
               <div class="card-sec-sub">${s('autoSub')}</div>
@@ -81,7 +81,7 @@
   function renderPathCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '📁', kicker: 'Path', title: s('pathTitle'), subtitle: s('pathSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Path', title: s('pathTitle'), subtitle: s('pathSub') })}
         <div class="card-sec">
           <label class="field-label">${s('pasteLabel')}</label>
           <input class="gamepath-input" id="path-input" type="text" dir="ltr" spellcheck="false"
@@ -178,7 +178,7 @@
   function checkRow(okLabel, missingLabel, ok) {
     return `
       <div class="validation-row ${ok ? 'ok' : 'bad'}">
-        <span>${ok ? '✅' : '❌'}</span>
+        <span>${ok ? '' : ''}</span>
         <span>${ok ? okLabel : missingLabel}</span>
       </div>`;
   }

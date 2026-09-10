@@ -10,7 +10,6 @@
   const TIER_MODS = window.TIER_MODS;
 
   const MOD_LABEL = window.MOD_LABEL_SHORT; // فرم کوتاه برای چیپ‌ها
-  const MOD_ICON = window.MOD_ICON;
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'tierSelect.' + key); }
@@ -49,7 +48,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '⬅' : '➡'}</span>
+          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
         </button>
       </div>
     `;
@@ -67,7 +66,7 @@
   function renderTiers(lang) {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '🎮', kicker: 'Presets', title: s('tiersTitle'), subtitle: s('tiersSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Presets', title: s('tiersTitle'), subtitle: s('tiersSub') })}
         <div class="tier-grid">
           ${window.TIER_DEFINITIONS.map((tier) => renderTier(tier)).join('')}
         </div>
@@ -78,7 +77,7 @@
   function renderTier(tier) {
     const label = s(tier.id);
     const mods = (TIER_MODS[tier.id] || []).map((id) =>
-      `<span class="ui-chip">${MOD_ICON[id]} ${MOD_LABEL[id]}</span>`
+      `<span class="ui-chip">${MOD_LABEL[id]}</span>`
     ).join('');
     return `
       <button class="tier-card ${selectedTier === tier.id ? 'selected' : ''} ${detectedSpecs && detectedSpecs.suggestedTier === tier.id ? 'recommended' : ''}" data-tier="${tier.id}">
@@ -88,7 +87,7 @@
         <div class="tier-desc text-dim">${s(tier.id + 'Desc')}</div>
         <div class="tier-mods">${mods}</div>
         ${detectedSpecs && detectedSpecs.suggestedTier === tier.id ? `<div class="tier-rec">${s('recommended')}</div>` : ''}
-        <div class="tier-check">${selectedTier === tier.id ? '✓' : ''}</div>
+        <div class="tier-check" aria-hidden="true"></div>
       </button>
     `;
   }
@@ -98,9 +97,7 @@
       card.addEventListener('click', () => {
         selectedTier = card.dataset.tier;
         container.querySelectorAll('.tier-card').forEach((c) => { c.classList.remove('selected'); });
-        container.querySelectorAll('.tier-check').forEach((c) => { c.textContent = ''; });
         card.classList.add('selected');
-        card.querySelector('.tier-check').textContent = '✓';
         document.getElementById('btn-continue').disabled = false;
       });
     });
@@ -169,9 +166,8 @@
       if (!specs.suggestedTier) return;
       selectedTier = specs.suggestedTier;
       document.querySelectorAll('.tier-card').forEach((c) => c.classList.remove('selected'));
-      document.querySelectorAll('.tier-check').forEach((c) => (c.textContent = ''));
       const card = document.querySelector(`.tier-card[data-tier="${specs.suggestedTier}"]`);
-      if (card) { card.classList.add('selected'); card.querySelector('.tier-check').textContent = '✓'; }
+      if (card) card.classList.add('selected');
       document.getElementById('btn-continue').disabled = false;
     });
   }

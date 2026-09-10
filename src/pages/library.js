@@ -124,7 +124,7 @@
         </div>
       </div>
       <section class="empty-state">
-        <div class="empty-icon">📁</div>
+        <div class="empty-icon"></div>
         <div class="text-dim">${s('notSet')}</div>
         <button class="btn-primary" id="btn-select-path">${s('selectPath')}</button>
       </section>
@@ -168,8 +168,12 @@
             <option value="origin">${s('sortOrigin')}</option>
           </select>
           <div class="library-view-toggle" role="group" title="${s('viewGrid')}">
-            <button class="lib-view-btn active" id="view-grid" title="${s('viewGrid')}">▦</button>
-            <button class="lib-view-btn" id="view-list" title="${s('viewList')}">☰</button>
+            <button class="lib-view-btn active" id="view-grid" title="${s('viewGrid')}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1"></rect><rect x="13" y="4" width="7" height="7" rx="1"></rect><rect x="4" y="13" width="7" height="7" rx="1"></rect><rect x="13" y="13" width="7" height="7" rx="1"></rect></svg>
+            </button>
+            <button class="lib-view-btn" id="view-list" title="${s('viewList')}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -388,11 +392,11 @@
     const previews = agg.previews;
     const size = D.formatBytes(agg.totalSize) || s('unknown');
     wrap.innerHTML = `
-      ${statCard('🚗', s('statsCars'), D.formatCount(agg.cars))}
-      ${statCard('📍', s('statsTracks'), D.formatCount(agg.tracks))}
-      ${statCard('🧩', s('statsMods'), D.formatCount(agg.mods))}
-      ${statCard('📦', s('statsSize'), size)}
-      ${statCard('🖼', s('statsPreviews'), D.formatCount(previews))}
+      ${statCard('', s('statsCars'), D.formatCount(agg.cars))}
+      ${statCard('', s('statsTracks'), D.formatCount(agg.tracks))}
+      ${statCard('', s('statsMods'), D.formatCount(agg.mods))}
+      ${statCard('', s('statsSize'), size)}
+      ${statCard('', s('statsPreviews'), D.formatCount(previews))}
     `;
   }
 
@@ -446,12 +450,12 @@
     );
 
     if (base.length === 0) {
-      grid.innerHTML = emptyState(s('emptyTitle'), s('emptyHint'), '📦');
+      grid.innerHTML = emptyState(s('emptyTitle'), s('emptyHint'), '');
       summary.innerHTML = '';
       return;
     }
     if (filtered.length === 0) {
-      grid.innerHTML = emptyState(s('empty'), '', '🔍');
+      grid.innerHTML = emptyState(s('empty'), '', '');
       summary.innerHTML = `<div class="library-summary-text">0 ${s('count')}</div>`;
       return;
     }
@@ -572,18 +576,16 @@
     const badge = originBadges(item);
     const meta = quickMeta(item);
     const previewClass = item.hasPreview ? '' : 'no-preview';
-    const fallbackIcon = item.type === 'car' ? '🚗' : '📍';
     const size = item.sizeBytes != null ? D.formatBytes(item.sizeBytes) : '';
     const count = item.type === 'car' ? (item.skinCount || 0) : (item.layoutCount || 1);
 
     return `
       <article class="content-card" data-id="${item.id}" data-op="open">
         <div class="content-card-preview ${previewClass}" data-preview="${item.preview ? uhmEsc(item.preview) : ''}" data-id="${item.id}">
-          ${item.hasPreview ? '' : `<span class="content-preview-fallback">${fallbackIcon}<br/><span class="text-dim">${s('noPreview')}</span></span>`}
+          ${item.hasPreview ? '' : `<span class="content-preview-fallback"><span class="text-dim">${s('noPreview')}</span></span>`}
         </div>
         <div class="content-card-body">
           <div class="content-card-head">
-            <span class="content-card-type">${item.type === 'car' ? '🚗' : '📍'}</span>
             <div class="content-card-badges">${badge}</div>
           </div>
           <div class="content-card-title" title="${uhmEsc(item.name)}">${uhmEsc(item.name)}</div>
@@ -598,14 +600,13 @@
 
   function listRow(item) {
     const badge = originBadges(item);
-    const fallbackIcon = item.type === 'car' ? '🚗' : '📍';
     const size = item.sizeBytes != null ? D.formatBytes(item.sizeBytes) : '';
     const count = item.type === 'car' ? (item.skinCount || 0) : (item.layoutCount || 1);
 
     return `
       <article class="content-row" data-id="${item.id}">
         <div class="content-row-preview ${item.hasPreview ? '' : 'no-preview'}" data-preview="${item.preview ? uhmEsc(item.preview) : ''}" data-id="${item.id}">
-          ${item.hasPreview ? '' : `<span class="content-preview-fallback">${fallbackIcon}</span>`}
+          ${item.hasPreview ? '' : `<span class="content-preview-fallback"><span class="text-dim">${s('noPreview')}</span></span>`}
         </div>
         <div class="content-row-main" data-op="open" data-id="${item.id}">
           <div class="content-row-title">${uhmEsc(item.name)}</div>
@@ -660,7 +661,7 @@
   function renderTrash(grid, summary) {
     const items = state.trash;
     if (items.length === 0) {
-      grid.innerHTML = emptyState(s('emptyTrash'), '', '🗑');
+      grid.innerHTML = emptyState(s('emptyTrash'), '', '');
       summary.innerHTML = '';
       return;
     }
@@ -689,7 +690,7 @@
     return `
       <article class="content-card trash-card" data-id="${item.id}">
         <div class="content-card-preview no-preview">
-          <span class="content-preview-fallback">🗑<br/><span class="text-dim">${item.type === 'car' ? '🚗' : '📍'} ${uhmEsc(item.folder)}</span></span>
+          <span class="content-preview-fallback"><span class="text-dim">${uhmEsc(item.folder)}</span></span>
         </div>
         <div class="content-card-body">
           <div class="content-card-head"><div class="content-card-badges">${originBadges(item)}</div></div>
@@ -707,7 +708,7 @@
   function trashRow(item) {
     return `
       <article class="content-row" data-id="${item.id}">
-        <div class="content-row-preview no-preview"><span class="content-preview-fallback">🗑</span></div>
+        <div class="content-row-preview no-preview"><span class="content-preview-fallback"><span class="text-dim">${s('noPreview')}</span></span></div>
         <div class="content-row-main">
           <div class="content-row-title">${uhmEsc(item.folder)}</div>
           <div class="content-row-sub text-dim">${window.uhmFormatDate(item.deletedAt)} · ${item.type === 'car' ? s('cars') : s('tracks')}</div>
@@ -812,7 +813,7 @@
     const isCar = item.type === 'car';
     const preview = item.hasPreview
       ? `<div class="detail-preview"></div>`
-      : `<div class="detail-preview no-preview"><span class="content-preview-fallback">${isCar ? '🚗' : '📍'}<br/><span class="text-dim">${s('noPreview')}</span></span></div>`;
+      : `<div class="detail-preview no-preview"><span class="content-preview-fallback"><span class="text-dim">${s('noPreview')}</span></span></div>`;
     const specRows = isCar ? `
       ${detailKey(s('brand'), item.brand)}
       ${detailKey(s('class'), item['class'] || item.klass)}
@@ -849,7 +850,7 @@
 
     return `
       <div class="detail-body">
-        <button class="detail-close" id="detail-close">✕</button>
+        <button class="detail-close" id="detail-close" aria-label="${s('close')}">&times;</button>
         ${preview}
         <div class="detail-content">
           <div class="detail-title">${uhmEsc(item.name)}</div>
@@ -866,7 +867,7 @@
             <span>${s('modified')}: ${item.modifiedAt ? window.uhmFormatDate(item.modifiedAt) : '—'}</span>
           </div>
           <div class="detail-actions">
-            <button class="btn-secondary" id="detail-reveal">📂 ${s('openFolder')}</button>
+            <button class="btn-secondary" id="detail-reveal">${s('openFolder')}</button>
             <button class="btn-secondary content-delete" id="detail-delete">${s('delete')}</button>
           </div>
         </div>

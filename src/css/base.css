@@ -153,6 +153,19 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
 }
 .titlebar-btn:hover { background: var(--color-card-bg); transform: translateY(-1px); }
 .titlebar-btn.close:hover { background: #e0433d; color: #fff; }
+.titlebar-btn svg { display: block; }
+.titlebar-btn .tb-icon { display: inline-flex; }
+
+/* Emoji-free UI: icon slots that end up empty collapse so no stray
+   boxes or dead gaps remain after the emoji removal. */
+.empty-icon:empty,
+.ui-section-icon:empty, .ui-stat-icon:empty, .ui-empty-icon:empty,
+.about-feature-icon:empty, .about-mod-icon:empty,
+.basecheck-note-icon:empty, .done-icon:empty, .gamepath-action-icon:empty,
+.install-item-icon:empty, .log-icon:empty, .manage-icon:empty,
+.report-icon:empty, .stat-icon:empty, .tier-icon:empty,
+.mi-dropzone-icon:empty, .mi-password-icon:empty, .mi-status-icon:empty,
+.drop-overlay-icon:empty { display: none; }
 
 /* ========================= page content ========================== */
 #page-content {

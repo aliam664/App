@@ -30,14 +30,14 @@
         ${hasAny ? renderSummary(ids, mods) : ''}
         ${hasAny ? `
           <section class="ui-section">
-            ${window.ui.sectionHeader({ icon: '🗂️', kicker: 'Installed', title: s('modsTitle'), subtitle: s('modsSub') })}
+            ${window.ui.sectionHeader({ icon: '', kicker: 'Installed', title: s('modsTitle'), subtitle: s('modsSub') })}
             <div class="manage-list">
               ${ids.map((id) => renderModCard(id, mods[id])).join('')}
             </div>
           </section>
         ` : `
           <section class="ui-section">
-            ${window.ui.empty('🗃', s('empty'), '', `<button class="btn-primary" id="btn-start">${t('showcase.startInstall')}</button>`)}
+            ${window.ui.empty('', s('empty'), '', `<button class="btn-primary" id="btn-start">${t('showcase.startInstall')}</button>`)}
           </section>
         `}
       </div>
@@ -57,11 +57,11 @@
     const installed = ids.filter((id) => mods[id][0] && (mods[id][0].status === 'installed')).length;
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '📊', kicker: 'Summary', title: s('summaryTitle'), subtitle: '' })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Summary', title: s('summaryTitle'), subtitle: '' })}
         <div class="grid-3">
-          ${window.ui.statCard('📦', s('modsTitle'), ids.length, 'accent')}
-          ${window.ui.statCard('✅', s('installed'), installed, 'success')}
-          ${window.ui.statCard('🧬', s('versions'), ids.reduce((a, id) => a + mods[id].length, 0), '')}
+          ${window.ui.statCard('', s('modsTitle'), ids.length, 'accent')}
+          ${window.ui.statCard('', s('installed'), installed, 'success')}
+          ${window.ui.statCard('', s('versions'), ids.reduce((a, id) => a + mods[id].length, 0), '')}
         </div>
       </section>
     `;
@@ -86,7 +86,7 @@
       <div class="card-sec manage-card">
         <div class="manage-head">
           <div class="manage-name">
-            <span class="manage-icon">${MOD_ICON[id] || '📦'}</span>
+            <span class="manage-icon">${MOD_ICON[id] || ''}</span>
             <strong>${name}</strong>
             ${status === 'installed' ? window.ui.statusBadge(s('installed'), 'ok') : window.ui.statusBadge(s('missing'), 'warn')}
           </div>

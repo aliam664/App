@@ -7,7 +7,6 @@
   const MOD_INFO = [
     {
       id: 'csp',
-      icon: '🌓',
       nameKey: 'modCsp',
       descKey: 'modCspDesc',
       requires: '',
@@ -15,7 +14,6 @@
     },
     {
       id: 'pure',
-      icon: '✨',
       nameKey: 'modPure',
       descKey: 'modPureDesc',
       requires: 'CSP · Weather FX',
@@ -23,7 +21,6 @@
     },
     {
       id: 'ppfilter',
-      icon: '🎨',
       nameKey: 'modPp',
       descKey: 'modPpDesc',
       requires: '',
@@ -31,7 +28,6 @@
     },
     {
       id: 'chasecam',
-      icon: '📷',
       nameKey: 'modChase',
       descKey: 'modChaseDesc',
       requires: '',
@@ -39,7 +35,6 @@
     },
     {
       id: 'hud',
-      icon: '🖥',
       nameKey: 'modHud',
       descKey: 'modHudDesc',
       requires: '',
@@ -47,7 +42,6 @@
     },
     {
       id: 'srp',
-      icon: '💡',
       nameKey: 'modSrp',
       descKey: 'modSrpDesc',
       requires: 'PURE',
@@ -55,7 +49,6 @@
     },
     {
       id: 'video',
-      icon: '⚙️',
       nameKey: 'modVideo',
       descKey: 'modVideoDesc',
       requires: '',
@@ -88,7 +81,7 @@
 
     container.innerHTML = `
       <div class="home">
-        <!-- ================= HERO (slideshow on top) ================= -->
+        <!-- ================= HERO (slideshow left · copy/actions right) ================= -->
         <section class="home-hero">
           <div class="home-hero-top">
             <div class="home-brand">
@@ -100,30 +93,46 @@
             </div>
 
             <button class="home-settings-btn" id="btn-settings-home" title="${s('settings')}">
-              <span class="home-icon">⚙️</span>
               <span>${s('settings')}</span>
             </button>
           </div>
 
-          <div class="home-slider" id="home-slider">
-            ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
-              <div class="home-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
-                <img class="home-slide-bg" src="assets/images/showcase/0${i + 1}.jpg" alt="" />
-                <img class="home-slide-fg" src="assets/images/showcase/0${i + 1}.jpg" alt="UHM showcase ${i + 1}" />
+          <div class="home-hero-main">
+            <div class="home-hero-media">
+              <div class="home-slider" id="home-slider">
+                ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
+                  <div class="home-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
+                    <img class="home-slide-bg" src="assets/images/showcase/0${i + 1}.jpg" alt="" />
+                    <img class="home-slide-fg" src="assets/images/showcase/0${i + 1}.jpg" alt="UHM showcase ${i + 1}" />
+                  </div>
+                `).join('')}
+                <div class="home-slider-brand">UHM PACK</div>
               </div>
-            `).join('')}
-            <div class="home-slider-overlay">
+
+              <div class="home-dots" id="home-dots">
+                ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
+                  <span class="home-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="home-hero-copy">
               <div class="home-slider-badge"><span class="badge-dot"></span>${s('subtitle')}</div>
               <div class="home-slider-title">${s('title')}</div>
               <div class="home-slider-sub">${s('heroSub')}</div>
-            </div>
-            <div class="home-slider-brand">UHM PACK</div>
-          </div>
 
-          <div class="home-dots" id="home-dots">
-            ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
-              <span class="home-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>
-            `).join('')}
+              <div class="home-hero-actions">
+                <button class="btn-primary btn-lg home-action-main" id="btn-start-install">
+                  <strong>${s('startInstall')}</strong>
+                </button>
+                <div class="home-hero-secondary">
+                  <button class="btn-secondary home-action" id="btn-library">${s('libraryBtn')}</button>
+                  <button class="btn-secondary home-action" id="btn-donate">${s('donateBtn')}</button>
+                  <button class="btn-secondary home-action" id="btn-about">${s('about')}</button>
+                  ${hasAnyInstalledMod ? `<button class="btn-secondary home-action" id="btn-manage-mods">${s('manageShort')}</button>` : ''}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -196,21 +205,6 @@
             <div class="home-ref"><code>apps/</code><span>HUD</span></div>
           </div>
         </section>
-
-        <!-- ================= BOTTOM ACTIONS ================= -->
-        <div class="home-footer">
-          <div class="home-footer-scroll">${s('scrollHint')}</div>
-          <div class="home-actions">
-            <button class="btn-primary btn-lg home-action-main" id="btn-start-install">
-              <span class="btn-icon">🚀</span>
-              <span><strong>${s('startInstall')}</strong></span>
-            </button>
-            <button class="btn-secondary home-action" id="btn-library">${s('libraryBtn')}</button>
-            <button class="btn-secondary home-action" id="btn-donate">${s('donateBtn')}</button>
-            <button class="btn-secondary home-action" id="btn-about">${s('about')}</button>
-            ${hasAnyInstalledMod ? `<button class="btn-secondary home-action" id="btn-manage-mods">${s('manageShort')}</button>` : ''}
-          </div>
-        </div>
       </div>
     `;
 
@@ -251,13 +245,13 @@
     const bestFor = s('tierBest' + tier.id.charAt(0).toUpperCase() + tier.id.slice(1));
     const mods = (TIER_MODS[tier.id] || []).map((id) => {
       const mod = MOD_INFO.find((m) => m.id === id);
-      return `<span class="home-chip">${mod.icon} ${s(mod.nameKey).replace(/\s*\(.*?\)/g, '')}</span>`;
+      return `<span class="home-chip">${s(mod.nameKey).replace(/\s*\(.*?\)/g, '')}</span>`;
     }).join('');
 
     return `
       <div class="home-tier-card">
         <img class="home-tier-img" src="${tier.image}" alt="${label}" />
-        <div class="home-tier-badge">${tier.icon} ${label}</div>
+        <div class="home-tier-badge">${label}</div>
         <div class="home-tier-best">
           <span class="home-kicker">${s('tierBestFor')}</span>
           <span class="home-tier-best-text">${bestFor}</span>
@@ -280,7 +274,6 @@
 
     return `
       <div class="home-mod-card">
-        <div class="home-mod-icon">${mod.icon}</div>
         <div class="home-mod-body">
           <div class="home-mod-name">${name}</div>
           <div class="home-mod-desc">${desc}</div>
@@ -290,7 +283,6 @@
             <div class="home-mod-path-list">${paths}</div>
           </div>
         </div>
-        <div class="home-mod-status">${mod.icon}</div>
       </div>
     `;
   }

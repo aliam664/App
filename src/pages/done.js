@@ -22,7 +22,7 @@
       : (missing > 0 || installed === 0) ? 'partial'
       : 'success';
 
-    const icons = { success: '🎉', partial: '⚠️', cancelled: '🛑', error: '❌' };
+    const icons = { success: '', partial: '', cancelled: '', error: '' };
     const manifest = window.appState.manifest || {};
     const tierName = manifest.systemTier ? t('tierSelect.' + manifest.systemTier) : '—';
     const details = (window.appState.lastInstallResult && window.appState.lastInstallResult.mods) || [];
@@ -44,19 +44,19 @@
         </section>
 
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '📊', kicker: 'Result', title: s('statsTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: 'Result', title: s('statsTitle'), subtitle: '' })}
           <div class="grid-3 done-stats">
-            ${window.ui.statCard('✅', s('installedCount'), installed, 'success')}
-            ${window.ui.statCard('🎮', s('tier'), tierName, 'accent')}
-            ${missing > 0 ? window.ui.statCard('⚠️', s('missingCount'), missing, 'warn') : ''}
-            ${errors > 0 ? window.ui.statCard('❌', s('errorCount'), errors, 'danger') : ''}
-            ${skipped > 0 ? window.ui.statCard('🕐', s('skippedCount'), skipped, '') : ''}
+            ${window.ui.statCard('', s('installedCount'), installed, 'success')}
+            ${window.ui.statCard('', s('tier'), tierName, 'accent')}
+            ${missing > 0 ? window.ui.statCard('', s('missingCount'), missing, 'warn') : ''}
+            ${errors > 0 ? window.ui.statCard('', s('errorCount'), errors, 'danger') : ''}
+            ${skipped > 0 ? window.ui.statCard('', s('skippedCount'), skipped, '') : ''}
           </div>
         </section>
 
         ${details.length ? `
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '🧾', kicker: 'Report', title: s('reportTitle'), subtitle: s('reportSub') })}
+          ${window.ui.sectionHeader({ icon: '', kicker: 'Report', title: s('reportTitle'), subtitle: s('reportSub') })}
           <div class="card-sec report-list">
             ${details.map((m) => reportRow(m)).join('')}
           </div>
@@ -86,16 +86,16 @@
 
   function reportRow(m) {
     const stateMap = {
-      installed: ['✅', s('statusSuccess'), 'ok'],
-      missing: ['⚠️', s('missingCount'), 'warn'],
-      skipped: ['🕐', s('skippedCount'), ''],
-      error: ['❌', s('statusError'), 'danger'],
-      pending: ['⏳', s('statusPending'), '']
+      installed: ['', s('statusSuccess'), 'ok'],
+      missing: ['', s('missingCount'), 'warn'],
+      skipped: ['', s('skippedCount'), ''],
+      error: ['', s('statusError'), 'danger'],
+      pending: ['', s('statusPending'), '']
     };
     const [icon, label, variant] = stateMap[m.status] || stateMap.pending;
     return `
       <div class="report-row">
-        <span class="report-icon">${MOD_ICON[m.id] || '📦'}</span>
+        <span class="report-icon">${MOD_ICON[m.id] || ''}</span>
         <span class="report-name">${MOD_LABEL[m.id] || m.id}</span>
         ${window.ui.statusBadge(label, variant)}
       </div>`;

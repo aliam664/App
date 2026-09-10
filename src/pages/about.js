@@ -4,9 +4,9 @@
 
 (function () {
   const CONTACTS = [
-    { icon: '💬', key: 'telegramId', handle: '@Uhm_009', url: 'https://t.me/Uhm_009' },
-    { icon: '📢', key: 'telegramChannel', handle: 'Uhm_009YTC', url: 'https://t.me/Uhm_009YTC' },
-    { icon: '▶️', key: 'youtube', handle: '@uhm_009', url: 'https://youtube.com/@uhm_009?si=gGaYyzv0H3lRs0NN' }
+    { icon: '', key: 'telegramId', handle: '@Uhm_009', url: 'https://t.me/Uhm_009' },
+    { icon: '', key: 'telegramChannel', handle: 'Uhm_009YTC', url: 'https://t.me/Uhm_009YTC' },
+    { icon: '', key: 'youtube', handle: '@uhm_009', url: 'https://youtube.com/@uhm_009?si=gGaYyzv0H3lRs0NN' }
   ];
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
@@ -72,14 +72,14 @@
       </div>`;
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '⚡', kicker: 'Features', title: s('featuresTitle'), subtitle: s('featuresSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Features', title: s('featuresTitle'), subtitle: s('featuresSub') })}
         <div class="grid-2">
-          ${f('🤖', 'featInstall', 'featInstallDesc', 'accent')}
-          ${f('🖥️', 'featDetect', 'featDetectDesc')}
-          ${f('🎮', 'featTiers', 'featTiersDesc')}
-          ${f('💾', 'featBackup', 'featBackupDesc', 'success')}
-          ${f('📚', 'featLibrary', 'featLibraryDesc')}
-          ${f('💡', 'featSafe', 'featSafeDesc')}
+          ${f('', 'featInstall', 'featInstallDesc', 'accent')}
+          ${f('', 'featDetect', 'featDetectDesc')}
+          ${f('', 'featTiers', 'featTiersDesc')}
+          ${f('', 'featBackup', 'featBackupDesc', 'success')}
+          ${f('', 'featLibrary', 'featLibraryDesc')}
+          ${f('', 'featSafe', 'featSafeDesc')}
         </div>
       </section>
     `;
@@ -88,9 +88,9 @@
   function renderDonate() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '💝', kicker: '', title: s('donateTitle'), subtitle: s('donateDesc') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: '', title: s('donateTitle'), subtitle: s('donateDesc') })}
         <div class="card-sec about-donate" id="row-donate">
-          <div class="about-mod-icon">💳</div>
+          <div class="about-mod-icon"></div>
           <div class="about-mod-body">
             <div class="about-mod-name">${s('donateTitle')}</div>
             <div class="text-dim">${s('donateDesc')}</div>
@@ -115,7 +115,7 @@
     }).join('');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '📦', kicker: 'Pack', title: s('packTitle'), subtitle: s('packSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Pack', title: s('packTitle'), subtitle: s('packSub') })}
         <div class="card-sec about-mods">${mods}</div>
       </section>
     `;
@@ -129,7 +129,7 @@
       </details>`).join('');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '❓', kicker: 'FAQ', title: s('faqTitle'), subtitle: s('faqSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'FAQ', title: s('faqTitle'), subtitle: s('faqSub') })}
         <div class="stack-gap">${faqs}</div>
       </section>
     `;
@@ -138,7 +138,7 @@
   function renderContacts() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '📣', kicker: 'Contact', title: s('contactTitle'), subtitle: s('contactSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: 'Contact', title: s('contactTitle'), subtitle: s('contactSub') })}
         <div class="stack-gap">
           ${CONTACTS.map((c) => `
             <div class="card-sec contact-row" data-url="${c.url}">
