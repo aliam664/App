@@ -31,7 +31,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
+          <span>${s('continueBtn')}</span>
         </button>
       </div>
     `;

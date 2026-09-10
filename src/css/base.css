@@ -164,7 +164,7 @@ body[dir='ltr'] { direction: ltr; text-align: left; }
 .basecheck-note-icon:empty, .done-icon:empty, .gamepath-action-icon:empty,
 .install-item-icon:empty, .log-icon:empty, .manage-icon:empty,
 .report-icon:empty, .stat-icon:empty, .tier-icon:empty,
-.mi-dropzone-icon:empty, .mi-password-icon:empty, .mi-status-icon:empty,
+.mi-dropzone-icon:empty, .mi-password-icon:empty,
 .drop-overlay-icon:empty { display: none; }
 
 /* ========================= page content ========================== */

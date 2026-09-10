@@ -769,6 +769,11 @@
     } else if (url && url.tooLarge) {
       previewCache[rel] = 'TOO_LARGE';
       applyPreviewMissing(el);
+    } else {
+      // Preview failed to decode (corrupt/unsupported) — mark it missing so the
+      // card shows a placeholder instead of a permanently empty dark box.
+      previewCache[rel] = 'TOO_LARGE';
+      applyPreviewMissing(el);
     }
   }
 

@@ -247,7 +247,7 @@
 
       <div class="page-stack">
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Source', title: s('reviewTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.source'), title: s('reviewTitle'), subtitle: '' })}
           <div class="mi-source-strip">${sourceSummary || `<span class="text-dim">—</span>`}</div>
         </section>
 
@@ -515,12 +515,9 @@
     if (!row) row = document.querySelector(`.mi-status-row[data-index="${(p.done || 1) - 1}"]`);
 
     if (row && p.item) {
-      const icon = row.querySelector('.mi-status-icon');
-      if (icon) {
-        icon.textContent = p.item.status === 'installed' ? ''
-          : p.item.status === 'error' ? ''
-          : p.item.status === 'skipped' ? '' : '';
-      }
+      // Drive the CSS-drawn status dot (spinner / check / cross) from the
+      // item's status so every row reflects its real per-file result.
+      row.dataset.state = p.item.status || 'running';
     }
   }
 
@@ -530,6 +527,15 @@
     const installed = items.filter((r) => r.status === 'installed').length;
     const failed = items.filter((r) => r.status === 'error').length;
     const success = Boolean(result && result.success);
+
+    // Localized per-item status label (reuses the shared install.* strings so
+    // raw English status codes like "installed"/"error" never leak into the UI).
+    const statusText = (status) => {
+      if (status === 'installed') return t('install.statusInstalled');
+      if (status === 'error') return t('install.statusError');
+      if (status === 'skipped') return t('install.statusSkipped');
+      return status || '—';
+    };
 
     container.innerHTML = `
       <div class="page-header">
@@ -547,16 +553,13 @@
 
         ${items.length ? `
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Result', title: s('reviewTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.result'), title: s('reviewTitle'), subtitle: '' })}
           <div class="card-sec mi-status-list">
-            ${items.map((r) => {
-              const icon = r.status === 'installed' ? '' : r.status === 'error' ? '' : '';
-              return `<div class="mi-status-row">
-                <span class="mi-status-icon">${icon}</span>
-                <span class="mi-status-name">${uhmEsc(r.name)}</span>
-                <span class="text-dim">${uhmEsc(r.status || '')}</span>
-              </div>`;
-            }).join('')}
+            ${items.map((r) => `<div class="mi-status-row" data-state="${uhmEsc(r.status || '')}">
+              <span class="mi-status-icon"></span>
+              <span class="mi-status-name">${uhmEsc(r.name)}</span>
+              <span class="text-dim">${statusText(r.status)}</span>
+            </div>`).join('')}
           </div>
         </section>` : ''}
 

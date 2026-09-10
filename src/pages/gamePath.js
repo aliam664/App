@@ -44,7 +44,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
+          <span>${s('continueBtn')}</span>
         </button>
       </div>
     `;
@@ -57,7 +57,7 @@
   function renderSourceCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Locate', title: s('locateTitle'), subtitle: s('locateSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.locate'), title: s('locateTitle'), subtitle: s('locateSub') })}
         <div class="grid-2">
           <button class="card-sec gamepath-action" id="btn-browse">
             <div class="gamepath-action-icon"></div>
@@ -81,7 +81,7 @@
   function renderPathCard() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Path', title: s('pathTitle'), subtitle: s('pathSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.path'), title: s('pathTitle'), subtitle: s('pathSub') })}
         <div class="card-sec">
           <label class="field-label">${s('pasteLabel')}</label>
           <input class="gamepath-input" id="path-input" type="text" dir="ltr" spellcheck="false"

@@ -47,7 +47,7 @@
       <div class="install-wrap page-stack">
         ${renderSummary(plan)}
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Progress', title: s('progress'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.progress'), title: s('progress'), subtitle: '' })}
           <div class="card-sec">
             <div class="install-status-head">
               <div class="install-spinner" id="install-spinner"></div>
@@ -62,7 +62,7 @@
         </section>
 
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Mods', title: s('modsTitle'), subtitle: s('modsSub') })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.mods'), title: s('modsTitle'), subtitle: s('modsSub') })}
           <div class="install-list" id="install-list">
             ${plan.mods.map((m, i) => `
               <div class="install-item" data-index="${i}">
@@ -74,7 +74,7 @@
         </section>
 
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Log', title: s('log'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.log'), title: s('log'), subtitle: '' })}
           <div class="card-sec install-log-card">
             <div class="install-log" id="install-log"></div>
           </div>
@@ -107,7 +107,7 @@
     const tierName = plan.tier ? window.i18n.t(window.appState.lang, 'tierSelect.' + plan.tier) : '—';
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Summary', title: s('summaryTitle'), subtitle: s('summarySub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.summary'), title: s('summaryTitle'), subtitle: s('summarySub') })}
         <div class="stack-gap">
           ${window.ui.infoRow(s('gamePath'), plan.gamePath || '—')}
           ${window.ui.infoRow(s('tier'), tierName, 'accent')}

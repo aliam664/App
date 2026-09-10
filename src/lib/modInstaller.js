@@ -504,9 +504,24 @@ function pickMetaValue(obj, keys) {
   return '';
 }
 
+/* Candidate preview paths per content type, in preference order. These mirror
+   the preview file names a car / track / skin commonly ships. */
+function previewCandidatesFor(it) {
+  if (it.type === 'car' || it.type === 'track') {
+    return ['ui/preview.jpg', 'ui/preview.png', 'ui/preview.jpeg', 'ui/preview_light.jpg', 'ui/preview_light.png'];
+  }
+  if (it.type === 'skin') {
+    return ['preview.jpg', 'preview.png', 'preview.jpeg', 'livery.png'];
+  }
+  return [];
+}
+
 async function hydrateItems(source, detected, password) {
   const items = detected.items;
-  // Batch rar reads in a single pass (best-effort).
+  // Batch rar reads in a single pass (best-effort). We must request the
+  // preview images here too — previously only the metadata JSON files were
+  // fetched, so RAR archives were analyzed but always came back without a
+  // preview thumbnail (the review dialog showed an empty box for every item).
   let rarBufs = {};
   if (source.kind === 'archive' && source.archiveType === 'rar') {
     const rels = [];
@@ -514,6 +529,7 @@ async function hydrateItems(source, detected, password) {
       if (it.type === 'car') rels.push(`${it.sourceRoot}/ui/ui_car.json`);
       else if (it.type === 'track') rels.push(`${it.sourceRoot}/ui/ui_track.json`);
       else if (it.type === 'skin') rels.push(`${it.sourceRoot}/ui_skin.json`);
+      for (const cand of previewCandidatesFor(it)) rels.push(`${it.sourceRoot}/${cand}`);
     }
     rarBufs = await readRarFiles(source.path, rels.filter(Boolean), password);
   }
@@ -551,10 +567,7 @@ async function hydrateItems(source, detected, password) {
 
     // Preview image (best-effort, capped).
     it.preview = null;
-    const previewCandidates = [];
-    if (it.type === 'car') previewCandidates.push('ui/preview.jpg', 'ui/preview.png', 'ui/preview.jpeg', 'ui/preview_light.jpg', 'ui/preview_light.png');
-    else if (it.type === 'track') previewCandidates.push('ui/preview.jpg', 'ui/preview.png', 'ui/preview.jpeg', 'ui/preview_light.jpg', 'ui/preview_light.png');
-    else if (it.type === 'skin') previewCandidates.push('preview.jpg', 'preview.png', 'preview.jpeg', 'livery.png');
+    const previewCandidates = previewCandidatesFor(it);
     for (const rel of previewCandidates) {
       const full = `${it.sourceRoot}/${rel}`;
       let buf = null;

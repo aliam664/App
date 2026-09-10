@@ -30,7 +30,7 @@
         ${hasAny ? renderSummary(ids, mods) : ''}
         ${hasAny ? `
           <section class="ui-section">
-            ${window.ui.sectionHeader({ icon: '', kicker: 'Installed', title: s('modsTitle'), subtitle: s('modsSub') })}
+            ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.installed'), title: s('modsTitle'), subtitle: s('modsSub') })}
             <div class="manage-list">
               ${ids.map((id) => renderModCard(id, mods[id])).join('')}
             </div>
@@ -57,7 +57,7 @@
     const installed = ids.filter((id) => mods[id][0] && (mods[id][0].status === 'installed')).length;
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Summary', title: s('summaryTitle'), subtitle: '' })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.summary'), title: s('summaryTitle'), subtitle: '' })}
         <div class="grid-3">
           ${window.ui.statCard('', s('modsTitle'), ids.length, 'accent')}
           ${window.ui.statCard('', s('installed'), installed, 'success')}

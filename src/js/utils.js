@@ -10,7 +10,10 @@ function uhmEsc(str) {
 }
 
 function uhmBackArrow(lang) {
-  return lang === 'fa' ? '←' : '→';
+  // In RTL (Persian) reading flows right-to-left, so "back" points RIGHT;
+  // in LTR languages it points LEFT — matching the app's forward chevron
+  // convention ('‹' forward in RTL, '›' forward in LTR).
+  return lang === 'fa' ? '→' : '←';
 }
 
 function uhmFormatDate(iso) {

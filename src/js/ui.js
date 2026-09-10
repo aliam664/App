@@ -22,7 +22,7 @@
       <div class="ui-section-head">
         ${t.icon ? `<span class="ui-section-icon">${t.icon}</span>` : ''}
         <div class="ui-section-copy">
-          <div class="ui-section-kicker">${esc(t.kicker || '')}</div>
+          ${t.kicker ? `<div class="ui-section-kicker">${esc(t.kicker)}</div>` : ''}
           <div class="ui-section-title">${esc(t.title || '')}</div>
           ${t.subtitle ? `<div class="ui-section-sub title-dim">${esc(t.subtitle)}</div>` : ''}
         </div>

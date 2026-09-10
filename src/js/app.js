@@ -154,7 +154,14 @@ function wireGlobalShortcuts() {
   });
 
   // Right-click has no other use in the app: make it a browser-style Back.
+  // The one exception is editable fields (the game-path input) — there the
+  // native menu must stay usable so users can still Paste a copied path.
   document.addEventListener('contextmenu', (e) => {
+    const t = e.target;
+    const isEditable = t && (
+      t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable
+    );
+    if (isEditable) return;
     e.preventDefault();
     if (window.appState.navStack.length) goBack();
   });

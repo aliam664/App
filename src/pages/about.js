@@ -72,7 +72,7 @@
       </div>`;
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Features', title: s('featuresTitle'), subtitle: s('featuresSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.features'), title: s('featuresTitle'), subtitle: s('featuresSub') })}
         <div class="grid-2">
           ${f('', 'featInstall', 'featInstallDesc', 'accent')}
           ${f('', 'featDetect', 'featDetectDesc')}
@@ -115,7 +115,7 @@
     }).join('');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Pack', title: s('packTitle'), subtitle: s('packSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.pack'), title: s('packTitle'), subtitle: s('packSub') })}
         <div class="card-sec about-mods">${mods}</div>
       </section>
     `;
@@ -129,7 +129,7 @@
       </details>`).join('');
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'FAQ', title: s('faqTitle'), subtitle: s('faqSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.faq'), title: s('faqTitle'), subtitle: s('faqSub') })}
         <div class="stack-gap">${faqs}</div>
       </section>
     `;
@@ -138,7 +138,7 @@
   function renderContacts() {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Contact', title: s('contactTitle'), subtitle: s('contactSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.contact'), title: s('contactTitle'), subtitle: s('contactSub') })}
         <div class="stack-gap">
           ${CONTACTS.map((c) => `
             <div class="card-sec contact-row" data-url="${c.url}">

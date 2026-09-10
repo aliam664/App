@@ -10,7 +10,8 @@
       nameKey: 'modCsp',
       descKey: 'modCspDesc',
       requires: '',
-      paths: ['extension/config/data_manifest.ini', 'extension/dwrite.ini', 'dwrite.dll  (کنار acs.exe)']
+      paths: ['extension/config/data_manifest.ini', 'extension/dwrite.ini', 'dwrite.dll'],
+      note: 'cspDllNote'
     },
     {
       id: 'pure',
@@ -271,6 +272,9 @@
     const requires = mod.requires
       ? `<div class="home-mod-requires"><span class="home-kicker">${s('modRequires')}:</span> ${uhmEsc(mod.requires)}</div>`
       : '';
+    const note = mod.note
+      ? `<div class="home-mod-note">${uhmEsc(s(mod.note))}</div>`
+      : '';
 
     return `
       <div class="home-mod-card">
@@ -282,6 +286,7 @@
             <span class="home-kicker">${s('modPath')}:</span>
             <div class="home-mod-path-list">${paths}</div>
           </div>
+          ${note}
         </div>
       </div>
     `;

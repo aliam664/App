@@ -206,6 +206,16 @@ body[dir='ltr'] .home-mod-card:hover { transform: translateX(3px); }
 .home-mod-name { font-size: 14px; font-weight: 800; }
 .home-mod-desc { font-size: 12px; color: var(--color-text-dim); line-height: 1.7; }
 .home-mod-requires { font-size: 11px; color: var(--color-warn); }
+.home-mod-note {
+  font-size: 11px;
+  color: var(--color-accent-2);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1.6;
+  width: fit-content;
+}
 .home-mod-paths { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
 .home-mod-path-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .home-mod-path-list code {
@@ -1002,7 +1012,39 @@ body[dir='ltr'] .contact-row:hover { transform: translateX(3px); }
 .mi-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; font-weight: 800; }
 .mi-status-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .mi-status-row { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 8px 10px; background: var(--color-bg-2); border-radius: 10px; }
-.mi-status-icon { width: 18px; text-align: center; }
+.mi-status-icon {
+  width: 18px; height: 18px; flex: 0 0 18px;
+  border-radius: 50%;
+  background: var(--color-card-border);
+  position: relative;
+}
+.mi-status-row[data-state='running'] .mi-status-icon,
+.mi-status-row[data-state='start'] .mi-status-icon {
+  border: 2px solid var(--color-card-border);
+  border-top-color: var(--color-accent);
+  background: transparent;
+  animation: uhmSpin .8s linear infinite;
+}
+.mi-status-row[data-state='installed'] .mi-status-icon { background: var(--color-success); }
+.mi-status-row[data-state='installed'] .mi-status-icon::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 8px; height: 4px;
+  border-left: 2px solid #0b0e14;
+  border-bottom: 2px solid #0b0e14;
+  transform: translate(-50%, -62%) rotate(-45deg);
+}
+.mi-status-row[data-state='error'] .mi-status-icon { background: var(--color-error); }
+.mi-status-row[data-state='error'] .mi-status-icon::before,
+.mi-status-row[data-state='error'] .mi-status-icon::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 9px; height: 2px;
+  background: #fff;
+}
+.mi-status-row[data-state='error'] .mi-status-icon::before { transform: translate(-50%, -50%) rotate(45deg); }
+.mi-status-row[data-state='error'] .mi-status-icon::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.mi-status-row[data-state='skipped'] .mi-status-icon { background: var(--color-warn); }
 .mi-status-name { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ================= Global drop overlay ================= */

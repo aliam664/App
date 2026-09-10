@@ -48,7 +48,7 @@
 
       <div class="wizard-footer">
         <button class="btn-primary" id="btn-continue" disabled>
-          <span>${s('continueBtn')}</span><span class="btn-arrow">${lang === 'fa' ? '' : ''}</span>
+          <span>${s('continueBtn')}</span>
         </button>
       </div>
     `;
@@ -66,7 +66,7 @@
   function renderTiers(lang) {
     return `
       <section class="ui-section">
-        ${window.ui.sectionHeader({ icon: '', kicker: 'Presets', title: s('tiersTitle'), subtitle: s('tiersSub') })}
+        ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.presets'), title: s('tiersTitle'), subtitle: s('tiersSub') })}
         <div class="tier-grid">
           ${window.TIER_DEFINITIONS.map((tier) => renderTier(tier)).join('')}
         </div>

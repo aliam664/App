@@ -44,7 +44,7 @@
         </section>
 
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Result', title: s('statsTitle'), subtitle: '' })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.result'), title: s('statsTitle'), subtitle: '' })}
           <div class="grid-3 done-stats">
             ${window.ui.statCard('', s('installedCount'), installed, 'success')}
             ${window.ui.statCard('', s('tier'), tierName, 'accent')}
@@ -56,7 +56,7 @@
 
         ${details.length ? `
         <section class="ui-section">
-          ${window.ui.sectionHeader({ icon: '', kicker: 'Report', title: s('reportTitle'), subtitle: s('reportSub') })}
+          ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.report'), title: s('reportTitle'), subtitle: s('reportSub') })}
           <div class="card-sec report-list">
             ${details.map((m) => reportRow(m)).join('')}
           </div>
@@ -101,21 +101,30 @@
       </div>`;
   }
 
-  function copyReport(details) {
+  async function copyReport(details) {
     const lines = details.map((m) => `${MOD_LABEL[m.id] || m.id}: ${m.status}`).join('\n');
     const text = `UHM Install Report\n${new Date().toLocaleString()}\n\n${lines}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      uhmToast(s('copyDone'), 'success');
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      uhmToast(s('copyDone'), 'success');
+    let ok = false;
+    try {
+      // Route through the main process: renderer-side Clipboard API can be
+      // blocked in sandboxed windows and `document.execCommand` is deprecated.
+      if (window.uhm && typeof window.uhm.copyText === 'function') {
+        ok = Boolean(await window.uhm.copyText(text));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch (e) {
+      ok = false;
     }
+    uhmToast(ok ? s('copyDone') : t('toast.error'), ok ? 'success' : 'error');
   }
 
   window.pages.done = { render };
