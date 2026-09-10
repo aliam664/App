@@ -41,6 +41,10 @@
   var previewCache = {};
   var previewCacheGamePath = null;
 
+  // In-flight preview requests (rel path → Promise) so concurrent renders
+  // never fire duplicate IPC calls for the same image.
+  var previewInflight = {};
+
   // Unsubscribe handle for the main-process scan progress stream.
   var scanProgressUnsub = null;
 
@@ -97,6 +101,7 @@
     if (previewCacheGamePath !== state.gamePath) {
       previewCache = {};
       previewCacheGamePath = state.gamePath;
+      previewInflight = {};
     }
 
     if (!state.gamePath) {
@@ -567,7 +572,7 @@
     const count = item.type === 'car' ? (item.skinCount || 0) : (item.layoutCount || 1);
 
     return `
-      <article class="content-card" data-id="${item.id}">
+      <article class="content-card" data-id="${item.id}" data-op="open">
         <div class="content-card-preview ${previewClass}" data-preview="${item.preview ? uhmEsc(item.preview) : ''}" data-id="${item.id}">
           ${item.hasPreview ? '' : `<span class="content-preview-fallback">${fallbackIcon}<br/><span class="text-dim">${s('noPreview')}</span></span>`}
         </div>
@@ -719,26 +724,45 @@
     el.classList.remove('no-preview');
   }
 
+  function applyPreviewMissing(el) {
+    el.insertAdjacentHTML('beforeend', `<span class="preview-too-large">${s('noPreview')}</span>`);
+  }
+
+  const PREVIEW_BATCH = 8;
+
   async function hydratePreviews() {
-    const nodes = document.querySelectorAll('[data-preview]');
+    const nodes = Array.from(document.querySelectorAll('[data-preview]'));
+    const jobs = [];
     for (const el of nodes) {
       const rel = el.getAttribute('data-preview');
-      if (!rel) continue;
       el.removeAttribute('data-preview');
-      if (previewCache[rel]) {
-        applyPreview(el, previewCache[rel]);
-        continue;
-      }
-      try {
-        const url = await window.uhm.getContentPreview({ gamePath: state.gamePath, relPath: rel });
-        if (url && typeof url === 'string') {
-          previewCache[rel] = url;
-          applyPreview(el, url);
-        } else if (url && url.tooLarge) {
-          previewCache[rel] = 'TOO_LARGE';
-          el.insertAdjacentHTML('beforeend', `<span class="preview-too-large">${s('noPreview')}</span>`);
-        }
-      } catch (e) { /* fallback stays */ }
+      if (!rel) continue;
+      if (previewCache[rel] === 'TOO_LARGE') { applyPreviewMissing(el); continue; }
+      if (previewCache[rel]) { applyPreview(el, previewCache[rel]); continue; }
+      jobs.push(loadPreview(el, rel));
+    }
+    // Bounded concurrency: never decode hundreds of previews at once.
+    for (let i = 0; i < jobs.length; i += PREVIEW_BATCH) {
+      await Promise.all(jobs.slice(i, i + PREVIEW_BATCH));
+    }
+  }
+
+  async function loadPreview(el, rel) {
+    if (previewCache[rel] === 'TOO_LARGE') { applyPreviewMissing(el); return; }
+    if (previewCache[rel]) { applyPreview(el, previewCache[rel]); return; }
+    if (!previewInflight[rel]) {
+      previewInflight[rel] = window.uhm
+        .getContentPreview({ gamePath: state.gamePath, relPath: rel })
+        .catch(() => null)
+        .finally(() => { delete previewInflight[rel]; });
+    }
+    const url = await previewInflight[rel];
+    if (url && typeof url === 'string') {
+      previewCache[rel] = url;
+      applyPreview(el, url);
+    } else if (url && url.tooLarge) {
+      previewCache[rel] = 'TOO_LARGE';
+      applyPreviewMissing(el);
     }
   }
 
@@ -768,17 +792,7 @@
 
   async function hydrateSinglePreview(el, rel) {
     if (!el || !rel) return;
-    if (previewCache[rel] && previewCache[rel] !== 'TOO_LARGE') {
-      applyPreview(el, previewCache[rel]);
-      return;
-    }
-    try {
-      const url = await window.uhm.getContentPreview({ gamePath: state.gamePath, relPath: rel });
-      if (url && typeof url === 'string') {
-        previewCache[rel] = url;
-        applyPreview(el, url);
-      }
-    } catch (e) { /* keep fallback */ }
+    await loadPreview(el, rel);
   }
 
   function closeDetail() {
@@ -792,7 +806,7 @@
   function detailTemplate(item) {
     const isCar = item.type === 'car';
     const preview = item.hasPreview
-      ? `<div class="detail-preview" data-preview=""></div>`
+      ? `<div class="detail-preview"></div>`
       : `<div class="detail-preview no-preview"><span class="content-preview-fallback">${isCar ? '🚗' : '📍'}<br/><span class="text-dim">${s('noPreview')}</span></span></div>`;
     const specRows = isCar ? `
       ${detailKey(s('brand'), item.brand)}

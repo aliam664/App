@@ -6,6 +6,7 @@
   let selectedPath = null;
   let validation = null;
   let busy = false;
+  let validationSeq = 0;
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'gamePath.' + key); }
@@ -24,6 +25,7 @@
     selectedPath = window.appState.settings.gamePath || null;
     validation = null;
     busy = false;
+    validationSeq = 0;
 
     container.innerHTML = `
       <div class="page-header">
@@ -154,6 +156,9 @@
 
   async function validateAndRender(container) {
     if (!selectedPath) return;
+    // Monotonic sequence so a slow, older validation response can never
+    // overwrite a newer one when the user types/pastes quickly.
+    const seq = ++validationSeq;
     const statusEl = document.getElementById('path-status');
     const continueBtn = document.getElementById('btn-continue');
     const grid = document.getElementById('validation-grid');
@@ -161,6 +166,7 @@
     statusEl.className = 'gamepath-status searching';
 
     const result = await window.uhm.validateGamePath(selectedPath);
+    if (seq !== validationSeq) return; // stale — a newer validation supersedes this one
     validation = result;
     statusEl.textContent = result.valid ? s('validOk') : (result.reason === 'NO_CONTENT_DIR' ? s('invalidNoContent') : s('invalidNoExe'));
     statusEl.className = 'gamepath-status ' + (result.valid ? 'valid' : 'invalid');
