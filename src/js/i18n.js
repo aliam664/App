@@ -74,6 +74,7 @@ const translations = {
       refRoot: 'ریشه‌ی بازی',
       manageShort: '🗂 مدیریت',
       libraryBtn: '📚 کتابخانه‌ی محتوا',
+      donateBtn: '❤️ حمایت مالی',
       viewPlans: 'مشاهده‌ی حالت‌ها',
       scrollHint: 'برای دیدن جزئیات مودها اسکرول کن',
       systemStatus: 'وضعیت سیستم',
@@ -168,7 +169,9 @@ const translations = {
       contactSub: 'سوال، پیشنهاد یا گزارش مشکل — در دسترس هستیم.',
       telegramId: 'آیدی تلگرام',
       telegramChannel: 'کانال تلگرام',
-      youtube: 'کانال یوتیوب'
+      youtube: 'کانال یوتیوب',
+      donateTitle: 'حمایت مالی',
+      donateDesc: 'از توسعه‌ی UHM با یک دونیت کوچک حمایت کن.'
     },
     gamePath: {
       title: 'مسیر نصب Assetto Corsa را مشخص کن',
@@ -489,6 +492,34 @@ const translations = {
       passwordPlaceholder: 'رمز آرشیو...',
       passwordSubmit: 'باز کردن',
       passwordIncorrect: 'رمز اشتباه است؛ دوباره امتحان کن.'
+    },
+    donate: {
+      title: 'حمایت مالی',
+      subtitle: 'اگر UHM برایت مفید بوده، با یک دونیت کوچک از توسعه‌ی آن حمایت کن.',
+      kicker: 'حمایت از توسعه',
+      heroTitle: 'به UHM انرژی بده 💝',
+      heroSub: 'این پک با عشق و به‌صورت رایگان ساخته می‌شود؛ دونیت تو انگیزه‌ی ادامه، رفع اشکال و افزودن قابلیت‌های جدید است.',
+      cardTitle: 'کارت بانکی',
+      cardSub: 'شماره‌ی کارت را کپی کن و با اپلیکیشن بانک خودت، انتقال کارت‌به‌کارت انجام بده.',
+      cardToCard: 'کارت به کارت',
+      cardHolder: 'به نام',
+      cardHolderPlaceholder: 'حساب بانکی UHM',
+      copyCard: 'کپی شماره کارت',
+      copied: 'کپی شد!',
+      copiedSub: 'شماره‌ی کارت در کلیپ‌بورد قرار گرفت.',
+      howKicker: 'راهنما',
+      howTitle: 'چطور حمایت کنم؟',
+      howSub: 'فقط در سه قدم ساده.',
+      how1Title: 'شماره را کپی کن',
+      how1Desc: 'با دکمه‌ی «کپی شماره کارت» شماره به کلیپ‌بورد می‌رود.',
+      how2Title: 'اپ بانک را باز کن',
+      how2Desc: 'وارد اپلیکیشن بانک شو و بخش «کارت به کارت» را باز کن.',
+      how3Title: 'مبلغ را بفرست',
+      how3Desc: 'شماره را در مقصد جای‌گذاری کن و مبلغ دلخواهت را انتقال بده.',
+      thankYou: 'از حمایتت سپاسگزاریم 💙',
+      thankYouSub: 'هر دونیت، حتی کوچک، مستقیماً به بهترشدن این پک کمک می‌کند.',
+      backHome: 'بازگشت به خانه',
+      supportNote: 'این صفحه صرفاً برای حمایت داوطلبانه است و هیچ الزامی ندارد.'
     }
   },
   en: {
@@ -566,6 +597,7 @@ const translations = {
       refRoot: 'Game root',
       manageShort: '🗂 Manage',
       libraryBtn: '📚 Content Library',
+      donateBtn: '❤️ Donate',
       viewPlans: 'View presets',
       scrollHint: 'Scroll to see mod details',
       systemStatus: 'System status',
@@ -660,7 +692,9 @@ const translations = {
       contactSub: 'Questions, suggestions or bug reports — we are available.',
       telegramId: 'Telegram ID',
       telegramChannel: 'Telegram Channel',
-      youtube: 'YouTube Channel'
+      youtube: 'YouTube Channel',
+      donateTitle: 'Support Us',
+      donateDesc: 'Support UHM development with a small donation.'
     },
     gamePath: {
       title: 'Select the Assetto Corsa install path',
@@ -981,6 +1015,34 @@ const translations = {
       passwordPlaceholder: 'Archive password...',
       passwordSubmit: 'Unlock',
       passwordIncorrect: 'Incorrect password; please try again.'
+    },
+    donate: {
+      title: 'Support Us',
+      subtitle: 'If UHM has been useful to you, support its development with a small donation.',
+      kicker: 'Support development',
+      heroTitle: 'Fuel UHM with your support 💝',
+      heroSub: 'This pack is built with love and stays free; your donation keeps the development, bug fixes and new features going.',
+      cardTitle: 'Bank card',
+      cardSub: 'Copy the card number and make a card-to-card transfer from your banking app.',
+      cardToCard: 'Card to card',
+      cardHolder: 'Account',
+      cardHolderPlaceholder: 'UHM bank account',
+      copyCard: 'Copy card number',
+      copied: 'Copied!',
+      copiedSub: 'The card number is now in your clipboard.',
+      howKicker: 'How to',
+      howTitle: 'How can I donate?',
+      howSub: 'Just three simple steps.',
+      how1Title: 'Copy the number',
+      how1Desc: 'Tap "Copy card number" to put it on your clipboard.',
+      how2Title: 'Open your banking app',
+      how2Desc: 'Open your bank app and choose the "card-to-card" transfer.',
+      how3Title: 'Send the amount',
+      how3Desc: 'Paste the number as the destination and send any amount you like.',
+      thankYou: 'Thank you for your support 💙',
+      thankYouSub: 'Every donation, even a small one, directly helps improve this pack.',
+      backHome: 'Back to home',
+      supportNote: 'This page is for voluntary support only — there is no obligation.'
     }
   }
 };

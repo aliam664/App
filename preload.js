@@ -76,5 +76,8 @@ contextBridge.exposeInMainWorld('uhm', {
   },
 
   // لینک خارجی
-  openExternal: (url) => ipcRenderer.send('shell:open-external', url)
+  openExternal: (url) => ipcRenderer.send('shell:open-external', url),
+
+  // کلیپ‌بورد (برای کپی شماره کارت و گزارش‌ها)
+  copyText: (text) => ipcRenderer.invoke('clipboard:write', text)
 });

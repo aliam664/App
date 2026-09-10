@@ -63,6 +63,7 @@ async function bootstrap() {
     emptyTrash: async () => ({ success: true }),
     listTrash: async () => [],
     getPreviewCandidates: async () => [],
+    copyText: async () => true,
     getPathForFile: () => '/fake/dropped.zip',
     pickModFiles: async () => ['/fake/dropped.zip'],
     analyzeModSource: async (payload) => {
@@ -107,7 +108,8 @@ async function bootstrap() {
     'src/pages/manageMods.js',
     'src/js/libraryData.js',
     'src/pages/library.js',
-    'src/pages/modInstall.js'
+    'src/pages/modInstall.js',
+    'src/pages/donate.js'
   ];
   for (const f of files) loadScript(ctx, f);
 
@@ -202,6 +204,21 @@ async function bootstrap() {
   window.navigate('manageMods');
   assert.ok(container.innerHTML.includes('CSP'), 'manageMods should render installed mods');
   assert.ok(container.innerHTML.includes('manage-remove') || container.innerHTML.includes('حذف'), 'manageMods should render remove action');
+
+  // == Donate page ==
+  window.navigate('donate');
+  assert.ok(container.innerHTML.includes('5859'), 'donate should render the card number');
+  assert.ok(container.innerHTML.includes('8318'), 'donate should render the card number grouped');
+  assert.ok(container.innerHTML.includes('btn-copy-card'), 'donate should render the copy button');
+  assert.ok(container.innerHTML.includes('donate-hero'), 'donate should render the animated hero');
+  assert.ok(container.innerHTML.includes('donate-steps'), 'donate should render the how-to steps');
+
+  // copy button → success state (copyText mock resolves true)
+  document.getElementById('btn-copy-card').dispatchEvent(new window.Event('click'));
+  await new Promise((r) => setTimeout(r, 30));
+  const copyBtn = document.getElementById('btn-copy-card');
+  assert.ok(copyBtn.classList.contains('copied'), 'copy button should enter the copied state');
+  assert.ok(container.innerHTML.includes('کپی شد'), 'copy button should show the copied label');
 
   // == تست mock پیش‌نمایش مرورگر (npm run serve) ==
   const { window: pw, document: pd } = parseHTML('<!DOCTYPE html><body></body>');

@@ -26,6 +26,7 @@
       <div class="page-stack">
         ${renderHero(lang)}
         ${renderFeatures()}
+        ${renderDonate()}
         ${renderInsidePack(lang)}
         ${renderFaq()}
         ${renderContacts()}
@@ -36,6 +37,8 @@
     container.querySelectorAll('.contact-row').forEach((row) => {
       row.addEventListener('click', () => window.uhm.openExternal(row.dataset.url));
     });
+    const donateRow = document.getElementById('row-donate');
+    if (donateRow) donateRow.addEventListener('click', () => navigate('donate'));
   }
 
   function renderHero(lang) {
@@ -80,6 +83,21 @@
         </div>
       </section>
     `;
+  }
+
+  function renderDonate() {
+    return `
+      <section class="ui-section">
+        ${window.ui.sectionHeader({ icon: '💝', kicker: '', title: s('donateTitle'), subtitle: s('donateDesc') })}
+        <div class="card-sec about-donate" id="row-donate">
+          <div class="about-mod-icon">💳</div>
+          <div class="about-mod-body">
+            <div class="about-mod-name">${s('donateTitle')}</div>
+            <div class="text-dim">${s('donateDesc')}</div>
+          </div>
+          <span class="contact-arrow">${window.appState.lang === 'fa' ? '‹' : '›'}</span>
+        </div>
+      </section>`;
   }
 
   function renderInsidePack(lang) {

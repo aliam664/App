@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
@@ -533,4 +533,12 @@ ipcMain.handle('system:suggest-tier', (event, specs) => {
 
 ipcMain.on('shell:open-external', (event, url) => {
   if (isSafeExternalUrl(url)) shell.openExternal(url);
+});
+
+ipcMain.handle('clipboard:write', (event, text) => {
+  // Renderer-side Clipboard API can be blocked in sandboxed windows, so route
+  // copy-to-clipboard through the main process where the `clipboard` module is
+  // always available.
+  clipboard.writeText(String(text == null ? '' : text));
+  return true;
 });

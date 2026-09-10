@@ -108,6 +108,10 @@
     async emptyTrash() { return { success: true }; },
     async listTrash() { return []; },
     async getPreviewCandidates() { return []; },
+    async copyText(text) {
+      try { await navigator.clipboard.writeText(String(text || '')); return true; }
+      catch (e) { return false; }
+    },
     async pathExists() { return true; },
     async getLocalAppData() { return 'C:\\AppData'; },
     async detectSystemSpecs() {

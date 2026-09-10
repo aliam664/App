@@ -12,6 +12,7 @@ const files = [
   'src/pages/install.js', 'src/pages/done.js', 'src/pages/manageMods.js',
   'src/pages/library.js',
   'src/pages/modInstall.js',
+  'src/pages/donate.js',
   'src/lib/installer.js',
   'src/lib/hardware.js',
   'src/lib/library.js',
