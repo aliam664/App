@@ -310,6 +310,7 @@ async function detectSystemSpecs() {
   specs.suggestedTier = suggestion.tier;
   specs.detectedBy = suggestion.detectedBy;
   specs.tierReason = suggestion.reason;
+  specs.constrained = Boolean(suggestion.constrained);
 
   return specs;
 }

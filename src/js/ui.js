@@ -33,8 +33,8 @@
     return `
       <div class="ui-stat ${accent ? 'ui-stat-' + accent : ''}">
         <div class="ui-stat-icon">${icon}</div>
-        <div class="ui-stat-value">${value}</div>
-        <div class="ui-stat-label title-dim">${label}</div>
+        <div class="ui-stat-value">${esc(value)}</div>
+        <div class="ui-stat-label title-dim">${esc(label)}</div>
       </div>`;
   }
 
@@ -51,8 +51,8 @@
   function infoRow(label, value, variant) {
     return `
       <div class="ui-info-row">
-        <span class="ui-info-label title-dim">${label}</span>
-        <span class="ui-info-value ${variant ? 'ui-info-value-' + variant : ''}">${value == null || value === '' ? '—' : value}</span>
+        <span class="ui-info-label title-dim">${esc(label)}</span>
+        <span class="ui-info-value ${variant ? 'ui-info-value-' + variant : ''}">${value == null || value === '' ? '—' : esc(value)}</span>
       </div>`;
   }
 
