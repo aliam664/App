@@ -1,12 +1,28 @@
+/* ================================================================= */
+/*  Tier select — detect system, compare, choose graphics tier       */
+/* ================================================================= */
+
 (function () {
   let selectedTier = null;
   let detecting = false;
   let detectedSpecs = null;
 
+  const TIER_MODS = {
+    low: ['csp', 'ppfilter', 'video'],
+    medium: ['csp', 'pure', 'ppfilter', 'video'],
+    high: ['csp', 'pure', 'ppfilter', 'chasecam', 'video'],
+    veryhigh: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'video'],
+    ultra: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'srp', 'video']
+  };
+
+  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP', chasecam: 'Cam', hud: 'HUD', srp: 'SRP', video: 'Video' };
+  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
+
+  function t(key) { return window.i18n.t(window.appState.lang, key); }
+  function s(key) { return window.i18n.t(window.appState.lang, 'tierSelect.' + key); }
+
   function render(container) {
     const lang = window.appState.lang;
-    const t = (k) => window.i18n.t(lang, k);
-    const s = (k) => window.i18n.t(lang, 'tierSelect.' + k);
     selectedTier = window.appState.manifest.systemTier || null;
     detecting = false;
     detectedSpecs = null;
@@ -17,30 +33,24 @@
         <div class="page-header-copy">
           <div class="gamepath-step">${t('common.step3')}</div>
           <h2>${s('title')}</h2>
+          <div class="text-dim">${s('subtitle')}</div>
         </div>
       </div>
 
-      <div class="tier-wrap">
-        <div class="text-dim tier-subtitle">${s('subtitle')}</div>
-
-        <div class="tier-auto card" id="tier-auto">
-          <button class="btn-secondary" id="btn-autodetect">${s('autoDetect')}</button>
+      <div class="tier-wrap page-stack">
+        <div class="card-sec tier-auto" id="tier-auto">
+          <div class="tier-auto-head">
+            <div>
+              <div class="card-sec-title">${s('autoTitle')}</div>
+              <div class="card-sec-sub">${s('autoSub')}</div>
+            </div>
+            <button class="btn-secondary" id="btn-autodetect">${s('autoDetect')}</button>
+          </div>
           <div class="tier-auto-info" id="tier-auto-info"></div>
         </div>
 
-        <div class="tier-grid">
-          ${window.TIER_DEFINITIONS.map((tier) => `
-            <button class="tier-card ${selectedTier === tier.id ? 'selected' : ''}" data-tier="${tier.id}">
-              <img class="tier-img" src="${tier.image}" alt="${s(tier.id)}" />
-              <div class="tier-icon">${tier.icon}</div>
-              <div class="tier-name">${s(tier.id)}</div>
-              <div class="tier-desc text-dim">${s(tier.id + 'Desc')}</div>
-              <div class="tier-check">${selectedTier === tier.id ? '✓' : ''}</div>
-            </button>
-          `).join('')}
-        </div>
-
-        <div class="text-dim">${s('manualNote')}</div>
+        ${renderTiers(lang)}
+        <div class="text-dim tier-manual-note">${s('manualNote')}</div>
       </div>
 
       <div class="wizard-footer">
@@ -51,117 +61,134 @@
     `;
 
     document.getElementById('btn-back').addEventListener('click', () => goBack('baseModsCheck'));
-    document.getElementById('btn-autodetect').addEventListener('click', async () => {
-      if (detecting) return;
-      detecting = true;
-      const btn = document.getElementById('btn-autodetect');
-      const info = document.getElementById('tier-auto-info');
-      btn.disabled = true;
-      btn.textContent = s('detecting');
-      info.innerHTML = '<div class="loader"></div>';
-
-      try {
-        const specs = await window.uhm.detectSystemSpecs();
-        detectedSpecs = specs;
-        renderDetectedInfo(info, specs, lang, s);
-      } catch (e) {
-        info.innerHTML = `<div class="text-dim">${s('notDetected')}</div>`;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = s('autoDetect');
-        detecting = false;
-      }
+    document.getElementById('btn-autodetect').addEventListener('click', detectAction);
+    wireTierCards(container);
+    document.getElementById('btn-continue').addEventListener('click', () => {
+      if (!selectedTier) return;
+      window.appState.installPlan = buildPlan(selectedTier);
+      navigate('install', { plan: window.appState.installPlan });
     });
+  }
 
+  function renderTiers(lang) {
+    return `
+      <section class="ui-section">
+        ${window.ui.sectionHeader({ icon: '🎮', kicker: 'Presets', title: s('tiersTitle'), subtitle: s('tiersSub') })}
+        <div class="tier-grid">
+          ${window.TIER_DEFINITIONS.map((tier) => renderTier(tier)).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTier(tier) {
+    const label = s(tier.id);
+    const mods = (TIER_MODS[tier.id] || []).map((id) =>
+      `<span class="ui-chip">${MOD_ICON[id]} ${MOD_LABEL[id]}</span>`
+    ).join('');
+    return `
+      <button class="tier-card ${selectedTier === tier.id ? 'selected' : ''} ${detectedSpecs && detectedSpecs.suggestedTier === tier.id ? 'recommended' : ''}" data-tier="${tier.id}">
+        <img class="tier-img" src="${tier.image}" alt="${label}" />
+        <div class="tier-icon">${tier.icon}</div>
+        <div class="tier-name">${label}</div>
+        <div class="tier-desc text-dim">${s(tier.id + 'Desc')}</div>
+        <div class="tier-mods">${mods}</div>
+        ${detectedSpecs && detectedSpecs.suggestedTier === tier.id ? `<div class="tier-rec">${s('recommended')}</div>` : ''}
+        <div class="tier-check">${selectedTier === tier.id ? '✓' : ''}</div>
+      </button>
+    `;
+  }
+
+  function wireTierCards(container) {
     container.querySelectorAll('.tier-card').forEach((card) => {
       card.addEventListener('click', () => {
         selectedTier = card.dataset.tier;
-        container.querySelectorAll('.tier-card').forEach((c) => c.classList.remove('selected'));
-        container.querySelectorAll('.tier-check').forEach((c) => (c.textContent = ''));
+        container.querySelectorAll('.tier-card').forEach((c) => { c.classList.remove('selected'); });
+        container.querySelectorAll('.tier-check').forEach((c) => { c.textContent = ''; });
         card.classList.add('selected');
         card.querySelector('.tier-check').textContent = '✓';
         document.getElementById('btn-continue').disabled = false;
       });
     });
-
-    document.getElementById('btn-continue').addEventListener('click', () => {
-      if (!selectedTier) return;
-      const plan = buildPlan(selectedTier);
-      window.appState.installPlan = plan;
-      navigate('install', { plan });
-    });
   }
 
-  function renderDetectedInfo(info, specs, lang, s) {
-    const t = (k) => window.i18n.t(lang, k);
-    const tierLabel = specs.suggestedTier
-      ? window.i18n.t(lang, 'tierSelect.' + specs.suggestedTier)
-      : '—';
+  async function detectAction() {
+    if (detecting) return;
+    detecting = true;
+    const btn = document.getElementById('btn-autodetect');
+    const info = document.getElementById('tier-auto-info');
+    btn.disabled = true;
+    btn.textContent = s('detecting');
+    info.innerHTML = '<div class="loader"></div><div class="text-dim">' + s('detecting') + '</div>';
+
+    try {
+      const specs = await window.uhm.detectSystemSpecs();
+      detectedSpecs = specs;
+      renderDetectedInfo(info, specs);
+      rerenderRecommended(btn);
+    } catch (e) {
+      info.innerHTML = `<div class="text-dim">${s('notDetected')}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = s('autoDetect');
+      detecting = false;
+    }
+  }
+
+  function rerenderRecommended(btn) {
+    // re-render tier cards to show the recommended hint
+    const wrap = document.querySelector('.tier-wrap');
+    if (!wrap) return;
+    const grid = wrap.querySelector('.tier-grid');
+    if (grid) {
+      grid.innerHTML = window.TIER_DEFINITIONS.map((tier) => renderTier(tier)).join('');
+      wireTierCards(wrap);
+      const continueBtn = document.getElementById('btn-continue');
+      if (continueBtn) continueBtn.disabled = !selectedTier;
+    }
+  }
+
+  function renderDetectedInfo(info, specs) {
+    const tierLabel = specs.suggestedTier ? s(specs.suggestedTier) : '—';
     const cores = specs.cpuCores ? `${specs.cpuCores} ${s('cores')}` : '—';
-    const gpuName = specs.gpuName || s('unknownGpu');
     const constrained = Boolean(specs.constrained) || /-limited$/.test(specs.detectedBy || '');
-    const reasonKey = constrained
-      ? 'reasonLimited'
-      : specs.detectedBy === 'vram'
-        ? 'reasonVram'
-        : specs.detectedBy === 'gpu'
-          ? 'reasonGpu'
-          : 'reasonSpec';
+    const reasonKey = constrained ? 'reasonLimited'
+      : specs.detectedBy === 'vram' ? 'reasonVram'
+      : specs.detectedBy === 'gpu' ? 'reasonGpu' : 'reasonSpec';
     const reason = s(reasonKey);
 
     info.innerHTML = `
-      <div class="tier-auto-title">${s('detected')} ✅</div>
-      <div class="tier-auto-row"><span>${s('gpu')}:</span><strong>${uhmEsc(gpuName)}</strong></div>
-      ${specs.gpuVramGb ? `<div class="tier-auto-row"><span>${s('vram')}:</span><strong>${uhmEsc(specs.gpuVramGb)} GB</strong></div>` : ''}
-      ${specs.driverVersion ? `<div class="tier-auto-row"><span>${s('driver')}:</span><strong>${uhmEsc(specs.driverVersion)}</strong></div>` : ''}
-      <div class="tier-auto-row"><span>${s('cpu')}:</span><strong>${uhmEsc(specs.cpuName || '—')} (${cores})</strong></div>
-      <div class="tier-auto-row"><span>${s('ram')}:</span><strong>${uhmEsc(specs.totalMemGb || 0)} GB</strong></div>
-      <div class="tier-auto-row text-dim">📌 ${reason}</div>
-      ${specs.gpuVramGb && specs.gpuVramGb <= 2 ? `<div class="tier-auto-row text-dim">${s('vramLowNote')}</div>` : ''}
-      <button class="btn-primary btn-suggest" id="btn-use-suggest">
+      <div class="tier-detect-grid">
+        ${window.ui.infoRow(s('gpu'), specs.gpuName || s('unknownGpu'), 'accent')}
+        ${window.ui.infoRow(s('vram'), specs.gpuVramGb ? specs.gpuVramGb + ' GB' : '—')}
+        ${window.ui.infoRow(s('cpu'), specs.cpuName ? `${specs.cpuName} (${cores})` : '—')}
+        ${window.ui.infoRow(s('ram'), specs.totalMemGb ? specs.totalMemGb + ' GB' : '—')}
+      </div>
+      <div class="tier-reason">${reason}</div>
+      ${specs.gpuVramGb && specs.gpuVramGb <= 2 ? `<div class="text-dim">${s('vramLowNote')}</div>` : ''}
+      <button class="btn-primary" id="btn-use-suggest">
         ${s('useSuggestion')} <strong>${tierLabel}</strong>
       </button>
     `;
 
     document.getElementById('btn-use-suggest').addEventListener('click', () => {
       if (!specs.suggestedTier) return;
-      selectTier(specs.suggestedTier, document.getElementById('page-content'));
+      selectedTier = specs.suggestedTier;
+      document.querySelectorAll('.tier-card').forEach((c) => c.classList.remove('selected'));
+      document.querySelectorAll('.tier-check').forEach((c) => (c.textContent = ''));
+      const card = document.querySelector(`.tier-card[data-tier="${specs.suggestedTier}"]`);
+      if (card) { card.classList.add('selected'); card.querySelector('.tier-check').textContent = '✓'; }
+      document.getElementById('btn-continue').disabled = false;
     });
-  }
-
-  function selectTier(tier, container) {
-    selectedTier = tier;
-    container.querySelectorAll('.tier-card').forEach((c) => c.classList.remove('selected'));
-    container.querySelectorAll('.tier-check').forEach((c) => (c.textContent = ''));
-    const card = container.querySelector(`.tier-card[data-tier="${tier}"]`);
-    if (card) {
-      card.classList.add('selected');
-      card.querySelector('.tier-check').textContent = '✓';
-    }
-    document.getElementById('btn-continue').disabled = false;
   }
 
   function buildPlan(tier) {
     const existing = window.appState.overwriteDecisions || {};
     const enabledMods = window.MOD_DEFINITIONS.filter((m) => m.enabled);
-
-    // اگر کاربر برای CSP/PURE «خیر - حفظ کن» را انتخاب کرده باشد،
-    // همان مود از پلن نصب حذف می‌شود تا نسخه‌ی قبلی بازنویسی نشود.
     const mods = enabledMods
       .filter((m) => !((m.id === 'csp' || m.id === 'pure') && existing[m.id] === false))
-      .map((m) => ({
-        id: m.id,
-        dest: m.dest || '',
-        type: m.type || 'copy',
-        source: undefined,
-        overwrite: true
-      }));
-
-    return {
-      tier,
-      gamePath: window.appState.settings.gamePath,
-      mods
-    };
+      .map((m) => ({ id: m.id, dest: m.dest || '', type: m.type || 'copy', source: undefined, overwrite: true }));
+    return { tier, gamePath: window.appState.settings.gamePath, mods };
   }
 
   window.pages.tierSelect = { render };

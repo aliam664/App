@@ -1,93 +1,124 @@
+/* ================================================================= */
+/*  Manage mods — installed mods, version history, uninstall         */
+/* ================================================================= */
+
 (function () {
   let busy = false;
+  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
+  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP Filter', chasecam: 'Chase Cam', hud: 'HUD', srp: 'SRP Light', video: 'Video' };
+
+  function t(key) { return window.i18n.t(window.appState.lang, key); }
+  function s(key) { return window.i18n.t(window.appState.lang, 'manageMods.' + key); }
 
   function render(container) {
-    const lang = window.appState.lang;
-    const t = (k) => window.i18n.t(lang, k);
-    const s = (k) => window.i18n.t(lang, 'manageMods.' + k);
     const manifest = window.appState.manifest;
-    const mods = manifest.mods || {};
-    const ids = Object.keys(mods);
-    const hasAny = ids.some((id) => Array.isArray(mods[id]) && mods[id].length > 0);
+    const mods = (manifest && manifest.mods) || {};
+    const ids = Object.keys(mods).filter((id) => Array.isArray(mods[id]) && mods[id].length > 0);
+    const hasAny = ids.length > 0;
     busy = false;
 
     container.innerHTML = `
       <div class="page-header">
-        <button class="back-btn" id="btn-back">${uhmBackArrow(lang)}</button>
-        <h2>${s('title')}</h2>
+        <button class="back-btn" id="btn-back">${uhmBackArrow(window.appState.lang)}</button>
+        <div class="page-header-copy">
+          <h2>${s('title')}</h2>
+          <div class="text-dim">${s('subtitle')}</div>
+        </div>
       </div>
 
-      ${hasAny ? `
-        <div class="manage-list">
-          ${ids.map((id) => renderModCard(id, mods[id], lang, s)).join('')}
-        </div>
-      ` : `
-        <div class="empty-state">
-          <div class="empty-icon">🗃</div>
-          <div class="text-dim">${s('empty')}</div>
-          <button class="btn-primary" id="btn-start">${t('showcase.startInstall')}</button>
-        </div>
-      `}
+      <div class="page-stack">
+        ${hasAny ? renderSummary(ids, mods) : ''}
+        ${hasAny ? `
+          <section class="ui-section">
+            ${window.ui.sectionHeader({ icon: '🗂️', kicker: 'Installed', title: s('modsTitle'), subtitle: s('modsSub') })}
+            <div class="manage-list">
+              ${ids.map((id) => renderModCard(id, mods[id])).join('')}
+            </div>
+          </section>
+        ` : `
+          <section class="ui-section">
+            ${window.ui.empty('🗃', s('empty'), '', `<button class="btn-primary" id="btn-start">${t('showcase.startInstall')}</button>`)}
+          </section>
+        `}
+      </div>
     `;
 
     document.getElementById('btn-back').addEventListener('click', () => goBack('showcase'));
     const startBtn = document.getElementById('btn-start');
     if (startBtn) startBtn.addEventListener('click', () => navigate('gamePath'));
-
-    container.querySelectorAll('.manage-remove').forEach((btn) => {
-      btn.addEventListener('click', () => doRemove(btn.dataset.mod, btn));
-    });
+    container.querySelectorAll('.manage-remove').forEach((btn) => btn.addEventListener('click', () => doRemove(btn.dataset.mod, btn)));
+    container.querySelectorAll('.manage-toggle').forEach((btn) => btn.addEventListener('click', () => {
+      const card = btn.closest('.manage-card');
+      if (card) card.classList.toggle('expanded');
+    }));
   }
 
-  function renderModCard(id, entries, lang, s) {
-    // در install.js هر نصب جدید با [newEntry, ...existing] در ابتدا ذخیره می‌شود.
+  function renderSummary(ids, mods) {
+    const installed = ids.filter((id) => mods[id][0] && (mods[id][0].status === 'installed')).length;
+    return `
+      <section class="ui-section">
+        ${window.ui.sectionHeader({ icon: '📊', kicker: 'Summary', title: s('summaryTitle'), subtitle: '' })}
+        <div class="grid-3">
+          ${window.ui.statCard('📦', s('modsTitle'), ids.length, 'accent')}
+          ${window.ui.statCard('✅', s('installed'), installed, 'success')}
+          ${window.ui.statCard('🧬', s('versions'), ids.reduce((a, id) => a + mods[id].length, 0), '')}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderModCard(id, entries) {
     const latest = entries[0] || entries[entries.length - 1] || {};
-    const name = modLabel(id, lang);
+    const name = MOD_LABEL[id] || id;
     const installedCount = Array.isArray(latest.files) ? latest.files.length : 0;
     const status = latest.status || 'missing';
-    const tierValue = latest.tier ? window.i18n.t(lang, 'tierSelect.' + latest.tier) : '—';
+    const tierValue = latest.tier ? t('tierSelect.' + latest.tier) : '—';
     const date = window.uhmFormatDate(latest.installedAt);
+    const files = (latest.files || []).slice(0, 12);
+    const history = entries.map((e, i) => `
+      <div class="history-row">
+        <span class="history-version">v${entries.length - i}</span>
+        <span class="history-status">${statusLabel(e.status)}</span>
+        <span class="title-dim">${window.uhmFormatDate(e.installedAt)}</span>
+      </div>`).join('');
 
     return `
-      <div class="card manage-card">
+      <div class="card-sec manage-card">
         <div class="manage-head">
           <div class="manage-name">
-            <span class="manage-icon">${modIcon(id)}</span>
+            <span class="manage-icon">${MOD_ICON[id] || '📦'}</span>
             <strong>${name}</strong>
-            ${status === 'installed' ? '<span class="badge badge-ok">' + s('installed') + '</span>' : '<span class="badge badge-warn">' + s('missing') + '</span>'}
+            ${status === 'installed' ? window.ui.statusBadge(s('installed'), 'ok') : window.ui.statusBadge(s('missing'), 'warn')}
           </div>
-          <button class="btn-secondary manage-remove" data-mod="${id}">${s('uninstall')}</button>
+          <div class="manage-actions">
+            <button class="btn-secondary manage-toggle">${s('history')}</button>
+            <button class="btn-secondary manage-remove" data-mod="${id}">${s('uninstall')}</button>
+          </div>
         </div>
-        <div class="manage-meta text-dim">
+        <div class="manage-meta title-dim">
           <span>${s('tier')}: ${tierValue}</span>
           <span>${s('date')}: ${date}</span>
           <span>${s('files')}: ${installedCount}</span>
-          <span>${s('versions')}: ${entries.length}</span>
+        </div>
+        ${files.length ? `<div class="manage-files"><span class="field-label">${s('installedFiles')}:</span><div class="home-mod-path-list">${files.map((f) => `<code>${uhmEsc(f.dest || '')}</code>`).join('')}</div></div>` : ''}
+        <div class="manage-history">
+          <div class="history-list">${history}</div>
         </div>
       </div>
     `;
   }
 
-  function modLabel(id, lang) {
-    const map = {
-      csp: 'CSP', pure: 'PURE', ppfilter: 'PP Filter', chasecam: 'Chase Cam',
-      hud: 'HUD', srp: 'SRP Light', video: 'Video'
-    };
-    return map[id] || id;
-  }
-
-  function modIcon(id) {
-    const map = {
-      csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷',
-      hud: '🖥', srp: '💡', video: '⚙️'
-    };
-    return map[id] || '📦';
+  function statusLabel(status) {
+    if (status === 'installed') return s('installed');
+    if (status === 'skipped') return s('kept');
+    if (status === 'error') return s('error');
+    if (status === 'missing') return s('missing');
+    return status || '—';
   }
 
   async function doRemove(modId, btn) {
     if (busy) return;
     busy = true;
-
     const manifest = window.appState.manifest;
     const entries = manifest.mods[modId] || [];
     const latest = entries[0] || entries[entries.length - 1] || {};
@@ -98,37 +129,32 @@
         delete manifest.mods[modId];
         await window.uhm.saveManifest(manifest);
         window.appState.manifest = manifest;
-        window.uhmToast(window.i18n.t(window.appState.lang, 'manageMods.done'), 'success');
+        uhmToast(s('done'), 'success');
         render(document.getElementById('page-content'));
       } finally { busy = false; }
       return;
     }
 
-    const lang = window.appState.lang;
-    const tm = (k) => window.i18n.t(lang, 'manageMods.' + k);
     const confirmed = await window.uhmConfirm({
-      title: tm('deleteConfirmation'),
-      body: `<div class="text-dim">${tm('noBackup')}</div>`,
-      ok: tm('confirmDelete'),
-      cancel: tm('cancelDelete'),
+      title: s('deleteConfirmation'),
+      body: `<div class="text-dim">${s('noBackup')}</div>`,
+      ok: s('confirmDelete'),
+      cancel: s('cancelDelete'),
       danger: true
     });
     if (!confirmed) { busy = false; return; }
 
     btn.disabled = true;
-    const result = await window.uhm.runUninstall({
-      files: files.map((f) => ({ dest: f.dest, backupPath: f.backupPath }))
-    });
-
+    const result = await window.uhm.runUninstall({ files: files.map((f) => ({ dest: f.dest, backupPath: f.backupPath })) });
     const failed = result.some((r) => r.status === 'error');
     if (!failed) {
       delete manifest.mods[modId];
       await window.uhm.saveManifest(manifest);
       window.appState.manifest = manifest;
-      window.uhmToast(window.i18n.t(lang, 'manageMods.done'), 'success');
+      uhmToast(s('done'), 'success');
       render(document.getElementById('page-content'));
     } else {
-      window.uhmToast(window.i18n.t(lang, 'toast.error'), 'error');
+      uhmToast(t('toast.error'), 'error');
     }
     busy = false;
   }

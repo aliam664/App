@@ -85,6 +85,7 @@
     const lang = window.appState.lang;
     const t = (k) => window.i18n.t(lang, k);
     const s = (k) => window.i18n.t(lang, 'showcase.' + k);
+    const settings = window.appState.settings || {};
     const manifest = window.appState.manifest;
     const hasAnyInstalledMod = manifest && manifest.mods &&
       Object.values(manifest.mods).some((arr) =>
@@ -129,6 +130,31 @@
             ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
               <span class="home-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>
             `).join('')}
+          </div>
+        </section>
+
+        <!-- ================= SYSTEM STATUS / NEXT STEPS ================= -->
+        <section class="home-section" id="home-status-section">
+          <div class="home-status">
+            <div class="home-status-grid">
+              <div class="home-status-card" id="home-status-system">
+                <div class="home-status-label">${s('systemStatus')}</div>
+                <div class="home-status-value">${s('detecting')}</div>
+              </div>
+              <div class="home-status-card" id="home-status-game">
+                <div class="home-status-label">${s('gameStatus')}</div>
+                <div class="home-status-value">${settings.gamePath ? uhmEsc(settings.gamePath) : s('noPath')}</div>
+              </div>
+              <div class="home-status-card" id="home-status-mods">
+                <div class="home-status-label">${s('modsStatus')}</div>
+                <div class="home-status-value">${hasAnyInstalledMod ? s('modsInstalled') : s('modsNone')}</div>
+              </div>
+            </div>
+            ${!settings.gamePath ? `
+              <div class="home-next">
+                <div class="home-next-text">${s('nextHint')}</div>
+                <button class="btn-secondary" id="btn-next-path">${s('nextAction')}</button>
+              </div>` : ''}
           </div>
         </section>
 
@@ -194,6 +220,7 @@
     `;
 
     setupSlider(container);
+    loadSystemStatus(container);
 
     document.getElementById('btn-start-install').addEventListener('click', () => navigate('gamePath'));
     document.getElementById('btn-about').addEventListener('click', () => navigate('about'));
@@ -202,6 +229,25 @@
 
     const manageBtn = document.getElementById('btn-manage-mods');
     if (manageBtn) manageBtn.addEventListener('click', () => navigate('manageMods'));
+    const nextPath = document.getElementById('btn-next-path');
+    if (nextPath) nextPath.addEventListener('click', () => navigate('gamePath'));
+  }
+
+  async function loadSystemStatus(container) {
+    const lang = window.appState.lang;
+    const s = (k) => window.i18n.t(lang, 'showcase.' + k);
+    const systemEl = document.getElementById('home-status-system');
+    try {
+      const specs = await window.uhm.detectSystemSpecs();
+      if (!systemEl) return;
+      const tierLabel = specs.suggestedTier ? window.i18n.t(lang, 'tierSelect.' + specs.suggestedTier) : s('unknown');
+      systemEl.innerHTML = `
+        <div class="home-status-label">${s('systemStatus')}</div>
+        <div class="home-status-value">${uhmEsc(specs.gpuName || s('unknown'))}</div>
+        <div class="home-status-tag">${tierLabel}</div>`;
+    } catch (e) {
+      if (systemEl) systemEl.innerHTML = `<div class="home-status-label">${s('systemStatus')}</div><div class="home-status-value">${s('unknown')}</div>`;
+    }
   }
 
   function renderTierCard(tier, s, t) {

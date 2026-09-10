@@ -1,35 +1,34 @@
+/* ================================================================= */
+/*  Game path — auto detect, browse, paste, live validation          */
+/* ================================================================= */
+
 (function () {
   let selectedPath = null;
-  let isValid = false;
+  let validation = null;
   let busy = false;
+
+  function t(key) { return window.i18n.t(window.appState.lang, key); }
+  function s(key) { return window.i18n.t(window.appState.lang, 'gamePath.' + key); }
 
   function render(container) {
     const lang = window.appState.lang;
-    const t = (k) => window.i18n.t(lang, k);
-    const s = (k) => window.i18n.t(lang, 'gamePath.' + k);
-
     selectedPath = window.appState.settings.gamePath || null;
-    isValid = false;
+    validation = null;
+    busy = false;
 
     container.innerHTML = `
       <div class="page-header">
         <button class="back-btn" id="btn-back">${uhmBackArrow(lang)}</button>
-        <h2>${s('title')}</h2>
+        <div class="page-header-copy">
+          <div class="gamepath-step">${t('common.step1')}</div>
+          <h2>${s('title')}</h2>
+          <div class="text-dim">${s('subtitle')}</div>
+        </div>
       </div>
 
-      <div class="gamepath-wrap">
-        <div class="gamepath-step">${t('common.step1')}</div>
-        <div class="gamepath-icon">📁</div>
-
-        <button class="btn-secondary" id="btn-auto-detect">${s('autoDetect')}</button>
-
-        <div class="gamepath-input-row">
-          <div class="gamepath-input" id="path-display">${selectedPath ? uhmEsc(selectedPath) : s('placeholder')}</div>
-          <button class="btn-secondary" id="btn-browse">${s('browse')}</button>
-        </div>
-
-        <div class="gamepath-status" id="path-status"></div>
-        <div class="text-dim gamepath-tip">${s('tip')}</div>
+      <div class="gamepath-wrap page-stack">
+        ${renderSourceCard()}
+        ${renderPathCard()}
       </div>
 
       <div class="wizard-footer">
@@ -40,12 +39,55 @@
     `;
 
     document.getElementById('btn-back').addEventListener('click', () => goBack('showcase'));
+    wire(container);
+    if (selectedPath) validateAndRender(container);
+  }
 
-    document.getElementById('btn-browse').addEventListener('click', async () => {
+  function renderSourceCard() {
+    return `
+      <section class="ui-section">
+        ${window.ui.sectionHeader({ icon: '🧭', kicker: 'Locate', title: s('locateTitle'), subtitle: s('locateSub') })}
+        <div class="grid-2">
+          <button class="card-sec gamepath-action" id="btn-browse">
+            <div class="gamepath-action-icon">📂</div>
+            <div>
+              <div class="card-sec-title">${s('browse')}</div>
+              <div class="card-sec-sub">${s('browseSub')}</div>
+            </div>
+          </button>
+          <button class="card-sec gamepath-action" id="btn-auto-detect">
+            <div class="gamepath-action-icon">🔍</div>
+            <div>
+              <div class="card-sec-title">${s('autoDetect')}</div>
+              <div class="card-sec-sub">${s('autoSub')}</div>
+            </div>
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPathCard() {
+    return `
+      <section class="ui-section">
+        ${window.ui.sectionHeader({ icon: '📁', kicker: 'Path', title: s('pathTitle'), subtitle: s('pathSub') })}
+        <div class="card-sec">
+          <label class="field-label">${s('pasteLabel')}</label>
+          <input class="gamepath-input" id="path-input" type="text" dir="ltr" spellcheck="false"
+                 placeholder="${s('placeholder')}" value="${selectedPath ? uhmEsc(selectedPath) : ''}" />
+          <div class="gamepath-status" id="path-status"></div>
+          <div class="validation-grid" id="validation-grid"></div>
+          <div class="text-dim gamepath-tip">${s('tip')}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  function wire(container) {
+    container.querySelector('.gamepath-action#btn-browse').addEventListener('click', async () => {
       const picked = await window.uhm.browseGamePath();
       if (picked) {
-        selectedPath = picked;
-        await validateAndRender(container);
+        setPath(container, picked);
       }
     });
 
@@ -55,23 +97,25 @@
       const statusEl = document.getElementById('path-status');
       statusEl.textContent = s('searching');
       statusEl.className = 'gamepath-status searching';
-      const btn = document.getElementById('btn-auto-detect');
-      btn.disabled = true;
-
       const found = await window.uhm.autoDetectGamePath();
       if (found) {
-        selectedPath = found;
-        await validateAndRender(container);
+        setPath(container, found);
       } else {
         statusEl.textContent = s('notFound');
         statusEl.className = 'gamepath-status invalid';
       }
-      btn.disabled = false;
       busy = false;
     });
 
+    document.getElementById('path-input').addEventListener('input', (e) => {
+      const value = e.target.value.trim();
+      if (!value) { clearValidation(); return; }
+      selectedPath = value;
+      validateAndRender(container);
+    });
+
     document.getElementById('btn-continue').addEventListener('click', async () => {
-      if (!isValid) return;
+      if (!isValidNow()) return;
       await window.uhm.setSettings({ gamePath: selectedPath });
       window.appState.settings.gamePath = selectedPath;
       navigate('baseModsCheck');
@@ -80,30 +124,52 @@
     if (selectedPath) validateAndRender(container);
   }
 
-  async function validateAndRender(container) {
-    if (!selectedPath) return;
-    const lang = window.appState.lang;
-    const s = (k) => window.i18n.t(lang, 'gamePath.' + k);
-    document.getElementById('path-display').textContent = selectedPath;
+  async function setPath(container, value, forceValidation = true) {
+    selectedPath = value;
+    const input = document.getElementById('path-input');
+    if (input) input.value = value;
+    if (forceValidation) await validateAndRender(container);
+  }
 
+  function clearValidation() {
+    validation = null;
     const statusEl = document.getElementById('path-status');
     const continueBtn = document.getElementById('btn-continue');
+    const grid = document.getElementById('validation-grid');
+    if (statusEl) { statusEl.textContent = ''; statusEl.className = 'gamepath-status'; }
+    if (continueBtn) continueBtn.disabled = true;
+    if (grid) grid.innerHTML = '';
+  }
+
+  async function validateAndRender(container) {
+    if (!selectedPath) return;
+    const statusEl = document.getElementById('path-status');
+    const continueBtn = document.getElementById('btn-continue');
+    const grid = document.getElementById('validation-grid');
     statusEl.textContent = s('searching');
     statusEl.className = 'gamepath-status searching';
 
     const result = await window.uhm.validateGamePath(selectedPath);
+    validation = result;
+    statusEl.textContent = result.valid ? s('validOk') : (result.reason === 'NO_CONTENT_DIR' ? s('invalidNoContent') : s('invalidNoExe'));
+    statusEl.className = 'gamepath-status ' + (result.valid ? 'valid' : 'invalid');
+    continueBtn.disabled = !result.valid;
 
-    if (result.valid) {
-      isValid = true;
-      statusEl.textContent = s('validOk');
-      statusEl.className = 'gamepath-status valid';
-      continueBtn.disabled = false;
-    } else {
-      isValid = false;
-      statusEl.textContent = result.reason === 'NO_CONTENT_DIR' ? s('invalidNoContent') : s('invalidNoExe');
-      statusEl.className = 'gamepath-status invalid';
-      continueBtn.disabled = true;
+    if (grid) {
+      grid.innerHTML = `${checkRow(s('exeOk'), s('exeMissing'), result.reason !== 'NO_ACS_EXE')}${checkRow(s('contentOk'), s('contentMissing'), result.reason !== 'NO_CONTENT_DIR')}`;
     }
+  }
+
+  function checkRow(okLabel, missingLabel, ok) {
+    return `
+      <div class="validation-row ${ok ? 'ok' : 'bad'}">
+        <span>${ok ? '✅' : '❌'}</span>
+        <span>${ok ? okLabel : missingLabel}</span>
+      </div>`;
+  }
+
+  function isValidNow() {
+    return Boolean(validation && validation.valid);
   }
 
   window.pages.gamePath = { render };

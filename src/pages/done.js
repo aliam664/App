@@ -1,31 +1,31 @@
+/* ================================================================= */
+/*  Done — summary cards + per-mod result report                     */
+/* ================================================================= */
+
 (function () {
+  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
+  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP Filter', chasecam: 'Chase Cam', hud: 'HUD', srp: 'SRP Light', video: 'Video' };
+
+  function t(key) { return window.i18n.t(window.appState.lang, key); }
+  function s(key) { return window.i18n.t(window.appState.lang, 'done.' + key); }
+
   function render(container, params) {
     const lang = window.appState.lang;
-    const t = (k) => window.i18n.t(lang, k);
-    const s = (k) => window.i18n.t(lang, 'done.' + k);
     const result = params || {};
     const installed = result.installed || 0;
     const missing = result.missing || 0;
     const errors = result.errors || 0;
     const skipped = result.skipped || 0;
     const cancelled = Boolean(result.cancelled);
-
-    const state = cancelled
-      ? 'cancelled'
-      : errors > 0
-        ? 'error'
-        : (missing > 0 || installed === 0)
-          ? 'partial'
-          : 'success';
+    const state = cancelled ? 'cancelled'
+      : errors > 0 ? 'error'
+      : (missing > 0 || installed === 0) ? 'partial'
+      : 'success';
 
     const icons = { success: '🎉', partial: '⚠️', cancelled: '🛑', error: '❌' };
-    const title = s(state + 'Title');
-    const subtitle = s(state + 'Subtitle');
-    const statusText = s('status' + state.charAt(0).toUpperCase() + state.slice(1));
     const manifest = window.appState.manifest || {};
-    const tierName = manifest.systemTier
-      ? window.i18n.t(lang, 'tierSelect.' + manifest.systemTier)
-      : '—';
+    const tierName = manifest.systemTier ? t('tierSelect.' + manifest.systemTier) : '—';
+    const details = (window.appState.lastInstallResult && window.appState.lastInstallResult.mods) || [];
 
     container.innerHTML = `
       <div class="page-header">
@@ -35,34 +35,33 @@
         </div>
       </div>
 
-      <div class="done-wrap">
-        <div class="done-icon done-${state}">${icons[state]}</div>
-        <div class="done-status-badge badge badge-${state}">${statusText}</div>
-        <h2 class="done-title">${title}</h2>
-        <div class="text-dim done-subtitle">${subtitle}</div>
+      <div class="done-wrap page-stack">
+        <section class="card-sec done-hero done-${state}">
+          <div class="done-icon">${icons[state]}</div>
+          ${window.ui.statusBadge(s('status' + state.charAt(0).toUpperCase() + state.slice(1)), state === 'success' ? 'ok' : state === 'error' ? 'danger' : 'warn')}
+          <h2 class="done-title">${s(state + 'Title')}</h2>
+          <div class="text-dim done-subtitle">${s(state + 'Subtitle')}</div>
+        </section>
 
-        <div class="done-stats">
-          <div class="card stat-card">
-            <div class="stat-value">${installed}</div>
-            <div class="stat-label text-dim">${s('installedCount')}</div>
+        <section class="ui-section">
+          ${window.ui.sectionHeader({ icon: '📊', kicker: 'Result', title: s('statsTitle'), subtitle: '' })}
+          <div class="grid-3 done-stats">
+            ${window.ui.statCard('✅', s('installedCount'), installed, 'success')}
+            ${window.ui.statCard('🎮', s('tier'), tierName, 'accent')}
+            ${missing > 0 ? window.ui.statCard('⚠️', s('missingCount'), missing, 'warn') : ''}
+            ${errors > 0 ? window.ui.statCard('❌', s('errorCount'), errors, 'danger') : ''}
+            ${skipped > 0 ? window.ui.statCard('🕐', s('skippedCount'), skipped, '') : ''}
           </div>
-          <div class="card stat-card">
-            <div class="stat-value">${tierName}</div>
-            <div class="stat-label text-dim">${s('tier')}</div>
+        </section>
+
+        ${details.length ? `
+        <section class="ui-section">
+          ${window.ui.sectionHeader({ icon: '🧾', kicker: 'Report', title: s('reportTitle'), subtitle: s('reportSub') })}
+          <div class="card-sec report-list">
+            ${details.map((m) => reportRow(m)).join('')}
           </div>
-          ${missing > 0 ? `<div class="card stat-card">
-            <div class="stat-value">${missing}</div>
-            <div class="stat-label text-dim">${s('missingCount')}</div>
-          </div>` : ''}
-          ${errors > 0 ? `<div class="card stat-card">
-            <div class="stat-value">${errors}</div>
-            <div class="stat-label text-dim">${s('errorCount')}</div>
-          </div>` : ''}
-          ${skipped > 0 ? `<div class="card stat-card">
-            <div class="stat-value">${skipped}</div>
-            <div class="stat-label text-dim">${s('skippedCount')}</div>
-          </div>` : ''}
-        </div>
+          <button class="btn-secondary" id="btn-copy">${s('copyReport')}</button>
+        </section>` : ''}
 
         <div class="text-dim done-note">${s('note')}</div>
 
@@ -77,11 +76,46 @@
       window.appState.navStack = [];
       navigate('showcase', {}, { replace: true });
     });
-
     document.getElementById('btn-manage').addEventListener('click', () => {
       window.appState.navStack = [];
       navigate('manageMods', {}, { replace: true });
     });
+    const copyBtn = document.getElementById('btn-copy');
+    if (copyBtn) copyBtn.addEventListener('click', () => copyReport(details));
+  }
+
+  function reportRow(m) {
+    const stateMap = {
+      installed: ['✅', s('statusSuccess'), 'ok'],
+      missing: ['⚠️', s('missingCount'), 'warn'],
+      skipped: ['🕐', s('skippedCount'), ''],
+      error: ['❌', s('statusError'), 'danger'],
+      pending: ['⏳', s('statusPending'), '']
+    };
+    const [icon, label, variant] = stateMap[m.status] || stateMap.pending;
+    return `
+      <div class="report-row">
+        <span class="report-icon">${MOD_ICON[m.id] || '📦'}</span>
+        <span class="report-name">${MOD_LABEL[m.id] || m.id}</span>
+        ${window.ui.statusBadge(label, variant)}
+      </div>`;
+  }
+
+  function copyReport(details) {
+    const lines = details.map((m) => `${MOD_LABEL[m.id] || m.id}: ${m.status}`).join('\n');
+    const text = `UHM Install Report\n${new Date().toLocaleString()}\n\n${lines}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      uhmToast(s('copyDone'), 'success');
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      uhmToast(s('copyDone'), 'success');
+    }
   }
 
   window.pages.done = { render };

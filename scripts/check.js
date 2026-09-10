@@ -5,7 +5,7 @@ const path = require('path');
 
 const files = [
   'main.js', 'preload.js',
-  'src/js/i18n.js', 'src/js/utils.js', 'src/js/modConfig.js', 'src/js/app.js',
+  'src/js/i18n.js', 'src/js/ui.js', 'src/js/utils.js', 'src/js/modConfig.js', 'src/js/app.js',
   'src/js/browser-preview.js', 'src/js/libraryData.js',
   'src/pages/showcase.js', 'src/pages/settings.js', 'src/pages/about.js',
   'src/pages/gamePath.js', 'src/pages/baseModsCheck.js', 'src/pages/tierSelect.js',

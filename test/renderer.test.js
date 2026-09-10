@@ -32,7 +32,7 @@ async function bootstrap() {
     browseGamePath: async () => '/fake/game',
     validateGamePath: async () => ({ valid: true }),
     autoDetectGamePath: async () => '/fake/game',
-    checkBaseMods: async () => ({ csp: { found: true }, pure: { found: false } }),
+    checkBaseMods: async () => ({ csp: { found: true, markers: ['/fake/game/extension/config/data_manifest.ini'] }, pure: { found: false, markers: [] } }),
     copyWithBackup: async () => ({ success: true }),
     restoreOrDelete: async () => ({ status: 'deleted' }),
     pathExists: async () => true,
@@ -68,6 +68,7 @@ async function bootstrap() {
   // بارگذاری اسکریپت‌ها (به همان ترتیب index.html)
   const files = [
     'src/js/i18n.js',
+    'src/js/ui.js',
     'src/js/utils.js',
     'src/js/modConfig.js',
     'src/js/app.js',
@@ -99,19 +100,28 @@ async function bootstrap() {
   // ناوبری به تنظیمات
   window.navigate('settings');
   assert.ok(container.innerHTML.includes('تنظیمات'), 'settings should render');
+  assert.ok(container.innerHTML.includes('system-info'), 'settings should render system section');
+  assert.ok(container.innerHTML.includes('appearanceTitle') || container.innerHTML.includes('ظاهر و زبان'), 'settings should render appearance section');
+  assert.ok(container.innerHTML.includes('dataTitle') || container.innerHTML.includes('مدیریت داده'), 'settings should render data section');
 
   window.navigate('about');
   assert.ok(container.innerHTML.includes('درباره'), 'about should render');
+  assert.ok(container.innerHTML.includes('featuresTitle') || container.innerHTML.includes('چرا UHM؟'), 'about should render features');
+  assert.ok(container.innerHTML.includes('FAQ') || container.innerHTML.includes('سوالات پرتکرار'), 'about should render FAQ');
 
   window.navigate('gamePath');
   assert.ok(container.innerHTML.includes('auto-detect') || container.innerHTML.includes('جستجوی خودکار'), 'gamePath should render');
+  assert.ok(container.innerHTML.includes('path-input'), 'gamePath should render paste input');
+  assert.ok(container.innerHTML.includes('validation-grid'), 'gamePath should render validation details');
 
   window.navigate('baseModsCheck');
   await new Promise((r) => setTimeout(r, 30));
   assert.ok(container.innerHTML.includes('CSP'), 'baseModsCheck should render');
+  assert.ok(container.innerHTML.includes('foundMarkers') || container.innerHTML.includes('فایل‌های پیدا شده'), 'baseModsCheck should show found markers');
 
   window.navigate('tierSelect');
   assert.ok(container.innerHTML.includes('شروع نصب') || container.innerHTML.includes('low'), 'tierSelect should render');
+  assert.ok(container.innerHTML.includes('tier-mods') || container.innerHTML.includes('tier-mods'), 'tierSelect should list tier mods');
 
   // == Content Library page ==
   window.navigate('library');
@@ -128,8 +138,14 @@ async function bootstrap() {
   };
   window.navigate('install', { plan });
   assert.ok(container.innerHTML.includes('CSP'), 'install should render');
+  assert.ok(container.innerHTML.includes('install-log'), 'install should render log');
   await new Promise((r) => setTimeout(r, 1500));
   assert.ok(container.innerHTML.includes('نصب'), 'install should complete to done');
+  assert.ok(container.innerHTML.includes('report-title') || container.innerHTML.includes('گزارش مودها'), 'done should render per-mod report');
+
+  window.navigate('manageMods');
+  assert.ok(container.innerHTML.includes('CSP'), 'manageMods should render installed mods');
+  assert.ok(container.innerHTML.includes('manage-remove') || container.innerHTML.includes('حذف'), 'manageMods should render remove action');
 
   // == تست mock پیش‌نمایش مرورگر (npm run serve) ==
   const { window: pw, document: pd } = parseHTML('<!DOCTYPE html><body></body>');
