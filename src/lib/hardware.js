@@ -12,14 +12,22 @@ function runCmd(cmd, args, timeout = 3000) {
   });
 }
 
-function parseVramToGb(raw) {
+function parseVramToGb(raw, unit) {
   if (!raw) return null;
   const num = parseFloat(String(raw).replace(/,/g, '').trim());
   if (!Number.isFinite(num) || num <= 0) return null;
-  // nvidia-smi reports MiB, PowerShell AdapterRAM reports bytes
-  if (num > 1000000) return Math.round(num / (1024 * 1024 * 1024) * 10) / 10; // bytes
-  if (num > 1000) return Math.round(num / 1024 * 10) / 10; // MiB
-  return num; // already GB
+  let gb;
+  if (unit === 'bytes') {
+    gb = num / (1024 * 1024 * 1024);          // AdapterRAM (PowerShell / WMIC)
+  } else if (unit === 'mib') {
+    gb = num / 1024;                          // nvidia-smi memory.total
+  } else {
+    // Unit unknown — best-effort heuristic (kept for API compatibility).
+    if (num > 1000000) gb = num / (1024 * 1024 * 1024); // bytes
+    else if (num > 1000) gb = num / 1024;               // MiB
+    else gb = num;                                      // already GB
+  }
+  return Math.round(gb * 10) / 10;
 }
 
 /* ------------------------------------------------------------------ */
@@ -203,7 +211,7 @@ async function detectWindowsGpu() {
     if (parts[0]) {
       return {
         gpuName: parts[0],
-        gpuVramGb: parseVramToGb(parts[1]),
+        gpuVramGb: parseVramToGb(parts[1], 'mib'),
         driverVersion: parts[2] || null,
         source: 'nvidia-smi'
       };
@@ -213,6 +221,7 @@ async function detectWindowsGpu() {
   // 2) PowerShell (robust on modern Windows)
   const ps = await runCmd('powershell.exe', [
     '-NoProfile',
+    '-ErrorAction', 'SilentlyContinue',
     '-Command',
     'Get-CimInstance Win32_VideoController | Select-Object -First 1 Name,AdapterRAM,DriverVersion | ConvertTo-Json -Compress'
   ]);
@@ -223,7 +232,7 @@ async function detectWindowsGpu() {
       if (name) {
         return {
           gpuName: name,
-          gpuVramGb: parseVramToGb(json.AdapterRAM || json.adapterRAM),
+          gpuVramGb: parseVramToGb(json.AdapterRAM || json.adapterRAM, 'bytes'),
           driverVersion: json.DriverVersion || json.driverVersion || null,
           source: 'powershell'
         };
@@ -243,7 +252,7 @@ async function detectWindowsGpu() {
       if (name) {
         return {
           gpuName: name.trim(),
-          gpuVramGb: parseVramToGb(vram),
+          gpuVramGb: parseVramToGb(vram, 'bytes'),
           driverVersion: driver.trim() || null,
           source: 'wmic'
         };
@@ -277,8 +286,13 @@ async function detectSystemSpecs() {
   };
 
   let gpu = null;
-  if (process.platform === 'win32') gpu = await detectWindowsGpu();
-  else if (process.platform === 'linux') gpu = await detectLinuxGpu();
+  try {
+    if (process.platform === 'win32') gpu = await detectWindowsGpu();
+    else if (process.platform === 'linux') gpu = await detectLinuxGpu();
+  } catch (e) {
+    // Self-heal: GPU probing must never take down the whole spec detection.
+    gpu = null;
+  }
 
   if (gpu) {
     specs.gpuName = gpu.gpuName || '';

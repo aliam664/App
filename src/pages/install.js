@@ -12,11 +12,12 @@
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'install.' + key); }
+
+  const MOD_LABEL = window.MOD_LABEL;
+  const MOD_ICON = window.MOD_ICON;
+
   function modLabel(id) { return MOD_LABEL[id] || id; }
   function modIcon(id) { return MOD_ICON[id] || '📦'; }
-
-  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP Filter', chasecam: 'Chase Cam', hud: 'HUD', srp: 'SRP Light', video: 'Video' };
-  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
 
   function render(container, params) {
     active = true;

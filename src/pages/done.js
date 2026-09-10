@@ -3,8 +3,8 @@
 /* ================================================================= */
 
 (function () {
-  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
-  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP Filter', chasecam: 'Chase Cam', hud: 'HUD', srp: 'SRP Light', video: 'Video' };
+  const MOD_ICON = window.MOD_ICON;
+  const MOD_LABEL = window.MOD_LABEL;
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'done.' + key); }

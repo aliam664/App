@@ -7,16 +7,10 @@
   let detecting = false;
   let detectedSpecs = null;
 
-  const TIER_MODS = {
-    low: ['csp', 'ppfilter', 'video'],
-    medium: ['csp', 'pure', 'ppfilter', 'video'],
-    high: ['csp', 'pure', 'ppfilter', 'chasecam', 'video'],
-    veryhigh: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'video'],
-    ultra: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'srp', 'video']
-  };
+  const TIER_MODS = window.TIER_MODS;
 
-  const MOD_LABEL = { csp: 'CSP', pure: 'PURE', ppfilter: 'PP', chasecam: 'Cam', hud: 'HUD', srp: 'SRP', video: 'Video' };
-  const MOD_ICON = { csp: '🌓', pure: '✨', ppfilter: '🎨', chasecam: '📷', hud: '🖥', srp: '💡', video: '⚙️' };
+  const MOD_LABEL = window.MOD_LABEL_SHORT; // فرم کوتاه برای چیپ‌ها
+  const MOD_ICON = window.MOD_ICON;
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'tierSelect.' + key); }

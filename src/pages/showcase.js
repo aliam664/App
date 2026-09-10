@@ -63,13 +63,7 @@
     }
   ];
 
-  const TIER_MODS = {
-    low: ['csp', 'ppfilter', 'video'],
-    medium: ['csp', 'pure', 'ppfilter', 'video'],
-    high: ['csp', 'pure', 'ppfilter', 'chasecam', 'video'],
-    veryhigh: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'video'],
-    ultra: ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'srp', 'video']
-  };
+  const TIER_MODS = window.TIER_MODS;
 
   function clean() {
     if (slideInterval) {

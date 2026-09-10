@@ -164,4 +164,12 @@ assert.strictEqual(parseVramToGb('12288'), 12);           // MiB from nvidia-smi
 assert.strictEqual(parseVramToGb(12884901888), 12);       // bytes from PowerShell
 assert.strictEqual(parseVramToGb('2048'), 2);
 
+// Explicit units (sources now pass the unit they actually report)
+assert.strictEqual(parseVramToGb('512', 'mib'), 0.5);     // 512 MiB GPU — was misread as 512 GB
+assert.strictEqual(parseVramToGb('8192', 'mib'), 8);
+assert.strictEqual(parseVramToGb(536870912, 'bytes'), 0.5); // 512 MB AdapterRAM
+assert.strictEqual(parseVramToGb(8589934592, 'bytes'), 8);
+assert.strictEqual(parseVramToGb('0', 'mib'), null);      // invalid → null
+assert.strictEqual(parseVramToGb(null), null);
+
 console.log('HARDWARE TESTS PASSED');
