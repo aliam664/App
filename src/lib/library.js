@@ -20,29 +20,39 @@ const CONTENT_DIR = 'content';
 const CARS_DIR = 'cars';
 const TRACKS_DIR = 'tracks';
 
+/* Ordered by preference. `.jpeg` is included explicitly because many
+   community mods ship `ui/preview.jpeg` (and Windows is case-insensitive,
+   but the explicit entry also keeps browser/preview parity). */
 const CAR_PREVIEW_CANDIDATES = [
   'ui/preview.png',
   'ui/preview.jpg',
+  'ui/preview.jpeg',
   'ui/preview_light.png',
   'ui/preview_light.jpg',
+  'ui/preview_light.jpeg',
   'ui/preview_2.png',
   'ui/preview_2.jpg',
+  'ui/preview_2.jpeg',
   'preview.png',
   'preview.jpg',
-  'ui/ui_preview.jpg',
-  'ui/preview_light.png'
+  'preview.jpeg',
+  'ui/ui_preview.jpg'
 ];
 
 const TRACK_PREVIEW_CANDIDATES = [
   'ui/preview.png',
   'ui/preview.jpg',
+  'ui/preview.jpeg',
   'ui/preview_light.png',
   'ui/preview_light.jpg',
+  'ui/preview_light.jpeg',
   'preview.png',
   'preview.jpg',
+  'preview.jpeg',
   'ui/ui_preview.jpg',
   'ui/preview_2.png',
-  'ui/preview_2.jpg'
+  'ui/preview_2.jpg',
+  'ui/preview_2.jpeg'
 ];
 
 const LAYOUT_FOLDER_RE = /^layout_\d+$/i;
@@ -137,39 +147,47 @@ function resolveSafePath(base, rel, allowRoot = false) {
 /*  Folder statistics                                                  */
 /* ------------------------------------------------------------------ */
 
-function walkStats(dir, depth = 0) {
+/* Async walk so a big library never freezes the main process / UI.
+   The event loop is yielded every `YIELD_EVERY` entries so rendering
+   (window drag, animations, progress updates) stays responsive. */
+const YIELD_EVERY = 128;
+
+async function walkStats(dir, depth = 0) {
   const result = { sizeBytes: 0, fileCount: 0 };
   if (depth > 12) return result;
   let entries;
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries = await fs.promises.readdir(dir, { withFileTypes: true });
   } catch (e) {
     return result;
   }
+  let i = 0;
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     try {
       if (entry.isDirectory()) {
-        const child = walkStats(full, depth + 1);
+        const child = await walkStats(full, depth + 1);
         result.sizeBytes += child.sizeBytes;
         result.fileCount += child.fileCount;
       } else if (entry.isFile()) {
-        const stat = fs.statSync(full);
+        const stat = await fs.promises.stat(full);
         result.sizeBytes += stat.size;
         result.fileCount += 1;
       }
     } catch (e) { /* skip unreadable files */ }
+    i += 1;
+    if ((i & (YIELD_EVERY - 1)) === 0) await new Promise((r) => setImmediate(r));
   }
   return result;
 }
 
-function getFolderStats(dir) {
+async function getFolderStats(dir) {
   let modifiedAt = null;
   try {
-    const stat = fs.statSync(dir);
+    const stat = await fs.promises.stat(dir);
     modifiedAt = stat.mtime.toISOString();
   } catch (e) { /* ignore */ }
-  const stats = walkStats(dir);
+  const stats = await walkStats(dir);
   return { ...stats, modifiedAt };
 }
 
@@ -202,6 +220,31 @@ function findCarSkins(carDir) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort((a, b) => a.localeCompare(b));
+}
+
+/* Many community mods do NOT ship a global `ui/preview.*` image — their
+   preview lives only inside a skin folder (`skins/<name>/preview.jpg`).
+   Fall back to the first skin preview so these cars still show a thumbnail
+   instead of a grey placeholder. */
+function findCarPreview(carDir) {
+  const direct = findPreview(carDir, 'car');
+  if (direct.primary) return { ...direct, source: 'ui' };
+
+  const skinsDir = path.join(carDir, 'skins');
+  if (fs.existsSync(skinsDir)) {
+    for (const skin of findCarSkins(carDir)) {
+      const found = findPreview(path.join(skinsDir, skin), 'car');
+      if (found.primary) {
+        return {
+          primary: path.posix.join('skins', skin, found.primary),
+          variants: found.variants.map((v) => path.posix.join('skins', skin, v)),
+          baseDir: carDir.replace(/\\/g, '/'),
+          source: 'skin'
+        };
+      }
+    }
+  }
+  return { ...direct, source: null };
 }
 
 function findTrackLayouts(trackDir) {
@@ -290,15 +333,17 @@ function classifyContent(folder, type) {
 /*  Car / track scanning                                               */
 /* ------------------------------------------------------------------ */
 
-function scanCars(gamePath) {
+async function scanCars(gamePath, onProgress) {
   const carsRoot = path.join(gamePath, CONTENT_DIR, CARS_DIR);
+  const folders = listContentFolders(carsRoot);
   const result = [];
-  for (const folder of listContentFolders(carsRoot)) {
+  for (let i = 0; i < folders.length; i += 1) {
+    const folder = folders[i];
     const carDir = path.join(carsRoot, folder);
     const ui = readJsonSilent(path.join(carDir, 'ui', 'ui_car.json')) || {};
     const meta = extractCarMeta(ui, carDir);
-    const preview = findPreview(carDir, 'car');
-    const stats = getFolderStats(carDir);
+    const preview = findCarPreview(carDir);
+    const stats = await getFolderStats(carDir);
     const skins = findCarSkins(carDir);
     const hasData = fs.existsSync(path.join(carDir, 'data'));
     const hasSound = fs.existsSync(path.join(carDir, 'sfx'));
@@ -326,19 +371,23 @@ function scanCars(gamePath) {
       fileCount: stats.fileCount,
       modifiedAt: stats.modifiedAt
     });
+
+    if (onProgress) onProgress({ phase: 'cars', done: i + 1, total: folders.length, folder });
   }
   return result.sort((a, b) => a.name.localeCompare(b.name, 'fa'));
 }
 
-function scanTracks(gamePath) {
+async function scanTracks(gamePath, onProgress) {
   const tracksRoot = path.join(gamePath, CONTENT_DIR, TRACKS_DIR);
+  const folders = listContentFolders(tracksRoot);
   const result = [];
-  for (const folder of listContentFolders(tracksRoot)) {
+  for (let i = 0; i < folders.length; i += 1) {
+    const folder = folders[i];
     const trackDir = path.join(tracksRoot, folder);
     const ui = readJsonSilent(path.join(trackDir, 'ui', 'ui_track.json')) || {};
     const meta = extractTrackMeta(ui);
     const preview = findPreview(trackDir, 'track');
-    const stats = getFolderStats(trackDir);
+    const stats = await getFolderStats(trackDir);
     const layouts = findTrackLayouts(trackDir);
     const hasModels = fs.existsSync(path.join(trackDir, 'models.ini')) || fs.existsSync(path.join(trackDir, 'data', 'models.ini'));
     const cls = classifyContent(folder, 'track');
@@ -362,11 +411,14 @@ function scanTracks(gamePath) {
       fileCount: stats.fileCount,
       modifiedAt: stats.modifiedAt
     });
+
+    if (onProgress) onProgress({ phase: 'tracks', done: i + 1, total: folders.length, folder });
   }
   return result.sort((a, b) => a.name.localeCompare(b.name, 'fa'));
 }
 
-function scanLibrary(gamePath) {
+async function scanLibrary(gamePath, options = {}) {
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
   if (!gamePath || typeof gamePath !== 'string' || !fs.existsSync(gamePath)) {
     return {
       gameRoot: null,
@@ -377,11 +429,13 @@ function scanLibrary(gamePath) {
     };
   }
   const contentRoot = path.join(gamePath, CONTENT_DIR);
+  const cars = await scanCars(gamePath, onProgress);
+  const tracks = await scanTracks(gamePath, onProgress);
   return {
     gameRoot: gamePath,
     contentRoot,
-    cars: scanCars(gamePath),
-    tracks: scanTracks(gamePath),
+    cars,
+    tracks,
     errors: []
   };
 }
@@ -418,7 +472,7 @@ function filterLibrary(items, options = {}) {
     if (origin === 'kunos' && !item.isKunos) return false;
     if (origin === 'dlc' && !item.isDlc) return false;
     if (withPreview && !item.hasPreview) return false;
-    if (onlyMods && item.type === 'car' ? !item.isMod : onlyMods && item.type === 'track' ? !item.isMod : false) return false;
+    if (onlyMods && !item.isMod) return false;
     if (country !== 'all' && item.country !== country) return false;
     if (brand !== 'all' && item.brand !== brand) return false;
     return matchesSearch(item, search);
@@ -603,7 +657,12 @@ function previewToDataUrl(fullPath, maxBytes = 900 * 1024) {
   try {
     if (!fs.existsSync(fullPath)) return null;
     const ext = path.extname(fullPath).toLowerCase();
-    const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.gif' ? 'image/gif' : 'image/png';
+    const mime =
+      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+      : ext === '.gif' ? 'image/gif'
+      : ext === '.webp' ? 'image/webp'
+      : ext === '.bmp' ? 'image/bmp'
+      : 'image/png';
     const stat = fs.statSync(fullPath);
     if (stat.size > maxBytes) return { tooLarge: true };
     const buf = fs.readFileSync(fullPath);
@@ -640,6 +699,7 @@ module.exports = {
   walkStats,
   getFolderStats,
   findPreview,
+  findCarPreview,
   findCarSkins,
   findTrackLayouts,
   extractCarMeta,

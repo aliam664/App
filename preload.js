@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('uhm', {
   // کتابخانه‌ی محتوا (مودها / ماشین‌ها / مپ‌ها)
   scanLibrary: (gamePath) => ipcRenderer.invoke('library:scan', gamePath),
   getContentPreview: (payload) => ipcRenderer.invoke('library:get-preview', payload),
+  revealContent: (payload) => ipcRenderer.invoke('library:reveal', payload),
   deleteContent: (payload) => ipcRenderer.invoke('library:delete', payload),
   restoreContent: (payload) => ipcRenderer.invoke('library:restore', payload),
   purgeContent: (payload) => ipcRenderer.invoke('library:purge', payload),
@@ -44,6 +45,13 @@ contextBridge.exposeInMainWorld('uhm', {
     const listener = (_event, data) => callback(data);
     ipcRenderer.on('install:progress', listener);
     return () => ipcRenderer.removeListener('install:progress', listener);
+  },
+
+  // رویدادهای پیشرفت اسکن کتابخانه
+  onScanProgress: (callback) => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('library:scan-progress', listener);
+    return () => ipcRenderer.removeListener('library:scan-progress', listener);
   },
 
   // لینک خارجی

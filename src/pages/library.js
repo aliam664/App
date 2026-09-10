@@ -41,6 +41,9 @@
   var previewCache = {};
   var previewCacheGamePath = null;
 
+  // Unsubscribe handle for the main-process scan progress stream.
+  var scanProgressUnsub = null;
+
   function initData() {
     D = window.libraryData;
     if (!D) throw new Error('libraryData missing');
@@ -74,6 +77,8 @@
     state.trash = [];
     state.selected = null;
     state.gamePath = window.appState.settings && window.appState.settings.gamePath;
+
+    if (scanProgressUnsub) { scanProgressUnsub(); scanProgressUnsub = null; }
 
     // Reset transient UI state so the toolbar and the rendered grid can never
     // desync when the user revisits the page (e.g. leaving on the "Trash" tab
@@ -178,6 +183,7 @@
       </div>
 
       <div class="library-summary" id="library-summary"></div>
+      <div class="library-scan-progress" id="library-scan-progress"></div>
       <div class="library-grid" id="library-grid">${gridSkeleton()}</div>
 
       <div class="library-detail-backdrop" id="detail-backdrop"></div>
@@ -316,6 +322,25 @@
     if (state.scanning) return;
     state.scanning = true;
     setScanningUI(true);
+
+    // Live progress from the main process (cars → tracks), shown inline.
+    if (!scanProgressUnsub && window.uhm.onScanProgress) {
+      try {
+        scanProgressUnsub = window.uhm.onScanProgress((p) => {
+          if (!p || !state.scanning) return;
+          const total = p.total || 0;
+          const el = document.getElementById('library-scan-progress');
+          if (!el) return;
+          if (!total) { el.innerHTML = ''; return; }
+          const label = p.phase === 'cars' ? s('cars') : s('tracks');
+          const pct = Math.round((p.done / total) * 100);
+          el.innerHTML = `
+            <div class="scan-progress-text">${s('scanning')} ${label} ${p.done}/${total} · ${pct}%</div>
+            <div class="ui-progress-track"><div class="ui-progress-bar" style="width:${pct}%"></div></div>`;
+        });
+      } catch (e) { /* older preview mocks may not expose it */ }
+    }
+
     try {
       if (fresh || state.items.length === 0) {
         const data = await window.uhm.scanLibrary(state.gamePath);
@@ -330,6 +355,8 @@
       renderGrid();
       uhmToast(t('toast.error'), 'error');
     } finally {
+      const el = document.getElementById('library-scan-progress');
+      if (el) el.innerHTML = '';
       state.scanning = false;
       setScanningUI(false);
     }
@@ -735,6 +762,7 @@
     drawer.classList.add('open');
     document.getElementById('detail-close').addEventListener('click', closeDetail);
     document.getElementById('detail-delete').addEventListener('click', () => doDelete(item.id));
+    document.getElementById('detail-reveal').addEventListener('click', () => doReveal(item.id));
     hydrateSinglePreview(drawer.querySelector('.detail-preview'), item.preview);
   }
 
@@ -818,6 +846,10 @@
             <span>${s('files')}: ${D.formatCount(item.fileCount || 0)}</span>
             <span>${s('modified')}: ${item.modifiedAt ? window.uhmFormatDate(item.modifiedAt) : '—'}</span>
           </div>
+          <div class="detail-actions">
+            <button class="btn-secondary" id="detail-reveal">📂 ${s('openFolder')}</button>
+            <button class="btn-secondary content-delete" id="detail-delete">${s('delete')}</button>
+          </div>
         </div>
       </div>`;
   }
@@ -879,7 +911,16 @@
       if (!confirmed) return;
       const result = await window.uhm.restoreContent({ trashId: id });
       if (result && result.success) {
+        // Refresh both trash and content so the restored item reappears in the
+        // content tabs immediately (previously it only vanished from trash).
         state.trash = await window.uhm.listTrash();
+        if (!state.scanning) {
+          try {
+            const data = await window.uhm.scanLibrary(state.gamePath);
+            state.items = (data && data.cars ? data.cars : []).concat(data && data.tracks ? data.tracks : []);
+          } catch (e) { /* keep existing items */ }
+        }
+        renderStats();
         renderGrid();
         if (result.conflictPath) uhmToast(s('restoreDone') + ' · ' + result.conflictPath, 'success', 4200);
         else uhmToast(s('restoreDone'), 'success');
@@ -938,8 +979,17 @@
   async function doReveal(id) {
     const item = findItem(id);
     if (!item) return;
-    // In the future this can call shell.showItemInFolder via IPC.
-    uhmToast(s('revealed'), 'info');
+    try {
+      const result = await window.uhm.revealContent({
+        gamePath: state.gamePath,
+        type: item.type,
+        folder: item.folder
+      });
+      if (result && result.success) uhmToast(s('revealed'), 'success');
+      else uhmToast(t('toast.error'), 'error');
+    } catch (e) {
+      uhmToast(t('toast.error'), 'error');
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -948,6 +998,7 @@
 
   function destroy() {
     document.removeEventListener('keydown', onKeyDown);
+    if (scanProgressUnsub) { scanProgressUnsub(); scanProgressUnsub = null; }
     closeDetail();
   }
 

@@ -62,6 +62,10 @@ function setupFixture() {
   write(path.join(modCar, 'data', 'car.json'), JSON.stringify({ name: 'BMW M3 E30', brand: 'BMW' }));
   write(path.join(modCar, 'cameras', 'camera.ini'), '');
 
+  // Car: mod whose preview only lives inside a skin folder (common for mods).
+  const skinMod = path.join(game, 'content', 'cars', 'toyota_supra_mod');
+  write(path.join(skinMod, 'skins', 'red', 'preview.jpg'), Buffer.from([0xff, 0xd8, 0xff]));
+
   // Track: Kunos with layouts.
   const track = path.join(game, 'content', 'tracks', 'ks_monza');
   write(path.join(track, 'ui', 'ui_track.json'), JSON.stringify({
@@ -91,9 +95,9 @@ function setup() {
   setup();
 
   // -- scan the library --
-  const lib = scanLibrary(game);
+  const lib = await scanLibrary(game);
   assert.strictEqual(lib.errors.length, 0);
-  assert.strictEqual(lib.cars.length, 2);
+  assert.strictEqual(lib.cars.length, 3);
   assert.strictEqual(lib.tracks.length, 2);
 
   // car metadata + preview + features
@@ -119,6 +123,12 @@ function setup() {
   assert.strictEqual(m3.isMod, true);
   assert.strictEqual(m3.hasPreview, false);
 
+  // mod car with only a skin preview: must still get a thumbnail.
+  const supra = lib.cars.find((c) => c.folder === 'toyota_supra_mod');
+  assert.ok(supra, 'skin-preview mod should be scanned');
+  assert.strictEqual(supra.hasPreview, true);
+  assert.ok(supra.preview.indexOf('/skins/') !== -1, `skin preview path expected, got ${supra.preview}`);
+
   // track metadata + layouts
   const monza = lib.tracks.find((t) => t.folder === 'ks_monza');
   assert.strictEqual(monza.country, 'Italy');
@@ -127,7 +137,7 @@ function setup() {
   assert.strictEqual(monza.layouts[0].name, 'Grand Prix');
 
   // missing game path
-  const missing = scanLibrary(path.join(tmp, 'nope'));
+  const missing = await scanLibrary(path.join(tmp, 'nope'));
   assert.ok(Array.isArray(missing.errors));
   assert.strictEqual(missing.errors[0], 'GAME_PATH_MISSING');
 
@@ -223,7 +233,7 @@ function setup() {
   assert.strictEqual(listTrash(trashPath).length, 0);
 
   // -- stats -- //
-  const stats = getFolderStats(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk'));
+  const stats = await getFolderStats(path.join(game, 'content', 'cars', 'ks_ferrari_fxxk'));
   assert.ok(stats.sizeBytes > 0);
   assert.ok(stats.fileCount >= 1);
 

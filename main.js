@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
@@ -322,14 +322,59 @@ ipcMain.handle('uninstall:run', (event, payload) => {
 /*  Content library IPC (my mods / cars / tracks)                      */
 /* ------------------------------------------------------------------ */
 
-ipcMain.handle('library:scan', (event, gamePath) => {
-  return scanLibrary(gamePath);
+ipcMain.handle('library:scan', async (event, gamePath) => {
+  return scanLibrary(gamePath, {
+    onProgress: (data) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('library:scan-progress', data);
+      }
+    }
+  });
 });
+
+/* Longest side of a generated preview thumbnail. Downscaling large mod
+   previews in the main process keeps the IPC payload small and fixes the
+   "some mods show no image" issue caused by the old 900 KB raw-file cap. */
+const PREVIEW_THUMB_MAX = 640;
+
+function makePreviewDataUrl(fullPath) {
+  // 1) Prefer nativeImage: it decodes in the main process and can downscale,
+  //    so even multi-MB previews come back as small, ready-to-show data URLs.
+  try {
+    const img = nativeImage.createFromPath(fullPath);
+    if (!img.isEmpty()) {
+      const size = img.getSize();
+      const maxDim = Math.max(size.width || 0, size.height || 0);
+      if (maxDim > PREVIEW_THUMB_MAX) {
+        const scale = PREVIEW_THUMB_MAX / maxDim;
+        return img.resize({
+          width: Math.max(1, Math.round((size.width || 1) * scale)),
+          height: Math.max(1, Math.round((size.height || 1) * scale)),
+          quality: 'good'
+        }).toDataURL();
+      }
+      return img.toDataURL();
+    }
+  } catch (e) { /* unsupported/corrupt image — fall back below */ }
+
+  // 2) Pure fallback (keeps the library module Electron-free and testable).
+  return previewToDataUrl(fullPath);
+}
 
 ipcMain.handle('library:get-preview', (event, { gamePath, relPath }) => {
   if (!gamePath || !relPath) return null;
   const full = resolveSafePath(gamePath, relPath);
-  return full ? previewToDataUrl(full) : null;
+  return full ? makePreviewDataUrl(full) : null;
+});
+
+ipcMain.handle('library:reveal', (event, { gamePath, type, folder } = {}) => {
+  if (!gamePath || !folder || typeof folder !== 'string') return { success: false };
+  if (folder.includes('..') || path.isAbsolute(folder)) return { success: false };
+  const sub = type === 'track' ? 'tracks' : 'cars';
+  const full = path.join(gamePath, 'content', sub, folder);
+  if (!fs.existsSync(full)) return { success: false };
+  shell.showItemInFolder(full);
+  return { success: true };
 });
 
 ipcMain.handle('library:delete', (event, { gamePath, type, folder }) => {

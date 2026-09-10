@@ -103,6 +103,7 @@
     },
     async deleteContent() { return { success: true }; },
     async restoreContent() { return { success: true }; },
+    async revealContent() { return { success: true }; },
     async purgeContent() { return { success: true }; },
     async emptyTrash() { return { success: true }; },
     async listTrash() { return []; },
@@ -151,6 +152,7 @@
       }, 250);
       return () => { cancelled = true; clearInterval(id); };
     },
-    openExternal(url) { window.open(url, '_blank'); }
+    openExternal(url) { window.open(url, '_blank'); },
+    onScanProgress() { return () => {}; }
   };
 })();

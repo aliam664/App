@@ -137,6 +137,22 @@
   margin-bottom: 12px;
   min-height: 22px;
 }
+
+/* ---------------- Scan progress ---------------- */
+.library-scan-progress {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 14px;
+}
+.library-scan-progress:empty { display: none; }
+.scan-progress-text { font-size: 12px; font-weight: 700; color: var(--color-text-dim); }
+
+/* ---------------- Detail actions ---------------- */
+.detail-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-card-border);
+}
+.detail-actions .btn-secondary { flex: 1; justify-content: center; }
 .library-summary-text { font-size: 12px; color: var(--color-text-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .btn-sm { padding: 6px 12px; font-size: 11px; border-radius: 9px; }
 
