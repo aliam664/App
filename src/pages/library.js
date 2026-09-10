@@ -142,6 +142,7 @@
           <div class="text-dim">${s('subtitle')}</div>
         </div>
         <button class="btn-secondary" id="btn-refresh">${s('refresh')}</button>
+        <button class="btn-primary" id="btn-install-mod">${s('installMod')}</button>
       </div>
 
       <div class="library-stats" id="library-stats">
@@ -233,6 +234,10 @@
   function bindCommon(container) {
     document.getElementById('btn-back').addEventListener('click', () => goBack('showcase'));
     document.getElementById('btn-refresh').addEventListener('click', () => runScan(true));
+    document.getElementById('btn-install-mod').addEventListener('click', async () => {
+      const paths = await window.uhm.pickModFiles();
+      if (paths && paths.length) navigate('modInstall', { sources: paths });
+    });
 
     container.querySelectorAll('.library-tab').forEach((btn) => {
       btn.addEventListener('click', () => {

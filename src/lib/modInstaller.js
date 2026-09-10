@@ -29,12 +29,56 @@ const MAX_DEPTH = 24;
 const ARCHIVE_EXTS = { '.zip': 'zip', '.rar': 'rar', '.cbr': 'rar' };
 const UNSUPPORTED_EXTS = { '.7z': '7z' };
 
+const CONTENT_TYPES = new Set(['car', 'track', 'skin', 'app', 'ppfilter', 'font', 'weather', 'driver', 'mirror']);
+
 /* ------------------------------------------------------------------ */
 /*  Path helpers                                                       */
 /* ------------------------------------------------------------------ */
 
 function normRel(p) {
   return String(p || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+}
+
+/* A relative path that can never escape its root (no "..", no absolute). */
+function safeRel(p) {
+  const rel = normRel(p);
+  if (!rel || rel === '.' || rel.includes('..')) return null;
+  return rel;
+}
+
+/* Rebuild install items from untrusted (renderer) input, keeping only the
+   fields the installer actually needs, with traversal-safe values. Target
+   directories are never trusted — they are recomputed from type/name. */
+function sanitizeInstallItems(items) {
+  const out = [];
+  const seen = new Set();
+  for (const it of items || []) {
+    if (!it || typeof it !== 'object') continue;
+    const type = CONTENT_TYPES.has(String(it.type)) ? String(it.type) : null;
+    if (!type) continue;
+    const name = String(it.name || 'item').replace(/[\\/]/g, '_').replace(/\.\./g, '_').slice(0, 120) || 'item';
+    let sourceRoot = '';
+    if (it.sourceRoot) {
+      const sr = safeRel(String(it.sourceRoot));
+      if (sr === null) continue;
+      sourceRoot = sr;
+    }
+    const car = type === 'skin'
+      ? String(it.car || '').replace(/[\\/]/g, '_').replace(/\.\./g, '_').slice(0, 120)
+      : '';
+    const id = String(it.id || `${type}:${name}`).slice(0, 200);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const files = [];
+    for (const f of it.files || []) {
+      const rel = safeRel(f && f.rel);
+      if (!rel) continue;
+      files.push({ rel, size: Number((f && f.size) || 0) || 0 });
+    }
+    if (!files.length) continue;
+    out.push({ id, type, name, car, sourceRoot, files });
+  }
+  return out;
 }
 
 function leaf(p) {
@@ -574,7 +618,7 @@ function copyWithBackup(srcFile, destFile, backupFn, id) {
   return { existed, backupPath };
 }
 
-async function executeInstall(source, items, options = {}) {
+async function executeInstall(sourcePath, items, options = {}) {
   const {
     gamePath = '',
     backupsDir,
@@ -587,6 +631,13 @@ async function executeInstall(source, items, options = {}) {
   }
   if (!items || !items.length) {
     return { success: false, error: 'NO_ITEMS', cancelled: false, items: [] };
+  }
+
+  const source = typeof sourcePath === 'string'
+    ? detectSourceKind(sourcePath)
+    : sourcePath;
+  if (!source || (source.kind !== 'folder' && source.kind !== 'archive')) {
+    return { success: false, error: 'BAD_SOURCE', cancelled: false, items: [] };
   }
 
   const stamp = Date.now();
@@ -620,21 +671,30 @@ async function executeInstall(source, items, options = {}) {
       };
       onProgress({ done, total, item: result, stage: 'start' });
 
-      try {
-        const srcRoot = it.sourceRoot ? path.join(stagingBase, it.sourceRoot) : stagingBase;
-        for (const f of it.files || []) {
-          if (isCancelled()) { cancelled = true; break; }
-          const rel = normRel(f.rel);
-          const srcFile = path.join(srcRoot, rel);
-          const destFile = path.join(it.targetDir, rel);
-          if (!fs.existsSync(srcFile)) continue;
-          const r = copyWithBackup(srcFile, destFile, backupFn, it.id);
-          result.installedFiles.push({ rel, dest: destFile, existed: r.existed, backupPath: r.backupPath });
-        }
-        result.status = cancelled ? 'skipped' : 'installed';
-      } catch (e) {
+      // Recompute the target from type/name — never trust a caller-supplied
+      // target directory (defense in depth against a compromised renderer).
+      const targetDir = targetFor(gamePath, it);
+      if (!targetDir) {
         result.status = 'error';
-        result.error = e.message;
+        result.error = 'BAD_TARGET';
+      } else {
+        try {
+          const srcRoot = it.sourceRoot ? path.join(stagingBase, it.sourceRoot) : stagingBase;
+          for (const f of it.files || []) {
+            if (isCancelled()) { cancelled = true; break; }
+            const rel = safeRel(f.rel);
+            if (!rel) continue;
+            const srcFile = path.join(srcRoot, rel);
+            const destFile = path.join(targetDir, rel);
+            if (!fs.existsSync(srcFile)) continue;
+            const r = copyWithBackup(srcFile, destFile, backupFn, it.id);
+            result.installedFiles.push({ rel, dest: destFile, existed: r.existed, backupPath: r.backupPath });
+          }
+          result.status = cancelled ? 'skipped' : 'installed';
+        } catch (e) {
+          result.status = 'error';
+          result.error = e.message;
+        }
       }
       onProgress({ done, total, item: result, stage: result.status });
       results.push(result);
@@ -688,6 +748,7 @@ async function analyzeSource(sourcePath, gamePath) {
   }
 
   const totalSize = (items || []).reduce((s, it) => s + (it.sizeBytes || 0), 0);
+  items.forEach((it) => { it.id = it.id || `${it.type}:${it.name}`; });
   return {
     ok: true,
     source: {
@@ -713,6 +774,9 @@ module.exports = {
   buildTree,
   detectMods,
   buildPlan,
+  sanitizeInstallItems,
+  safeRel,
+  normRel,
   executeInstall,
   analyzeSource,
   isCarDir,

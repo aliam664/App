@@ -62,7 +62,24 @@ async function bootstrap() {
     purgeContent: async () => ({ success: true }),
     emptyTrash: async () => ({ success: true }),
     listTrash: async () => [],
-    getPreviewCandidates: async () => []
+    getPreviewCandidates: async () => [],
+    getPathForFile: () => '/fake/dropped.zip',
+    pickModFiles: async () => ['/fake/dropped.zip'],
+    analyzeModSource: async () => ({
+      ok: true,
+      source: { label: 'demo.zip', kind: 'archive', archiveType: 'zip', sizeBytes: 1024, entryCount: 3 },
+      totalItems: 1,
+      items: [{
+        id: 'car:demo_car', type: 'car', name: 'demo_car', displayName: 'Demo Car', brand: 'Demo',
+        sourceRoot: 'content/cars/demo_car', targetRelative: 'content/cars/demo_car',
+        fileCount: 2, sizeBytes: 500, status: 'new', overwriteCount: 0, addCount: 2,
+        previewDataUrl: null, files: [{ rel: 'data.acd', size: 100 }, { rel: 'ui/ui_car.json', size: 50 }]
+      }],
+      warnings: []
+    }),
+    installMod: async (payload) => ({ success: true, cancelled: false, installedCount: 1, items: [{ id: 'car:demo_car', type: 'car', name: 'demo_car', status: 'installed' }] }),
+    cancelModInstall: async () => true,
+    onModInstallProgress: () => () => {}
   };
 
   // بارگذاری اسکریپت‌ها (به همان ترتیب index.html)
@@ -82,7 +99,8 @@ async function bootstrap() {
     'src/pages/done.js',
     'src/pages/manageMods.js',
     'src/js/libraryData.js',
-    'src/pages/library.js'
+    'src/pages/library.js',
+    'src/pages/modInstall.js'
   ];
   for (const f of files) loadScript(ctx, f);
 
@@ -130,7 +148,15 @@ async function bootstrap() {
   assert.ok(container.innerHTML.includes('library-stats'), 'library should render stats');
   assert.ok(container.innerHTML.includes('library-tabs'), 'library should render tabs');
   assert.ok(container.innerHTML.includes('library-search'), 'library should render search');
+  assert.ok(container.innerHTML.includes('btn-install-mod'), 'library should have install-mod button');
   assert.ok(container.innerHTML.includes('Ferrari FXX K'), 'library should render scanned car');
+
+  // == Mod install (drag-and-drop) wizard ==
+  window.navigate('modInstall', { sources: ['/fake/dropped.zip'] });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(container.innerHTML.includes('mi-list'), 'modInstall should render review list');
+  assert.ok(container.innerHTML.includes('Demo Car'), 'modInstall should render detected item');
+  assert.ok(container.innerHTML.includes('btn-install'), 'modInstall should render install button');
 
   const plan = {
     tier: 'ultra', gamePath: '/fake/game',

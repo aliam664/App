@@ -153,6 +153,58 @@
       return () => { cancelled = true; clearInterval(id); };
     },
     openExternal(url) { window.open(url, '_blank'); },
-    onScanProgress() { return () => {}; }
+    onScanProgress() { return () => {}; },
+
+    // ----- Mod drag-and-drop install (demo) -----
+    getPathForFile() { return '/demo/dropped/mod.zip'; },
+    async pickModFiles() { return ['/demo/dropped/mod.zip']; },
+    async analyzeModSource() {
+      return {
+        ok: true,
+        source: { label: 'demo_mod.zip', kind: 'archive', archiveType: 'zip', sizeBytes: 24 * 1024 * 1024, entryCount: 156 },
+        totalItems: 2,
+        items: [
+          {
+            id: 'car:demo_gt3', type: 'car', name: 'demo_gt3', displayName: 'Demo GT3', brand: 'Demo', author: 'UHM Demo',
+            version: '1.2', description: 'A demo GT3 car for the browser preview.', sourceRoot: 'content/cars/demo_gt3',
+            targetRelative: 'content/cars/demo_gt3', fileCount: 96, sizeBytes: 18 * 1024 * 1024, status: 'new',
+            overwriteCount: 0, addCount: 96,
+            previewDataUrl: createDemoPreview('content/cars/demo_gt3/ui/preview.png'),
+            files: []
+          },
+          {
+            id: 'track:demo_track', type: 'track', name: 'demo_track', displayName: 'Demo Track', country: 'Italy', author: 'UHM Demo',
+            description: 'A demo track for the browser preview.', sourceRoot: 'content/tracks/demo_track',
+            targetRelative: 'content/tracks/demo_track', fileCount: 60, sizeBytes: 6 * 1024 * 1024, status: 'update',
+            overwriteCount: 12, addCount: 48,
+            previewDataUrl: createDemoPreview('content/tracks/demo_track/ui/preview.png'),
+            files: []
+          }
+        ],
+        warnings: []
+      };
+    },
+    async installMod(payload) {
+      window.__modInstallIdx = 0;
+      const items = (payload && payload.items) || [];
+      const out = [];
+      for (const it of items) {
+        out.push({ id: it.id, type: it.type, name: it.name, status: 'installed', installedFiles: [] });
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      return { success: true, cancelled: false, installedCount: out.length, items: out };
+    },
+    async cancelModInstall() { return true; },
+    onModInstallProgress(cb) {
+      const src = window.appState && window.appState.installModItems;
+      const total = src && src.length ? src.length : 2;
+      let idx = 0;
+      const id = setInterval(() => {
+        if (idx >= total) { clearInterval(id); return; }
+        cb({ done: idx + 1, total, item: { id: 'x', type: 'car', name: 'demo', status: idx + 1 >= total ? 'installed' : 'running' }, stage: idx + 1 >= total ? 'installed' : 'start' });
+        idx += 1;
+      }, 250);
+      return () => clearInterval(id);
+    }
   };
 })();

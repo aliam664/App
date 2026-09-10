@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('ele
 const path = require('path');
 const fs = require('fs');
 const { installMods, uninstallFiles } = require('./src/lib/installer');
+const { analyzeSource, executeInstall, buildPlan, sanitizeInstallItems } = require('./src/lib/modInstaller');
 const { detectSystemSpecs, suggestTierFromSpecs } = require('./src/lib/hardware');
 const {
   scanLibrary,
@@ -44,6 +45,7 @@ const RESOURCE_ROOT = app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getA
 const ASSETS_MOD_DIR = path.join(RESOURCE_ROOT, 'src', 'assets', 'mod-files');
 
 let installCancelled = false;
+let modInstallCancelled = false;
 
 function ensureUserDataFiles() {
   fs.mkdirSync(USER_DATA_DIR, { recursive: true });
@@ -319,6 +321,110 @@ ipcMain.handle('uninstall:run', (event, payload) => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Mod drag-and-drop install (Content Manager-like)                   */
+/* ------------------------------------------------------------------ */
+
+/* Longest side of a generated preview thumbnail. Downscaling large mod
+   previews in the main process keeps the IPC payload small and fixes the
+   "some mods show no image" issue caused by the old 900 KB raw-file cap. */
+const PREVIEW_THUMB_MAX = 640;
+
+/* Downscale an analyzed preview buffer into a small data URL so the install
+   review dialog stays light even for large preview images. */
+function previewBufferToDataUrl(mime, base64) {
+  if (!base64) return null;
+  try {
+    const img = nativeImage.createFromBuffer(Buffer.from(base64, 'base64'));
+    if (!img.isEmpty()) {
+      const size = img.getSize();
+      const maxDim = Math.max(size.width || 0, size.height || 0);
+      if (maxDim > PREVIEW_THUMB_MAX) {
+        const scale = PREVIEW_THUMB_MAX / maxDim;
+        return img.resize({
+          width: Math.max(1, Math.round((size.width || 1) * scale)),
+          height: Math.max(1, Math.round((size.height || 1) * scale)),
+          quality: 'good'
+        }).toDataURL();
+      }
+      return img.toDataURL();
+    }
+  } catch (e) { /* fall back to raw data URL */ }
+  return `data:${mime || 'image/png'};base64,${base64}`;
+}
+
+ipcMain.handle('mods:analyze', async (event, { sourcePath, gamePath }) => {
+  if (!sourcePath) return { ok: false, error: 'SOURCE_MISSING' };
+  const analysis = await analyzeSource(sourcePath, gamePath);
+  if (analysis.ok && Array.isArray(analysis.items)) {
+    for (const item of analysis.items) {
+      if (item.preview) {
+        item.previewDataUrl = previewBufferToDataUrl(item.preview.mime, item.preview.base64);
+      }
+      delete item.preview; // keep the IPC payload lean
+    }
+  }
+  return analysis;
+});
+
+ipcMain.handle('mods:install', async (event, payload) => {
+  modInstallCancelled = false;
+  const { sourcePath = '', items = [], gamePath = '' } = payload || {};
+
+  // Never trust renderer-supplied targets: rebuild a sanitized, typed plan.
+  const safeItems = buildPlan(gamePath, sanitizeInstallItems(items));
+
+  const result = await executeInstall(
+    sourcePath,
+    safeItems,
+    {
+      gamePath,
+      backupsDir: BACKUPS_DIR,
+      onProgress: (data) => broadcast('mods:install-progress', data),
+      isCancelled: () => modInstallCancelled
+    }
+  );
+
+  // Record the installation in the manifest for auditability.
+  if (result.success && Array.isArray(result.items)) {
+    const manifest = safeReadJson(MANIFEST_PATH, {});
+    if (!manifest.installs) manifest.installs = [];
+    for (const r of result.items) {
+      if (r.status !== 'installed') continue;
+      manifest.installs.unshift({
+        id: `content:${r.type}:${r.name}`,
+        type: r.type,
+        name: r.name,
+        installedAt: new Date().toISOString(),
+        files: r.installedFiles.map((f) => ({ rel: f.rel, dest: f.dest, backupPath: f.backupPath }))
+      });
+      manifest.installs = manifest.installs.slice(0, 200);
+    }
+    safeWriteJson(MANIFEST_PATH, manifest);
+  }
+
+  modInstallCancelled = false;
+  return result;
+});
+
+ipcMain.handle('mods:cancel', () => {
+  modInstallCancelled = true;
+  return true;
+});
+
+ipcMain.handle('mods:pick-file', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'انتخاب فایل مود (ZIP / RAR)',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Mod archives', extensions: ['zip', 'rar', '7z', 'cbr'] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths;
+});
+
+/* ------------------------------------------------------------------ */
 /*  Content library IPC (my mods / cars / tracks)                      */
 /* ------------------------------------------------------------------ */
 
@@ -331,11 +437,6 @@ ipcMain.handle('library:scan', async (event, gamePath) => {
     }
   });
 });
-
-/* Longest side of a generated preview thumbnail. Downscaling large mod
-   previews in the main process keeps the IPC payload small and fixes the
-   "some mods show no image" issue caused by the old 900 KB raw-file cap. */
-const PREVIEW_THUMB_MAX = 640;
 
 function makePreviewDataUrl(fullPath) {
   // 1) Prefer nativeImage: it decodes in the main process and can downscale,

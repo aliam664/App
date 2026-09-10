@@ -11,14 +11,17 @@ const files = [
   'src/pages/gamePath.js', 'src/pages/baseModsCheck.js', 'src/pages/tierSelect.js',
   'src/pages/install.js', 'src/pages/done.js', 'src/pages/manageMods.js',
   'src/pages/library.js',
+  'src/pages/modInstall.js',
   'src/lib/installer.js',
   'src/lib/hardware.js',
   'src/lib/library.js',
+  'src/lib/modInstaller.js',
   'test/installer.test.js',
   'test/hardware.test.js',
   'test/renderer.test.js',
   'test/library.test.js',
-  'test/libraryData.test.js'
+  'test/libraryData.test.js',
+  'test/modInstaller.test.js'
 ];
 
 let ok = true;
@@ -52,7 +55,8 @@ if (ok) {
     'node test/hardware.test.js',
     'node test/renderer.test.js',
     'node test/library.test.js',
-    'node test/libraryData.test.js'
+    'node test/libraryData.test.js',
+    'node test/modInstaller.test.js'
   ]) {
     try {
       execSync(t, { stdio: 'inherit' });

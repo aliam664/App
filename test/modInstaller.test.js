@@ -120,8 +120,7 @@ async function main() {
       files: [{ rel: 'ui/ui_car.json', size: 1 }, { rel: 'data.acd', size: 8 }]
     };
 
-    const source = { kind: 'folder', path: src };
-    const res = await executeInstall(source, [item], {
+    const res = await executeInstall(src, [item], {
       gamePath: game,
       backupsDir: backups,
       onProgress: (p) => progress.push(p),

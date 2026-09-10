@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('uhm', {
   // کنترل پنجره
@@ -39,6 +39,27 @@ contextBridge.exposeInMainWorld('uhm', {
   runInstall: (payload) => ipcRenderer.invoke('install:run', payload),
   cancelInstall: () => ipcRenderer.invoke('install:cancel'),
   runUninstall: (payload) => ipcRenderer.invoke('uninstall:run', payload),
+
+  // نصب مود با درگ‌اند‌دراپ (شبیه Content Manager)
+  getPathForFile: (file) => {
+    try {
+      if (webUtils && typeof webUtils.getPathForFile === 'function') {
+        return webUtils.getPathForFile(file);
+      }
+    } catch (e) { /* older Electron */ }
+    try { return file && file.path ? file.path : null; } catch (e) { return null; }
+  },
+  analyzeModSource: (payload) => ipcRenderer.invoke('mods:analyze', payload),
+  installMod: (payload) => ipcRenderer.invoke('mods:install', payload),
+  cancelModInstall: () => ipcRenderer.invoke('mods:cancel'),
+  pickModFiles: () => ipcRenderer.invoke('mods:pick-file'),
+
+  // رویدادهای پیشرفت نصب مود
+  onModInstallProgress: (callback) => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('mods:install-progress', listener);
+    return () => ipcRenderer.removeListener('mods:install-progress', listener);
+  },
 
   // رویدادهای پیشرفت نصب
   onInstallProgress: (callback) => {

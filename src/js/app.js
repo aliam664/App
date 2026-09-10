@@ -103,6 +103,62 @@ function wireTitlebar() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Global drag-and-drop target (install a mod from anywhere)          */
+/* ------------------------------------------------------------------ */
+
+function wireDropTarget() {
+  const overlay = document.createElement('div');
+  overlay.className = 'drop-overlay';
+  overlay.innerHTML = `
+    <div class="drop-overlay-inner">
+      <div class="drop-overlay-icon">📦</div>
+      <div class="drop-overlay-title">${window.i18n.t(window.appState.lang, 'modInstall.dropTitle')}</div>
+      <div class="drop-overlay-sub">${window.i18n.t(window.appState.lang, 'modInstall.dropSub')}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  let depth = 0;
+  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth += 1;
+    overlay.classList.add('open');
+  });
+
+  window.addEventListener('dragover', (e) => {
+    if (hasFiles(e)) e.preventDefault();
+  });
+
+  window.addEventListener('dragleave', (e) => {
+    if (!hasFiles(e)) return;
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) overlay.classList.remove('open');
+  });
+
+  window.addEventListener('drop', async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    overlay.classList.remove('open');
+
+    const files = e.dataTransfer.files;
+    if (!files || !files.length) return;
+    const paths = [];
+    for (const f of files) {
+      const p = window.uhm.getPathForFile ? window.uhm.getPathForFile(f) : null;
+      if (p) paths.push(p);
+    }
+    if (!paths.length) {
+      uhmToast(window.i18n.t(window.appState.lang, 'toast.error'), 'error');
+      return;
+    }
+    navigate('modInstall', { sources: paths });
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Bootstrap                                                          */
 /* ------------------------------------------------------------------ */
 async function bootstrap() {
@@ -114,6 +170,7 @@ async function bootstrap() {
   applyTheme(settings.theme || 'night');
   applyLanguage(settings.language || 'fa');
   wireTitlebar();
+  wireDropTarget();
 
   window.appState.navStack = [];
   renderPage('showcase', {});
