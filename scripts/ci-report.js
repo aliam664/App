@@ -34,7 +34,19 @@ const body = `### ${title}\n\n\`${[cmd, ...args].join(' ')}\`\n\n\`\`\`text\n${t
 
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, body + '\n');
 
+// GitHub REST helper. Prefers the `gh` CLI (pre-installed on all hosted
+// runners, handles auth/proxies/TLS itself); falls back to plain https.
 function api(method, path, data) {
+  const ghBin = process.platform === 'win32' ? 'gh.exe' : 'gh';
+  const ghArgs = ['api', '-X', method, path, '--input', '-'];
+  const viaGh = spawnSync(ghBin, data ? ghArgs : ghArgs.slice(0, 4), {
+    encoding: 'utf8', input: data ? JSON.stringify(data) : undefined,
+    env: { ...process.env, GH_TOKEN: process.env.GITHUB_TOKEN },
+  });
+  if (!viaGh.error) {
+    try { return Promise.resolve({ status: viaGh.status === 0 ? 200 : 400, json: JSON.parse(viaGh.stdout || 'null') }); }
+    catch { return Promise.resolve({ status: 400, json: null }); }
+  }
   return new Promise((resolve) => {
     const payload = data ? JSON.stringify(data) : null;
     const req = https.request({
@@ -44,7 +56,7 @@ function api(method, path, data) {
         'Accept': 'application/vnd.github+json', ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {}),
       },
     }, (r) => { let b = ''; r.on('data', (c) => { b += c; }); r.on('end', () => { try { resolve({ status: r.statusCode, json: JSON.parse(b || 'null') }); } catch { resolve({ status: r.statusCode, json: null }); } }); });
-    req.on('error', () => resolve({ status: 0, json: null }));
+    req.on('error', (e) => { console.error('ci-report: api error', e.message); resolve({ status: 0, json: null }); });
     if (payload) req.write(payload);
     req.end();
   });
@@ -56,15 +68,23 @@ function api(method, path, data) {
     const sha = (process.env.GITHUB_SHA || '').slice(0, 7);
     const runUrl = `${process.env.GITHUB_SERVER_URL || 'https://github.com'}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
     const header = `**Run:** ${runUrl}\n**Commit:** \`${sha}\` on \`${process.env.GITHUB_REF_NAME}\`\n**Job:** ${process.env.GITHUB_JOB} / ${process.env.RUNNER_OS}\n\n`;
-    // Reuse a single issue labelled ci-log so the tracker doesn't fill up.
-    const found = await api('GET', `/repos/${repo}/issues?labels=ci-log&state=open&per_page=1`);
-    let number = Array.isArray(found.json) && found.json[0] ? found.json[0].number : null;
-    if (!number) {
-      const created = await api('POST', `/repos/${repo}/issues`, { title: 'CI build log (auto-updated)', body: 'Automated build failures are posted here as comments.', labels: ['ci-log'] });
-      number = created.json && created.json.number;
+    // One issue per failing step: creating an issue needs the least
+    // privilege (works even for restricted tokens), and the log lives in the
+    // body, so it is readable with a single GET.
+    const title = `CI ❌ ${label} — ${sha} (run ${process.env.GITHUB_RUN_ID})`;
+    const created = await api('POST', `/repos/${repo}/issues`, { title, body: header + body });
+    const number = created.json && created.json.number;
+    if (number) {
+      console.error(`ci-report: failure log posted to issue #${number}`);
+      // Best-effort tidy-up: label it and close older CI issues for the same label.
+      await api('POST', `/repos/${repo}/issues/${number}/labels`, { labels: ['ci-log'] });
+      const old = await api('GET', `/repos/${repo}/issues?state=open&per_page=50`);
+      for (const it of Array.isArray(old.json) ? old.json : []) {
+        if (it.number !== number && /^CI ❌ /.test(it.title)) await api('PATCH', `/repos/${repo}/issues/${it.number}`, { state: 'closed' });
+      }
+    } else {
+      console.error('ci-report: could not create issue:', JSON.stringify(created.json && created.json.message));
     }
-    if (number) await api('POST', `/repos/${repo}/issues/${number}/comments`, { body: header + body });
-    else console.error('ci-report: could not create/find ci-log issue');
   }
   process.exit(code);
 })();
