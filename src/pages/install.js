@@ -189,7 +189,7 @@
     const percent = document.getElementById('install-percent');
     const statusTitle = document.getElementById('install-status-title');
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    if (bar) bar.style.width = pct + '%';
+    if (bar) { bar.style.width = pct + '%'; bar.classList.toggle('is-done', pct >= 100); }
     if (percent) percent.textContent = pct + '%';
     if (progress) progress.textContent = `${done} / ${total}`;
     if (statusTitle) statusTitle.textContent = cancelled ? s('cancelled') : s('title');

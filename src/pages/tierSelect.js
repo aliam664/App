@@ -74,6 +74,15 @@
     `;
   }
 
+  // Five start lights; the tier's index decides how many are lit.
+  function tierLights(tierId) {
+    const order = window.TIER_DEFINITIONS.map((t) => t.id);
+    const lit = order.indexOf(tierId) + 1;
+    let html = '';
+    for (let i = 1; i <= 5; i += 1) html += `<i class="${i <= lit ? 'on' : ''}"></i>`;
+    return html;
+  }
+
   function renderTier(tier) {
     const label = s(tier.id);
     const mods = (TIER_MODS[tier.id] || []).map((id) =>
@@ -84,6 +93,7 @@
         <img class="tier-img" src="${tier.image}" alt="${label}" />
         <div class="tier-icon">${tier.icon}</div>
         <div class="tier-name">${label}</div>
+        <div class="tier-lights" aria-hidden="true">${tierLights(tier.id)}</div>
         <div class="tier-desc text-dim">${s(tier.id + 'Desc')}</div>
         <div class="tier-mods">${mods}</div>
         ${detectedSpecs && detectedSpecs.suggestedTier === tier.id ? `<div class="tier-rec">${s('recommended')}</div>` : ''}
@@ -96,8 +106,8 @@
     container.querySelectorAll('.tier-card').forEach((card) => {
       card.addEventListener('click', () => {
         selectedTier = card.dataset.tier;
-        container.querySelectorAll('.tier-card').forEach((c) => { c.classList.remove('selected'); });
-        card.classList.add('selected');
+        container.querySelectorAll('.tier-card').forEach((c) => { c.classList.remove('selected', 'just-selected'); });
+        card.classList.add('selected', 'just-selected');
         document.getElementById('btn-continue').disabled = false;
       });
     });

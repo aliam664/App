@@ -83,6 +83,30 @@ function renderPage(pageName, params) {
   pageContainer.innerHTML = '';
   window.appState.currentPage = pageName;
   page.render(pageContainer, params || {});
+  choreographPage(pageContainer);
+}
+
+// Entrance choreography: the page slides in once, and the first grid/list
+// on the page staggers its children. Forms and settings stay still (they
+// are excluded by name), and the classes are dropped after the animation
+// so later DOM updates on the page don't re-trigger it.
+const STILL_PAGES = new Set(['settings', 'gamepath']);
+const STAGGER_SELECTOR = '.home-tiers, .tier-grid, .addons-grid, .library-grid, .install-list, .home-mods, .done-stats, .mi-list, .manage-list, .contact-list';
+function choreographPage(root) {
+  if (!root) return;
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+  root.classList.remove('page-enter');
+  if (!STILL_PAGES.has(window.appState.currentPage)) {
+    const grid = root.querySelector(STAGGER_SELECTOR);
+    if (grid) grid.classList.add('stagger');
+    void root.offsetWidth; // restart the animation for the new page
+    root.classList.add('page-enter');
+    window.setTimeout(() => {
+      root.classList.remove('page-enter');
+      if (grid) grid.classList.remove('stagger');
+    }, 900);
+  }
 }
 
 function navigate(pageName, params, options = {}) {
