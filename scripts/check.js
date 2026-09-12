@@ -1,10 +1,10 @@
-/* بررسی سلامت پروژه: syntax + تست + فایل‌های ضروری */
+/* بررسی سلامت پروژه: syntax + تست فرانت‌اند + فایل‌های ضروری (Tauri) */
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const files = [
-  'main.js', 'preload.js',
+  'src/js/tauri-bridge.js',
   'src/js/i18n.js', 'src/js/ui.js', 'src/js/utils.js', 'src/js/modConfig.js', 'src/js/app.js',
   'src/js/browser-preview.js', 'src/js/libraryData.js',
   'src/pages/showcase.js', 'src/pages/settings.js', 'src/pages/about.js',
@@ -13,16 +13,8 @@ const files = [
   'src/pages/library.js',
   'src/pages/modInstall.js',
   'src/pages/donate.js',
-  'src/lib/installer.js',
-  'src/lib/hardware.js',
-  'src/lib/library.js',
-  'src/lib/modInstaller.js',
-  'test/installer.test.js',
-  'test/hardware.test.js',
   'test/renderer.test.js',
-  'test/library.test.js',
   'test/libraryData.test.js',
-  'test/modInstaller.test.js',
   'test/i18n.test.js'
 ];
 
@@ -38,8 +30,19 @@ for (const f of files) {
 }
 
 const requiredAssets = [
-  'src/assets/images/icon.ico',
-  'src/assets/images/icon.png',
+  'src-tauri/icons/icon.ico',
+  'src-tauri/icons/icon.png',
+  'src-tauri/tauri.conf.json',
+  'src-tauri/Cargo.toml',
+  'src-tauri/src/lib.rs',
+  'src/assets/images/tiers/low.webp',
+  'src/assets/images/tiers/medium.webp',
+  'src/assets/images/tiers/high.webp',
+  'src/assets/images/tiers/veryhigh.webp',
+  'src/assets/images/tiers/ultra.webp',
+  'src/assets/images/logo.webp',
+  'src/assets/images/backgrounds/day.webp',
+  'src/assets/images/backgrounds/night.webp',
   'src/assets/fonts/Vazirmatn-Regular.woff2',
   'src/assets/fonts/Vazirmatn-Medium.woff2',
   'src/assets/fonts/Vazirmatn-Bold.woff2',
@@ -52,13 +55,11 @@ for (const a of requiredAssets) {
 
 if (ok) {
   console.log('✔ Syntax & assets OK');
+  // Backend logic (installer / library / hardware / mod installer) now lives
+  // in Rust and is covered by `cargo test` (see src-tauri/src/*.rs).
   for (const t of [
-    'node test/installer.test.js',
-    'node test/hardware.test.js',
     'node test/renderer.test.js',
-    'node test/library.test.js',
     'node test/libraryData.test.js',
-    'node test/modInstaller.test.js',
     'node test/i18n.test.js'
   ]) {
     try {

@@ -1,0 +1,92 @@
+# NOTE: This file is documentation because the Arena GitHub App token does not
+# have `workflows` permission. To activate CI, copy it to
+# `.github/workflows/build.yml` (see RELEASE-GUIDE.md, step 1).
+name: Build & Test
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------
+  # Fast checks on Linux: frontend smoke tests + Rust unit tests.
+  # ---------------------------------------------------------------
+  test:
+    name: Test (frontend + rust core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Tauri Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential
+      - run: npm ci
+      - name: Frontend checks
+        run: npm run check
+      - name: Rust format / lint / tests
+        working-directory: src-tauri
+        run: |
+          cargo clippy --all-targets
+          cargo test --all-targets
+
+  # ---------------------------------------------------------------
+  # Windows installer (the deliverable). Reports the exact EXE size.
+  # ---------------------------------------------------------------
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    needs: test
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build
+        run: npm run build -- --target x86_64-pc-windows-msvc
+      - name: Report sizes
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/*.exe" | Select-Object -First 1
+          $nsis = Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe" | Select-Object -First 1
+          "### Build sizes" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| Artifact | Size |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "|---|---|" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| App binary (`$($exe.Name)`) | $([math]::Round($exe.Length/1MB,2)) MB |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| NSIS installer (`$($nsis.Name)`) | $([math]::Round($nsis.Length/1MB,2)) MB |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UHM-Pack-Installer-Windows
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          generate_release_notes: true

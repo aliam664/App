@@ -51,7 +51,7 @@
 
 /* ---------------------------- Themes ----------------------------- */
 body[data-theme='night'] {
-  --bg-image: url('../assets/images/backgrounds/night.jpg');
+  --bg-image: url('../assets/images/backgrounds/night.webp');
   --color-bg: #0b0e14;
   --color-bg-2: #111827;
   --color-text: #f4f8ff;
@@ -66,7 +66,7 @@ body[data-theme='night'] {
 }
 
 body[data-theme='day'] {
-  --bg-image: url('../assets/images/backgrounds/day.jpg');
+  --bg-image: url('../assets/images/backgrounds/day.webp');
   --color-bg: #eef4fb;
   --color-bg-2: #ffffff;
   --color-text: #10233a;

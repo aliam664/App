@@ -45,7 +45,7 @@
     return `
       <section class="ui-section about-hero">
         <div class="about-header">
-          <img src="assets/images/logo.jpg" alt="UHM" />
+          <img src="assets/images/logo.webp" alt="UHM" />
           <div>
             <div class="app-name">${t('appName')}</div>
             <div class="text-dim app-version">${t('common.version')} ${window.appState.manifest.appVersion || '1.0.0'}</div>

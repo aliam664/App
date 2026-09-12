@@ -4,16 +4,17 @@
 
 ### نصب‌کننده‌ی خودکار و حرفه‌ای مودهای گرافیکی UHM برای Assetto Corsa
 
-ساخته‌شده با **Electron** · **JavaScript خالص** · **فونت وزیرمتن** · **دوزبانه فارسی/انگلیسی**
+ساخته‌شده با **Tauri 2 + Rust** · **JavaScript خالص** · **فونت وزیرمتن** · **دوزبانه فارسی/انگلیسی**
 
-![Electron](https://img.shields.io/badge/Electron-31-47848F?style=flat-square&logo=electron&logoColor=white)
-![Electron Builder](https://img.shields.io/badge/electron--builder-24-2B0C48?style=flat-square)
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-stable-DEA584?style=flat-square&logo=rust&logoColor=white)
+![Size](https://img.shields.io/badge/Installer-~6%20MB-2ea44f?style=flat-square)
 ![Node](https://img.shields.io/badge/Node.js-18%2B-3C873A?style=flat-square&logo=node.js&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)
 ![i18n](https://img.shields.io/badge/i18n-FA%2FEN-1E90FF?style=flat-square)
 ![License](https://img.shields.io/badge/License-Unlicensed-9B9B9B?style=flat-square)
 
-<img src="src/assets/images/logo.jpg" alt="UHM" width="180" />
+<img src="src/assets/images/logo.webp" alt="UHM" width="180" />
 
 </div>
 
@@ -22,7 +23,7 @@
 ### 🖼 پیش‌نمایش رابط کاربری
 
 <p align="center">
-  <img src="src/assets/images/showcase/02.jpg" alt="نمای اولیه‌ی برنامه" width="700" />
+  <img src="src/assets/images/showcase/02.webp" alt="نمای اولیه‌ی برنامه" width="700" />
 </p>
 
 ---
@@ -64,11 +65,10 @@
 - ✅ مدیریت و حذف مودها با بازگردانی بکاپ
 - ✅ مانیفست نصب (`manifest.json`) برای پیگیری وضعیت مودها
 
-### 🔒 امنیت (Electron)
-- ✅ `contextIsolation: true`
-- ✅ `nodeIntegration: false`
-- ✅ `sandbox: true`
-- ✅ دسترسی فایل‌سیستم فقط از طریق `preload.js` (API whitelist)
+### 🔒 امنیت (Tauri)
+- ✅ فرانت‌اند هیچ دسترسی مستقیمی به فایل‌سیستم/شبکه ندارد؛ فقط از طریق دستورات `#[tauri::command]` در Rust
+- ✅ دسترسی‌ها با **Capabilities** (`src-tauri/capabilities/default.json`) به حداقل محدود شده
+- ✅ پل `window.uhm` در `src/js/tauri-bridge.js` (فقط توابع whitelist‌شده)
 - ✅ محدودسازی مسیر مقصد داخل پوشه‌ی بازی (`isWithin`)
 - ✅ باز کردن لینک خارجی فقط با پروتکل `http/https`
 - ✅ افزودن `Content-Security-Policy`
@@ -80,12 +80,13 @@
 | مورد | نسخه | توضیح |
 |---|---|---|
 | **Windows** | 10 یا 11 | هدف اصلی نرم‌افزار |
-| **Node.js** | 18 یا بالاتر | برای توسعه و اجرا |
-| **npm** | 9 یا بالاتر | همراه Node.js نصب می‌شود |
+| **Node.js** | 18 یا بالاتر | فقط برای توسعه/بیلد |
+| **Rust + VS Build Tools** | stable | فقط برای توسعه/بیلد ([rustup.rs](https://rustup.rs)) |
+| **WebView2** | — | روی Win10/11 از قبل نصب است؛ در غیر این صورت نصب‌کننده خودش دانلود می‌کند |
 | **Assetto Corsa** | نسخه‌ی Steam | برای نصب مودها |
-| **فایل‌های مود UHM** | — | داخل `src/assets/mod-files` قرار می‌گیرد |
+| **فایل‌های مود UHM** | — | داخل `mod-files/` (ریشه‌ی پروژه) قرار می‌گیرد |
 
-> نکته: اگر فقط می‌خواهید UI را ببینید، می‌توانید بدون نصب کامل Electron از حالت **Browser Preview** استفاده کنید (پایین‌تر توضیح داده شده).
+> نکته: اگر فقط می‌خواهید UI را ببینید، می‌توانید بدون نصب Rust از حالت **Browser Preview** استفاده کنید (پایین‌تر توضیح داده شده).
 
 ---
 
@@ -106,31 +107,32 @@ cd App
 npm install
 ```
 
-این دستور کتابخانه‌های زیر را نصب می‌کند:
+فقط دو بسته‌ی توسعه نصب می‌شود:
 
-- `electron` — محیط اجرای دسکتاپ
-- `electron-builder` — ساخت فایل نصبی ویندوز
-- `adm-zip` — اکسترکت فایل‌های ZIP
-- `node-unrar-js` — اکسترکت فایل‌های RAR / CBR
+- `@tauri-apps/cli` — اجرای dev و ساخت نصب‌کننده
 - `linkedom` — فقط برای تست‌های فرانت‌اند
 
+وابستگی‌های هسته (Rust) را Cargo هنگام اولین بیلد می‌گیرد: `zip`, `unrar`, `sysinfo`, `image`, `walkdir`, `serde` و پلاگین‌های Tauri.
+
 ### ۳. اجرای برنامه در حالت توسعه
-
-```bash
-npm start
-```
-
-پنجره‌ی UHM Pack Installer باز می‌شود.
-
-#### اجرا با DevTools باز:
 
 ```bash
 npm run dev
 ```
 
+پنجره‌ی UHM Pack Installer با بک‌اند Rust باز می‌شود (اولین اجرا چند دقیقه کامپایل می‌کند).
+
+#### ساخت فایل نصبی:
+
+```bash
+npm run build
+```
+
+خروجی: `src-tauri/target/release/bundle/nsis/UHM Pack Installer_2.0.0_x64-setup.exe` (حدود ۵–۸ مگابایت). جزئیات در [RELEASE-GUIDE.md](RELEASE-GUIDE.md).
+
 ### ۴. پیش‌نمایش رابط کاربری در مرورگر
 
-اگر به Electron دسترسی ندارید یا فقط می‌خواهید ظاهر برنامه را ببینید:
+اگر Rust نصب ندارید یا فقط می‌خواهید ظاهر برنامه را ببینید:
 
 ```bash
 npm run serve
@@ -251,9 +253,21 @@ src/assets/mod-files/csp/
 
 ```
 App/
-├── main.js                     ← Main Process: پنجره، IPC، نصب/حذف
-├── preload.js                  ← پل امن window.uhm (Context Bridge)
-├── package.json                ← اسکریپت‌ها، وابستگی‌ها و تنظیمات بیلد
+├── src-tauri/                  ← هسته‌ی Rust (Tauri 2)
+│   ├── tauri.conf.json         ← پنجره، CSP، باندل NSIS، resources
+│   ├── Cargo.toml
+│   ├── capabilities/default.json
+│   └── src/
+│       ├── main.rs / lib.rs    ← ثبت دستورات IPC و راه‌اندازی
+│       ├── installer.rs        ← موتور نصب، بکاپ، مانیفست
+│       ├── archive.rs          ← ZIP + RAR (با رمز) از طریق crate‌های zip/unrar
+│       ├── library.rs          ← تشخیص Steam/AC، libraryfolders.vdf
+│       ├── hardware.rs         ← تشخیص CPU/RAM/GPU و پیشنهاد سطح
+│       └── preview.rs          ← پیش‌نمایش تصاویر
+├── mod-files/                  ← فایل‌های واقعی مودها (به‌عنوان resource باندل می‌شود)
+├── docs/build.yml.example      ← ورک‌فلو GitHub Actions (کپی به .github/workflows/)
+├── RELEASE-GUIDE.md            ← راهنمای ساخت exe
+├── package.json                ← اسکریپت‌ها (dev/build/check)
 ├── package-lock.json           ← وابستگی‌های قفل‌شده
 ├── README.md
 ├── ANALYSIS.md                 ← تحلیل فنی + وضعیت نهایی
@@ -266,13 +280,12 @@ App/
 │   │   ├── base.css            ← تم، فونت، دکمه، Toast، Modal، انیمیشن
 │   │   └── pages.css           ← استایل صفحات
 │   ├── js/
+│   │   ├── tauri-bridge.js     ← پل window.uhm → دستورات Rust (invoke/listen)
 │   │   ├── browser-preview.js  ← شبیه‌ساز window.uhm برای مرورگر
 │   │   ├── i18n.js             ← ترجمه‌ی متمرکز فارسی/انگلیسی
 │   │   ├── utils.js            ← توابع کمکی (escape، Toast، Confirm، تاریخ)
 │   │   ├── modConfig.js        ← تعریف ۷ مود + سطوح سیستم
 │   │   └── app.js              ← appState، ناوبری با Stack، Bootstrap
-│   ├── lib/
-│   │   └── installer.js        ← موتور نصب مستقل از Electron (قابل تست)
 │   ├── pages/
 │   │   ├── showcase.js         ← صفحه‌ی اصلی + اسلایدشو
 │   │   ├── settings.js         ← تنظیمات
@@ -285,11 +298,9 @@ App/
 │   │   └── manageMods.js       ← مدیریت/حذف مودها
 │   └── assets/
 │       ├── fonts/              ← Vazirmatn (Regular/Medium/Bold/ExtraBold/Black)
-│       ├── images/             ← لوگو، آیکون، پس‌زمینه، اسکرین‌شات‌ها، سطوح
-│       └── mod-files/          ← فایل‌های واقعی مودها (قابل جای‌گذاری)
+│       └── images/             ← لوگو، پس‌زمینه، اسکرین‌شات‌ها، سطوح (همه WebP)
 ├── test/
-│   ├── installer.test.js       ← تست واحد موتور نصب
-│   └── renderer.test.js        ← اسموک تست رندر صفحات
+│   └── renderer.test.js …      ← اسموک تست رندر صفحات، i18n، داده‌ی کتابخانه
 └── .gitignore
 ```
 
@@ -328,16 +339,14 @@ RENDERER TESTS PASSED
 
 ## 💾 داده‌ها و تنظیمات ذخیره‌شده
 
-برنامه داده‌های زیر را در پوشه‌ی `userData` الکترون ذخیره می‌کند (معمولاً):
+برنامه داده‌های زیر را در پوشه‌ی داده‌ی برنامه ذخیره می‌کند:
 
 ```
-%APPDATA%\uhm-pack-installer\
+%APPDATA%\com.uhm.packinstaller\
 ├── settings.json      ← زبان، تم، مسیر بازی
 ├── manifest.json      ← وضعیت نصب، سطح، تاریخ، لیست فایل‌های هر مود
 └── backups\           ← بکاپ فایل‌های قبلی پیش از بازنویسی
 ```
-
-> در حالت توسعه، ممکن است این پوشه با نام `Electron` دیده شود.
 
 ---
 
@@ -359,38 +368,30 @@ RENDERER TESTS PASSED
 
 | کتابخانه | نسخه | مخزن / نقش |
 |---|---|---|
-| [Electron](https://github.com/electron/electron) | 31 | ساخت اپ دسکتاپ |
-| [electron-builder](https://github.com/electron-userland/electron-builder) | 24 | ساخت نصب‌کننده‌ی ویندوز |
-| [adm-zip](https://github.com/cthackers/adm-zip) | 0.5 | اکسترکت ZIP |
-| [node-unrar-js](https://github.com/YuJianrong/node-unrar.js) | 2 | اکسترکت RAR/CBR |
+| [Tauri](https://github.com/tauri-apps/tauri) | 2 | ساخت اپ دسکتاپ (WebView2) |
+| [zip](https://crates.io/crates/zip) | 2 | اکسترکت ZIP (با پشتیبانی رمز) |
+| [unrar](https://crates.io/crates/unrar) | 0.5 | اکسترکت RAR/CBR (با پشتیبانی رمز) |
+| [sysinfo](https://crates.io/crates/sysinfo) | 0.33 | تشخیص سخت‌افزار |
 | [Vazirmatn](https://github.com/rastikerdar/vazirmatn) | v33+ | فونت فارسی |
 
 ---
 
 ## 🛠 عیب‌یابی (Troubleshooting)
 
-### ۱. هنگام `npm install` خطای گواهی SSL می‌گیرم
-این خطا معمولاً به‌خاطر دانلود باینری Electron است. می‌توانید باینری را موقتاً رد کنید:
-
-```bash
-# Windows PowerShell
-$env:ELECTRON_SKIP_BINARY_DOWNLOAD="1"
-npm install
-```
-
-> فقط برای توسعه؛ برای اجرای واقعی باید باینری Electron نصب شود.
+### ۱. `npm run dev` خطای `link.exe not found` یا خطای `unrar_sys` می‌دهد
+Visual Studio Build Tools با workload «Desktop development with C++» لازم است. بعد از نصب، ترمینال را دوباره باز کنید.
 
 ### ۲. برنامه می‌گوید «فایل مود موجود نیست»
-فایل‌های مود را در پوشه‌ی صحیح `src/assets/mod-files/<mod-id>` قرار دهید. ببینید جدول بالا.
+فایل‌های مود را در پوشه‌ی صحیح `mod-files/<mod-id>` قرار دهید. ببینید جدول بالا.
 
 ### ۳. مسیر دستی را می‌گیرد ولی خطای «acs.exe پیدا نشد» می‌دهد
 پوشه‌ی **ریشه‌ی نصب Assetto Corsa** را انتخاب کنید (جایی که `acs.exe` یا `assettocorsa.exe` در آن است)، نه پوشه‌ی `steamapps` یا پوشه‌ی `content`.
 
-### ۴. فایل `.exe` نمی‌سازد و درباره‌ی آیکون خطا می‌دهد
-بررسی کنید `src/assets/images/icon.ico` وجود داشته باشد. در این پروژه ساخته شده است.
+### ۴. پنجره‌ی برنامه سفید/خالی است
+WebView2 Runtime نصب نیست: https://go.microsoft.com/fwlink/p/?LinkId=2124703
 
 ### ۵. نصب RAR کار نمی‌کند
-از نوع `extract` استفاده کنید و مطمئن شوید آرشیو RAR است. `node-unrar-js` از آرشیوهای Volume پشتیبانی نمی‌کند.
+مطمئن شوید آرشیو واقعاً RAR است. آرشیوهای رمزدار پشتیبانی می‌شوند (رمز پرسیده می‌شود)؛ آرشیوهای چندبخشی (Volume) باید همه‌ی بخش‌ها کنار هم باشند.
 
 ---
 
@@ -404,13 +405,14 @@ npm install
 - ✅ محدودسازی URL خارجی به `http/https`
 - ✅ ناوبری Stack دار با `goBack`
 - ✅ افزودن فونت Vazirmatn به‌صورت آفلاین
-- ✅ ساخت `icon.ico` / `icon.png`
+- ✅ آیکون‌های برنامه در `src-tauri/icons/`
 - ✅ افزودن `.gitignore` و `package-lock.json`
-- ✅ افزودن CSP و `sandbox: true`
+- ✅ افزودن CSP و محدودسازی Capabilities
 - ✅ صفحات TierSelect / Install / Done / ManageMods
 - ✅ موتور نصب ZIP/RAR + بکاپ/بازگردانی
 - ✅ اسکریپت‌های `serve` و `check`
 - ✅ تست واحد + تست رندر
+- ✅ **v2.0.0:** مهاجرت کامل از Electron به Tauri 2 — حجم نصب‌کننده از ~۸۰ مگ به ~۶ مگ؛ تصاویر به WebP (۱۰ مگ → ۲ مگ)
 
 ---
 
@@ -435,7 +437,7 @@ npm install
 - [ ] انتخاب نسخه‌ی PURE و گزینه‌های پیشرفته‌ی کاربر
 - [ ] صفحه‌ی تاریخچه‌ی نصب و پشتیبان‌های چند نسخه‌ای
 - [ ] امضای کد (Code Signing) برای توزیع Windows
-- [ ] به‌روزرسانی خودکار با `electron-updater`
+- [ ] به‌روزرسانی خودکار با `tauri-plugin-updater`
 - [ ] افزودن صفحه‌ی انتخاب مودها (انتخابی نصب شود یا خیر)
 
 ---

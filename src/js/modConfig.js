@@ -75,11 +75,11 @@ const MOD_DEFINITIONS = [
 ];
 
 const TIER_DEFINITIONS = [
-  { id: 'low', icon: '', image: 'assets/images/tiers/low.png', weight: 1 },
-  { id: 'medium', icon: '', image: 'assets/images/tiers/medium.png', weight: 2 },
-  { id: 'high', icon: '', image: 'assets/images/tiers/high.png', weight: 3 },
-  { id: 'veryhigh', icon: '', image: 'assets/images/tiers/veryhigh.png', weight: 4 },
-  { id: 'ultra', icon: '', image: 'assets/images/tiers/ultra.png', weight: 5 }
+  { id: 'low', icon: '', image: 'assets/images/tiers/low.webp', weight: 1 },
+  { id: 'medium', icon: '', image: 'assets/images/tiers/medium.webp', weight: 2 },
+  { id: 'high', icon: '', image: 'assets/images/tiers/high.webp', weight: 3 },
+  { id: 'veryhigh', icon: '', image: 'assets/images/tiers/veryhigh.webp', weight: 4 },
+  { id: 'ultra', icon: '', image: 'assets/images/tiers/ultra.webp', weight: 5 }
 ];
 
 /* ---------- Single source of truth for mod presentation ---------- */

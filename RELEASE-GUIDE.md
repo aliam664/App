@@ -1,42 +1,41 @@
-# 📦 راهنمای ساخت و انتشار EXE (ویندوز)
+# 📦 راهنمای ساخت و انتشار EXE (ویندوز) — نسخه‌ی Tauri
 
-این راهنما برای ساخت فایل نصبی **UHM Pack Installer** روی ویندوز و انتشار آن در بخش **GitHub Releases** است.
-
-> اگر روی ویندوز هستی، همه‌ی مراحل را می‌توانی مستقیم اجرا کنی.
-> اگر روی لینوکس/مک هستی، از `npm run dist` هم می‌توانی استفاده کنی (ساخت ویندوز در برخی حالت‌ها ممکن است به Wine نیاز داشته باشد؛ راحت‌ترین راه، سیستم ویندوز است).
+این راهنما برای ساخت فایل نصبی **UHM Pack Installer** روی ویندوز است.
+از نسخه‌ی ۲ به بعد برنامه روی **Tauri 2** ساخته می‌شود و به‌جای Electron از **WebView2** ویندوز استفاده می‌کند؛
+به همین دلیل حجم فایل نصبی از ~۸۰ مگ (و ~۲۳۰ مگ بعد از نصب) به **حدود ۵ تا ۸ مگ** رسیده است.
 
 ---
 
-## ۱. پیش‌نیازها
+## ۱. پیش‌نیازها (فقط برای ساخت)
 
 | ابزار | نسخه | لینک |
 |---|---|---|
 | [Node.js](https://nodejs.org) | 18 یا بالاتر | https://nodejs.org |
-| Git (اختیاری، برای انتشار) | جدیدترین | https://git-scm.com |
-| GitHub CLI (اختیاری، برای انتشار) | جدیدترین | https://cli.github.com |
-| **فایل‌های مود UHM** | — | داخل `src/assets/mod-files` قرار بگیرد |
+| [Rust](https://rustup.rs) | stable (1.77+) | `winget install Rustlang.Rustup` یا https://rustup.rs |
+| Visual Studio Build Tools | «Desktop development with C++» | https://visualstudio.microsoft.com/visual-cpp-build-tools/ |
+| WebView2 Runtime | روی Win10/11 از قبل نصب است | https://developer.microsoft.com/microsoft-edge/webview2/ |
+| **فایل‌های مود UHM** | — | داخل `mod-files/` قرار بگیرد |
+
+> کاربر نهایی به هیچ‌کدام از این‌ها نیاز ندارد؛ فقط فایل `.exe` را اجرا می‌کند.
+> اگر WebView2 روی سیستم کاربر نباشد (خیلی نادر)، نصب‌کننده خودش آن را دانلود و نصب می‌کند.
 
 ---
 
 ## ۲. دریافت پروژه
-
-اگر از گیت استفاده می‌کنی:
 
 ```powershell
 git clone https://github.com/aliam664/App.git
 cd App
 ```
 
-اگر نه، فایل‌های پروژه را از گیت‌هاب دانلود و استخراج کن.
-
 ---
 
 ## ۳. قرار دادن فایل‌های مودها (خیلی مهم)
 
-فایل‌های واقعی مودها را **قبل از بیلد** داخل پوشه‌ی صحیح بگذار، چون در نصب‌کننده بسته‌بندی می‌شوند:
+فایل‌های واقعی مودها را **قبل از بیلد** داخل پوشه‌ی صحیح بگذار؛ این پوشه به‌عنوان *resource* کنار برنامه بسته‌بندی می‌شود:
 
 ```text
-src/assets/mod-files/
+mod-files/
 ├── csp/          ← Custom Shaders Patch
 ├── pure/         ← PURE
 ├── ppfilter/     ← PP Filter
@@ -48,171 +47,122 @@ src/assets/mod-files/
 
 > هر مود می‌تواند پوشه‌ی تودرتو باشد. موتور نصب ساختار آن‌ها را حفظ می‌کند.
 > اگر پوشه‌ای خالی باشد، هنگام نصب وضعیت «⚠️ فایل مود موجود نیست» نمایش داده می‌شود.
+> **حجم مودها مستقیماً به حجم exe اضافه می‌شود** (NSIS آن‌ها را با LZMA فشرده می‌کند).
 
 ---
 
 ## ۴. نصب وابستگی‌ها
 
-```
+```powershell
 npm install
 ```
 
-> اگر هنگام نصب، خطای «unable to verify the first certificate» یا SSL دیدی، معمولاً به‌خاطر دانلود باینری Electron است. در ویندوز معمولاً رخ نمی‌دهد؛ اما اگر دیدی:
-> ```powershell
-> $env:ELECTRON_SKIP_BINARY_DOWNLOAD="1"
-> npm install
-> npm install -D electron@31
-> ```
+(فقط `@tauri-apps/cli` و `linkedom` برای تست نصب می‌شود — وابستگی‌های Rust را خودِ Cargo هنگام بیلد می‌گیرد.)
 
 ---
 
-## ۵. تست سلامت (اختیاری اما پیشنهادی)
+## ۵. تست سلامت
 
 ```powershell
-npm run check
-```
-
-خروجی موفق باید این باشد:
-
-```text
-✔ Syntax & assets OK
-ALL TESTS PASSED
-RENDERER TESTS PASSED
+npm run check        # تست‌های فرانت‌اند (رندر صفحات، i18n، داده‌ی کتابخانه)
+npm run test:rust    # تست‌های هسته‌ی Rust (نصب، RAR/ZIP، کتابخانه، تشخیص سخت‌افزار)
 ```
 
 ---
 
-## ۶. ساخت فایل نصبی EXE
+## ۶. اجرای برنامه در حالت توسعه
 
 ```powershell
-npm run dist
+npm run dev
 ```
 
-خروجی در پوشه‌ی `dist/` ساخته می‌شود:
-
-```text
-dist/
-├── UHM Pack Installer-1.0.0-x64.exe   ← همین فایل، نصب‌کننده‌ی NSIS
-└── UHM Pack Installer-1.0.0-x64.exe.blockmap
-```
-
-### مشخصات نصب‌کننده
-
-- **نام:** `UHM Pack Installer-1.0.0-x64.exe`
-- **تارگت:** NSIS (نصب‌کننده‌ی استاندارد ویندوز)
-- **آیکون:** از `src/assets/images/icon.ico`
-- **ویژگی‌ها:** انتخاب پوشه‌ی نصب، میان‌بر دسکتاپ، میان‌بر منوی استارت
-- فونت **وزیرمتن** داخل exe بسته‌بندی می‌شود (آفلاین)
+پنجره‌ی واقعی برنامه با بک‌اند Rust باز می‌شود (اولین بار ۲ تا ۵ دقیقه کامپایل می‌کند؛ دفعات بعد چند ثانیه).
 
 ---
 
-## ۷. آزمون فایل نصب
+## ۷. ساخت فایل نصبی
 
-1. فایل `dist/UHM Pack Installer-1.0.0-x64.exe` را اجرا کن.
-2. برنامه را نصب کن.
-3. اگر دسترسی لازم را داری، `npm run serve` را اجرا کن و `http://localhost:4173` را باز کن تا UI را بدون نصب واقعی ببینی.
-4. اگر می‌خواهی نصب واقعی را تست کنی، مسیر Assetto Corsa را انتخاب کن و مراحل ویزارد را کامل کن.
+```powershell
+npm run build
+```
+
+خروجی:
+
+```text
+src-tauri/target/release/
+├── uhm-pack-installer.exe                          ← باینری خام (~۴–۶ مگ)
+└── bundle/nsis/
+    └── UHM Pack Installer_2.0.0_x64-setup.exe      ← فایل نصبی برای انتشار
+```
+
+### حجم مورد انتظار
+
+| فایل | حجم تقریبی (بدون مودها) |
+|---|---|
+| `uhm-pack-installer.exe` | ۴ – ۶ MB |
+| `…_x64-setup.exe` (NSIS/LZMA) | **۵ – ۸ MB** |
+| فضای اشغالی بعد از نصب | ~۸ MB |
+
+اگر عدد خیلی بالاتر بود، اول `mod-files/` را چک کن — مودها داخل نصب‌کننده هستند.
 
 ---
 
 ## ۸. انتشار در GitHub Releases
 
-### روش ۱: با GitHub CLI (سریع‌تر)
+### روش الف) با GitHub CLI
 
 ```powershell
-# وارد حساب شو (اگر قبلاً وارد نشده‌ای)
-gh auth login
-
-# یک Release بساز و فایل exe را آپلود کن
-gh release create v1.0.0 `
-  "dist/UHM Pack Installer-1.0.0-x64.exe" `
-  "dist/UHM Pack Installer-1.0.0-x64.exe.blockmap" `
-  --repo "aliam664/App" `
-  --title "UHM Pack Installer 1.0.0" `
-  --notes "نسخه‌ی ۱.۰.۰ — نصب‌کننده‌ی خودکار مودهای UHM برای Assetto Corsa"
+gh release create v2.0.0 `
+  "src-tauri/target/release/bundle/nsis/UHM Pack Installer_2.0.0_x64-setup.exe" `
+  --repo aliam664/App --title "UHM Pack Installer v2.0.0" --generate-notes
 ```
 
-### روش ۲: از داخل GitHub (بدون CLI)
+### روش ب) از وب‌سایت
 
-1. در مرورگر به `https://github.com/aliam664/App/releases` برو.
-2. روی **Draft a new release** کلیک کن.
-3. برچسب را مثلاً `v1.0.0` بگذار.
-4. یک عنوان و توضیحات بنویس.
-5. در بخش **Attach binaries**, فایل `dist/UHM Pack Installer-1.0.0-x64.exe` را بکش و رها کن.
-6. روی **Publish release** کلیک کن.
-
-### روش ۳: آپلود به یک Release موجود
-
-```powershell
-gh release upload <tag-name> "dist/UHM Pack Installer-1.0.0-x64.exe" --repo "aliam664/App"
-```
+1. **Releases → Draft a new release**
+2. Tag: `v2.0.0`
+3. فایل `…_x64-setup.exe` را در **Attach binaries** بکش و رها کن.
+4. **Publish release**
 
 ---
 
-## ۹. انتشار خودکار با GitHub Actions (اختیاری)
+## ۹. بیلد خودکار با GitHub Actions (پیشنهادی)
 
-فایل نمونه `docs/build-release.yml.example` در پروژه آماده شده است. این workflow:
+فایل `docs/build.yml.example` را به `.github/workflows/build.yml` کپی کن و push کن.
+هر push روی هر شاخه:
 
-- روی سرور ویندوز گیت‌هاب اجرا می‌شود
-- `npm ci` و `npm run check` و `npm run dist` را اجرا می‌کند
-- خروجی `exe` را به‌صورت Artifact آپلود می‌کند
-- اگر برچسب `v*` پوش شود، خودش یک GitHub Release می‌سازد
+- تست‌های فرانت‌اند و Rust را روی لینوکس اجرا می‌کند
+- روی `windows-latest` فایل نصبی می‌سازد و **حجم دقیق exe را در Summary** گزارش می‌کند
+- برای تگ‌های `v*` به‌طور خودکار Release می‌سازد
 
-برای فعال‌سازی، به‌صورت دستی آن را در مسیر واقعی قرار بده:
-
-```powershell
-New-Item -ItemType Directory -Force .github/workflows
-Copy-Item docs/build-release.yml.example .github/workflows/build-release.yml
-git add .github/workflows/build-release.yml
-git commit -m "Add CI workflow for Windows build"
-git push origin arena/01a0884d-app
-```
-
-> ﴿نکته: اگر از GitHub App استفاده می‌کنی، باید در تنظیمات GitHub App دسترسی **Workflows** فعال باشد؛ وگرنه پوش این فایل رد می‌شود. این نسخه به‌صورت فایل نمونه نگه داشته شده تا بتوانی خودت با دسترسی مناسب فعالش کنی.﴾
+> این فایل عمداً داخل `docs/` است چون توکن ربات دسترسی `workflows` نداشت؛ کپی کردنش یک ثانیه کار دارد.
 
 ---
 
-## ۱۰. نکات عیب‌یابی
+## ۱۰. عیب‌یابی
 
-### الف) `npm run dist` خطای آیکون می‌دهد
+### `error: linker link.exe not found`
+Visual Studio Build Tools با workload «Desktop development with C++» نصب نشده. بعد از نصب، PowerShell را ببند و دوباره باز کن.
 
-مطمئن شو این فایل وجود دارد:
+### `failed to run custom build command for unrar_sys`
+همان مشکل بالا (کامپایلر C++ لازم است، چون کتابخانه‌ی unrar از سورس کامپایل می‌شود).
 
-```text
-src/assets/images/icon.ico
-```
+### پنجره‌ی خالی/سفید باز می‌شود
+WebView2 Runtime نصب نیست: https://go.microsoft.com/fwlink/p/?LinkId=2124703
 
-اگر نبود، از لوگو بساز:
+### `npm run dev` می‌گوید `tauri: command not found`
+`npm install` را اجرا نکرده‌ای.
 
-```powershell
-magick src/assets/images/logo.jpg -resize 256x256 src/assets/images/icon.ico
-```
-
-### ب) خروجی خالی است / فایل مود نصب نشد
-
-فایل‌های مود را داخل `src/assets/mod-files/<mod-id>` گذاشته باش. برنامه برای پوشه‌ی خالی وضعیت «Missing» نشان می‌دهد.
-
-### ج) فایل exe توسط Windows Defender مسدود می‌شود
-
-- فایل را روی همه‌ی سیستم‌ها امتحان نکن؛ ابتدا دانلود از Releases و امضای کد (Code Signing) برای توزیع عمومی توصیه می‌شود.
-- برای تست داخلی، می‌توانی فایل را از Properties → Unblock باز کنید.
+### درگ‌اند‌دراپ فایل کار نمی‌کند
+مسیر فایل‌ها از رویداد بومی Tauri (`onDragDropEvent`) می‌آید نه از DOM. اگر برنامه را «Run as administrator» اجرا کرده‌ای، ویندوز اجازه‌ی درگ از پروسه‌های عادی به پروسه‌ی ادمین را نمی‌دهد — بدون ادمین اجرا کن.
 
 ---
 
-## ۱۱. چک‌لیست نهایی پیش از انتشار
+## چک‌لیست قبل از انتشار
 
-- [ ] فایل‌های مودها داخل `src/assets/mod-files` هستند
-- [ ] `npm run check` با موفقیت اجرا شد
-- [ ] `npm run dist` با موفقیت اجرا شد
-- [ ] `dist/UHM Pack Installer-1.0.0-x64.exe` ساخته شد
-- [ ] exe روی یک ویندوز واقعی تست شد
-- [ ] فایل به GitHub Releases آپلود شد
-
----
-
-## ۱۲. چرا در این محیط سندباکس نتوانستم خودم exe بسازم؟
-
-- دانلود باینری ویندوز Electron از CDN گیت‌هاب (objects.githubusercontent.com) در این سندباکس با خطای TLS قطع می‌شود.
-- توکن GitHub App این محیط اجازه‌ی ساخت/ویرایش `.github/workflows` را ندارد (`workflows` permission فعال نیست).
-
-برای همین، بهترین و مطمئن‌ترین مسیر، بیلد و انتشار روی ویندوز (طبق راهنمای بالا) است.
+- [ ] فایل‌های مود داخل `mod-files/` قرار دارد
+- [ ] `npm run check` و `npm run test:rust` سبز است
+- [ ] `npm run build` با موفقیت اجرا شد
+- [ ] فایل `…_x64-setup.exe` روی یک ویندوز تمیز نصب و اجرا شد
+- [ ] حجم فایل نصبی منطقی است (۵–۸ مگ + مودها)
+- [ ] Release در گیت‌هاب ساخته شد

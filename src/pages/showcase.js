@@ -86,7 +86,7 @@
         <section class="home-hero">
           <div class="home-hero-top">
             <div class="home-brand">
-              <img src="assets/images/logo.jpg" alt="UHM" />
+              <img src="assets/images/logo.webp" alt="UHM" />
               <div>
                 <div class="home-brand-title">${s('title')}</div>
                 <div class="home-brand-tagline">${s('tagline')}</div>
@@ -103,8 +103,8 @@
               <div class="home-slider" id="home-slider">
                 ${Array.from({ length: SLIDE_COUNT }).map((_, i) => `
                   <div class="home-slide ${i === 0 ? 'active' : ''}" data-index="${i}">
-                    <img class="home-slide-bg" src="assets/images/showcase/0${i + 1}.jpg" alt="" />
-                    <img class="home-slide-fg" src="assets/images/showcase/0${i + 1}.jpg" alt="UHM showcase ${i + 1}" />
+                    <img class="home-slide-bg" src="assets/images/showcase/0${i + 1}.webp" alt="" />
+                    <img class="home-slide-fg" src="assets/images/showcase/0${i + 1}.webp" alt="UHM showcase ${i + 1}" />
                   </div>
                 `).join('')}
                 <div class="home-slider-brand">UHM PACK</div>

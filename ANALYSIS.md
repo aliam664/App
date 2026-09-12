@@ -1,3 +1,5 @@
+> **به‌روزرسانی v2.0.0:** برنامه از Electron به **Tauri 2** مهاجرت کرده است. اشاره‌های این سند به `main.js`/`preload.js`/Electron مربوط به نسخه‌ی ۱ است؛ معادل آن‌ها اکنون در `src-tauri/src/` و `src/js/tauri-bridge.js` قرار دارد. جزئیات حجم و بیلد: [RELEASE-GUIDE.md](RELEASE-GUIDE.md).
+
 # UHM Pack Installer — تحلیل فنی + وضعیت نهایی
 
 > تاریخ: 2026-09-09

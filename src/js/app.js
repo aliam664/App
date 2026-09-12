@@ -178,6 +178,22 @@ function wireTitlebar() {
   document.getElementById('btn-theme-toggle').addEventListener('click', () => toggleTheme());
 
   document.getElementById('btn-settings').addEventListener('click', () => navigate('settings'));
+
+  // Frameless window drag. Electron used CSS `-webkit-app-region: drag`;
+  // WebView2 (Tauri) has no such thing, so we start a native drag on
+  // mousedown anywhere in the titlebar except its buttons.
+  const titlebar = document.getElementById('titlebar');
+  titlebar.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('.titlebar-actions')) return;
+    if (window.uhm && typeof window.uhm.windowStartDrag === 'function') {
+      e.preventDefault();
+      window.uhm.windowStartDrag();
+    }
+  });
+  titlebar.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.titlebar-actions')) return;
+    window.uhm.windowToggleMaximize();
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -223,6 +239,7 @@ function wireDropTarget() {
 
     const files = e.dataTransfer.files;
     if (!files || !files.length) return;
+    if (window.uhm && window.uhm.runtime === 'tauri') return; // handled natively by tauri-bridge.js
     const paths = [];
     for (const f of files) {
       const p = window.uhm.getPathForFile ? window.uhm.getPathForFile(f) : null;
