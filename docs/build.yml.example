@@ -95,11 +95,23 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: UHM-Pack-Installer-Windows
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
           if-no-files-found: error
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $dir = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          Get-ChildItem "$dir/*.exe" | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Out-File "$dir/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "$dir/SHA256SUMS.txt"
       - name: Release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
+          # Notes are written by hand before tagging; only append the auto-list.
           generate_release_notes: true
+          append_body: true
