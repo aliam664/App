@@ -84,7 +84,7 @@
 | **Rust + VS Build Tools** | stable | فقط برای توسعه/بیلد ([rustup.rs](https://rustup.rs)) |
 | **WebView2** | — | روی Win10/11 از قبل نصب است؛ در غیر این صورت نصب‌کننده خودش دانلود می‌کند |
 | **Assetto Corsa** | نسخه‌ی Steam | برای نصب مودها |
-| **فایل‌های مود UHM** | — | داخل `mod-files/` (ریشه‌ی پروژه) قرار می‌گیرد |
+| **فایل‌های مود UHM** | — | داخل `mod-files/` (ریشه‌ی پروژه) — راهنمای دقیق: [MOD-FILES-GUIDE.md](MOD-FILES-GUIDE.md) |
 
 > نکته: اگر فقط می‌خواهید UI را ببینید، می‌توانید بدون نصب Rust از حالت **Browser Preview** استفاده کنید (پایین‌تر توضیح داده شده).
 
@@ -267,6 +267,7 @@ App/
 ├── mod-files/                  ← فایل‌های واقعی مودها (به‌عنوان resource باندل می‌شود)
 ├── docs/build.yml.example      ← ورک‌فلو GitHub Actions (کپی به .github/workflows/)
 ├── RELEASE-GUIDE.md            ← راهنمای ساخت exe
+├── MOD-FILES-GUIDE.md          ← راهنمای دقیق جای‌گذاری مودها (۵ سطح) و ساخت exe
 ├── package.json                ← اسکریپت‌ها (dev/build/check)
 ├── package-lock.json           ← وابستگی‌های قفل‌شده
 ├── README.md

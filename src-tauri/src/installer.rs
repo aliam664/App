@@ -158,6 +158,70 @@ pub fn extract_archive(
     result
 }
 
+pub const TIER_IDS: [&str; 5] = ["low", "medium", "high", "veryhigh", "ultra"];
+
+/// Resolve which folders inside `mod-files/<mod>/` feed a given tier.
+///
+/// Layout A (same files for every tier):
+///     mod-files/<mod>/**            → everything is copied
+///
+/// Layout B (per-tier files):
+///     mod-files/<mod>/common/**     → copied for every tier (optional)
+///     mod-files/<mod>/<tier>/**     → copied only for that tier
+///     (loose files directly in <mod>/ are still copied for every tier)
+///
+/// Returned in copy order; later folders overwrite earlier ones, so the tier
+/// folder always wins over `common`.
+pub fn resolve_mod_sources(mod_dir: &Path, tier: Option<&str>) -> Vec<PathBuf> {
+    let tiered = mod_dir.join("common").is_dir() || TIER_IDS.iter().any(|t| mod_dir.join(t).is_dir());
+    if !tiered {
+        return vec![mod_dir.to_path_buf()];
+    }
+    let mut out = vec![mod_dir.to_path_buf()]; // loose root files (tier dirs skipped in copy)
+    if mod_dir.join("common").is_dir() {
+        out.push(mod_dir.join("common"));
+    }
+    if let Some(t) = tier {
+        if mod_dir.join(t).is_dir() {
+            out.push(mod_dir.join(t));
+        }
+    }
+    out
+}
+
+fn is_tier_layout_dir(name: &str) -> bool {
+    name == "common" || TIER_IDS.contains(&name)
+}
+
+/// Like `copy_directory_contents` but skips the `common/` and `<tier>/`
+/// sub-folders (used for the root of a per-tier mod folder).
+fn copy_root_loose_files(
+    source_dir: &Path,
+    dest_root: &Path,
+    mod_id: &str,
+    backups_dir: &Path,
+    records: &mut Vec<InstalledFile>,
+) -> std::io::Result<()> {
+    for entry in walkdir::WalkDir::new(source_dir)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|e| !(e.depth() == 1 && e.file_type().is_dir() && is_tier_layout_dir(&e.file_name().to_string_lossy())))
+        .flatten()
+    {
+        let rel = match rel_from(source_dir, entry.path()) {
+            Some(r) => r,
+            None => continue,
+        };
+        let dest = dest_root.join(&rel);
+        if entry.file_type().is_dir() {
+            fs::create_dir_all(&dest)?;
+        } else if entry.file_type().is_file() {
+            copy_with_backup(entry.path(), &dest, &rel, mod_id, backups_dir, records)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn install_mods(opts: InstallOptions<'_>) -> InstallOutcome {
     let game = Path::new(opts.game_path);
     if opts.game_path.is_empty() || !game.exists() {
@@ -226,6 +290,20 @@ pub fn install_mods(opts: InstallOptions<'_>) -> InstallOutcome {
             Err(e.to_string())
         } else if m.kind.as_deref() == Some("extract") && is_archive {
             extract_archive(&source, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
+        } else if source.is_dir() {
+            // Folder source: flat layout or per-tier layout (common/ + <tier>/).
+            let sources = resolve_mod_sources(&source, res.tier.as_deref());
+            let tiered = sources.len() > 1;
+            let mut r = Ok(());
+            for (i, dir) in sources.iter().enumerate() {
+                r = if tiered && i == 0 {
+                    copy_root_loose_files(dir, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
+                } else {
+                    copy_directory_contents(dir, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
+                };
+                if r.is_err() { break; }
+            }
+            r.map_err(|e| e.to_string())
         } else {
             copy_directory_contents(&source, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files).map_err(|e| e.to_string())
         };
@@ -354,6 +432,46 @@ mod tests {
         assert!(res.iter().any(|r| r.status == "restored"));
         assert!(res.iter().any(|r| r.status == "deleted"));
         assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "old");
+    }
+
+    #[test]
+    fn install_per_tier_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let game = tmp.path().join("game");
+        let assets = tmp.path().join("assets");
+        fs::create_dir_all(&game).unwrap();
+        write(&assets.join("video/readme.txt"), "loose");
+        write(&assets.join("video/common/shared.ini"), "shared");
+        write(&assets.join("video/common/video.ini"), "common");
+        write(&assets.join("video/ultra/video.ini"), "ultra");
+        write(&assets.join("video/low/video.ini"), "low");
+
+        let run = |tier: &str| {
+            let mods = vec![ModSpec { id: Some("video".into()), dest: Some("system/cfg".into()), kind: None, source: None, tier: None, overwrite: None }];
+            install_mods(InstallOptions {
+                game_path: game.to_str().unwrap(), mods: &mods, assets_mod_dir: &assets,
+                backups_dir: &tmp.path().join("b"), tier: Some(tier), on_progress: &|_| {}, is_cancelled: &|| false,
+            })
+        };
+        let out = run("ultra");
+        assert!(out.success, "{out:?}");
+        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "ultra");
+        assert_eq!(fs::read_to_string(game.join("system/cfg/shared.ini")).unwrap(), "shared");
+        assert_eq!(fs::read_to_string(game.join("system/cfg/readme.txt")).unwrap(), "loose");
+        assert!(!game.join("system/cfg/ultra").exists(), "tier folder itself must not be copied");
+        assert!(!game.join("system/cfg/common").exists());
+
+        let out = run("low");
+        assert!(out.success);
+        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "low");
+
+        // Tier without its own folder falls back to common/ + loose files.
+        let out = run("medium");
+        assert!(out.success);
+        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "common");
+
+        // Flat layout is untouched.
+        assert_eq!(resolve_mod_sources(&assets.join("nothing"), Some("low")), vec![assets.join("nothing")]);
     }
 
     #[test]
