@@ -5,6 +5,7 @@
   "author": "UHM",
   "license": "UNLICENSED",
   "scripts": {
+    "start": "tauri dev",
     "dev": "tauri dev",
     "build": "tauri build",
     "build:win": "tauri build --target x86_64-pc-windows-msvc",
