@@ -21,6 +21,9 @@ jobs:
   test:
     name: Test (frontend + rust core)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write      # ci-report.js posts failure logs to the "CI build log" issue
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,13 +41,19 @@ jobs:
       - run: npm ci
       - name: Frontend checks
         run: npm run check
-      - name: Rust lint (advisory — never fails the build)
-        working-directory: src-tauri
-        continue-on-error: true
-        run: cargo clippy --all-targets
+      # Each Rust step runs through scripts/ci-report.js, which mirrors the
+      # failing part of the log into the job summary AND a pinned issue, so
+      # failures can be read through the REST API without downloading logs.
+      - name: Rust build (lib + tests, no run)
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo build" cargo build --manifest-path src-tauri/Cargo.toml --all-targets
       - name: Rust tests
-        working-directory: src-tauri
-        run: cargo test --all-targets
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo test" cargo test --manifest-path src-tauri/Cargo.toml --all-targets -- --nocapture
+      - name: Rust lint (advisory)
+        continue-on-error: true
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo clippy" cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 
   # ---------------------------------------------------------------
   # Windows installer (the deliverable). Reports the exact EXE size.
@@ -55,6 +64,7 @@ jobs:
     needs: test
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,7 +79,8 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - name: Build
-        run: npm run build -- --target x86_64-pc-windows-msvc
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "tauri build (windows)" npm run build -- --target x86_64-pc-windows-msvc
       - name: Report sizes
         shell: pwsh
         run: |
