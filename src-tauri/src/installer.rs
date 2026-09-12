@@ -448,15 +448,15 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
     for d in touched_dirs {
         let mut cur = Some(d);
         while let Some(p) = cur {
-            match fs::read_dir(&p) {
-                Ok(mut it) if it.next().is_none() => {
-                    if fs::remove_dir(&p).is_err() {
-                        break;
-                    }
-                    cur = p.parent().map(Path::to_path_buf);
-                }
-                _ => break,
+            // Pattern-guard bindings are immutable, so check emptiness first.
+            let is_empty = match fs::read_dir(&p) {
+                Ok(mut it) => it.next().is_none(),
+                Err(_) => false,
+            };
+            if !is_empty || fs::remove_dir(&p).is_err() {
+                break;
             }
+            cur = p.parent().map(Path::to_path_buf);
         }
     }
     out
