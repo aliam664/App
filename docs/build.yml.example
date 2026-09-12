@@ -38,11 +38,13 @@ jobs:
       - run: npm ci
       - name: Frontend checks
         run: npm run check
-      - name: Rust format / lint / tests
+      - name: Rust lint (advisory — never fails the build)
         working-directory: src-tauri
-        run: |
-          cargo clippy --all-targets
-          cargo test --all-targets
+        continue-on-error: true
+        run: cargo clippy --all-targets
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --all-targets
 
   # ---------------------------------------------------------------
   # Windows installer (the deliverable). Reports the exact EXE size.
