@@ -10,9 +10,10 @@
     "build": "tauri build",
     "build:win": "tauri build --target x86_64-pc-windows-msvc",
     "serve": "node scripts/serve.js",
-    "check": "node scripts/check.js",
+    "check": "node scripts/check.js && node scripts/sync-view.js --check",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "view": "node scripts/sync-view.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

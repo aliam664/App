@@ -1,8 +1,19 @@
 # UHM Pack Installer — Design System
 
-Direction: **"pit lane at night."** Warm charcoal, one racing-red accent, a
-yellow flag for warnings, squared display type, mono numerals. Calm by
-default; motion only at the moments that matter.
+Direction: **"pit lane at night."** Charcoal surfaces, one brand-blue accent,
+squared display type, mono numerals. Calm by default; motion only at the
+moments that matter.
+
+**Brand palette (fixed by the client, 2026-09):**
+
+| Hex | Role |
+|---|---|
+| `#006EFB` | primary blue — buttons, selection rail, kickers, active tabs |
+| `#0087FD` | companion blue — hover state, and wherever two blues would touch |
+| `#FFFFFF` | text on blue |
+| `#000000` | body text in day theme (white on blue stays white) |
+
+Orange/red accents are **retired**. Yellow is kept strictly for warnings.
 
 All tokens live in `src/css/base.css`. Component skins live in
 `src/css/theme.css` (loaded last, overrides `pages.css` / `library.css` /
@@ -17,17 +28,19 @@ All tokens live in `src/css/base.css`. Component skins live in
 | `--color-surface-2` | `#23272e` | `#f5f2ec` | inputs, chips, hover state |
 | `--color-surface-3` | `#2b3038` | `#e9e4dc` | tracks, segmented controls |
 | `--color-hairline` | white 8% | black 8% | dividers, grid gaps |
-| `--color-text` | `#f2efe9` | `#17191d` | body |
+| `--color-text` | `#f2efe9` | `#000000` | body |
 | `--color-text-dim` | `#9aa0a8` | `#5d626b` | secondary |
 | `--color-text-faint` | `#6b717a` | `#8b9099` | labels, timestamps |
-| `--color-accent` | `#ff4d2e` | same | **one** accent: primary buttons, selection rail, kicker text |
+| `--color-accent` | `#006efb` | same | **one** accent: primary buttons, selection rail, kicker text |
+| `--color-accent-2` | `#0087fd` | same | companion blue: hover, second blue when two must coexist |
 | `--color-flag` | `#ffd166` | `#8a5a00` text on day | warnings ("yellow flag") |
 | `--color-success` | `#37d67a` | `#1f9d57` | done / valid |
 | `--color-error` | `#ff3b3b` | `#d12b2b` | failures |
 
 Rules
-- Exactly one hue for emphasis. `--color-accent-2` (old blue) exists only
-  for backward compatibility — do not use it in new CSS.
+- Exactly one hue family for emphasis. `--color-accent-2` is the companion
+  blue: use it only for hover or where two blue elements would otherwise
+  merge (e.g. a blue strip on a blue block).
 - State is shown by a **2px inline-start rail** or a tinted `*-soft` fill,
   never by a 1px gray border around the whole card.
 - Surfaces separate by tone (`surface` → `surface-2` → `surface-3`), not by
@@ -110,7 +123,7 @@ Source: Curio "F1 Formula One Livery" style guide (2026). Applied rules:
 - **Telemetry readout.** The status strip is three zones split by hairlines,
   mono values, and a 6px square indicator (grey / green / blinking yellow).
 - **Tier differentiation like a pricing page.** The recommended tier card is
-  filled with the team color and carries a black "recommended" tag; others
+  filled with the brand blue and carries a white "recommended" tag; others
   stay neutral. Each card shows a grid ordinal (01–05) in Chakra Petch.
 - **Numbers as drama.** Install percentage is 40px Chakra Petch with a
   small dim `%`; an `mm:ss` lap-timer runs beside the mod counter.
