@@ -10,6 +10,7 @@
   let logged = {};
   let startTs = 0;
   let modIndex = {}; // mod id -> fixed slot in the plan list (DOM row index)
+  let timerId = null; // elapsed-time readout next to the progress bar
 
   function t(key) { return window.i18n.t(window.appState.lang, key); }
   function s(key) { return window.i18n.t(window.appState.lang, 'install.' + key); }
@@ -32,6 +33,13 @@
     logged = {};
     startTs = Date.now();
     modIndex = {};
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(() => {
+      const el = document.getElementById('install-timer');
+      if (!el) { clearInterval(timerId); timerId = null; return; }
+      const sec = Math.max(0, Math.round((Date.now() - startTs) / 1000));
+      el.textContent = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    }, 1000);
     plan.mods.forEach((m, i) => { modIndex[m.id] = i; });
 
     container.innerHTML = `
@@ -52,11 +60,11 @@
             <div class="install-status-head">
               <div class="install-spinner" id="install-spinner"></div>
               <div class="install-status-title" id="install-status-title">${s('preparing')}</div>
-              <div class="install-percent" id="install-percent">0%</div>
+              <div class="install-percent num" id="install-percent">0</div>
             </div>
             <div class="install-progress">
               <div class="install-progress-track"><div class="install-progress-bar" id="install-bar"></div></div>
-              <div class="install-progress-text" id="install-progress-text">0 / ${plan.mods.length}</div>
+              <div class="install-progress-text"><span id="install-progress-text">0 / ${plan.mods.length}</span><span class="install-timer" id="install-timer">00:00</span></div>
             </div>
             <div class="install-current-file text-dim" id="install-current-file"></div>
           </div>
@@ -159,7 +167,7 @@
       const frac = ft > 0 ? (fd / ft) / Math.max(total, 1) : 0;
       const pct = Math.min(99, Math.round((base + frac) * 100));
       if (bar) bar.style.width = pct + '%';
-      if (percent) percent.textContent = pct + '%';
+      if (percent) percent.textContent = String(pct);
       const statusTitle = document.getElementById('install-status-title');
       if (statusTitle) statusTitle.textContent = s('title');
       return;
@@ -190,7 +198,7 @@
     const statusTitle = document.getElementById('install-status-title');
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     if (bar) { bar.style.width = pct + '%'; bar.classList.toggle('is-done', pct >= 100); }
-    if (percent) percent.textContent = pct + '%';
+    if (percent) percent.textContent = String(pct);
     if (progress) progress.textContent = `${done} / ${total}`;
     if (statusTitle) statusTitle.textContent = cancelled ? s('cancelled') : s('title');
   }
@@ -202,6 +210,7 @@
     } catch (e) {
       result = { success: false, cancelled: false, error: e.message || 'UNKNOWN', mods: plan.mods.map((m) => ({ ...m, status: 'error', installedFiles: [] })) };
     }
+    if (timerId) { clearInterval(timerId); timerId = null; }
     if (!active) return;
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     window.appState.lastInstallResult = result;
@@ -261,6 +270,7 @@
 
   function destroy() {
     active = false;
+    if (timerId) { clearInterval(timerId); timerId = null; }
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
   }
 

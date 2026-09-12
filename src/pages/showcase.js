@@ -146,11 +146,11 @@
                 <div class="home-status-label">${s('systemStatus')}</div>
                 <div class="home-status-value">${s('detecting')}</div>
               </div>
-              <div class="home-status-card" id="home-status-game">
+              <div class="home-status-card ${settings.gamePath ? 'is-ok' : 'is-warn'}" id="home-status-game">
                 <div class="home-status-label">${s('gameStatus')}</div>
                 <div class="home-status-value">${settings.gamePath ? uhmEsc(settings.gamePath) : s('noPath')}</div>
               </div>
-              <div class="home-status-card" id="home-status-mods">
+              <div class="home-status-card ${hasAnyInstalledMod ? 'is-ok' : ''}" id="home-status-mods">
                 <div class="home-status-label">${s('modsStatus')}</div>
                 <div class="home-status-value">${hasAnyInstalledMod ? s('modsInstalled') : s('modsNone')}</div>
               </div>
@@ -238,6 +238,15 @@
         <div class="home-status-label">${s('systemStatus')}</div>
         <div class="home-status-value">${uhmEsc(specs.gpuName || s('unknown'))}</div>
         <div class="home-status-tag">${tierLabel}</div>`;
+      systemEl.classList.add('is-ok');
+      // Highlight the recommended tier card in full team color.
+      if (specs.suggestedTier) {
+        const card = container.querySelector(`.home-tier-card[data-tier="${specs.suggestedTier}"]`);
+        if (card) {
+          card.classList.add('is-recommended');
+          card.dataset.recLabel = window.i18n.t(lang, 'tierSelect.recommended');
+        }
+      }
     } catch (e) {
       if (systemEl) systemEl.innerHTML = `<div class="home-status-label">${s('systemStatus')}</div><div class="home-status-value">${s('unknown')}</div>`;
     }
@@ -252,9 +261,9 @@
     }).join('');
 
     return `
-      <div class="home-tier-card">
+      <div class="home-tier-card" data-tier="${tier.id}">
         <img class="home-tier-img" src="${tier.image}" alt="${label}" />
-        <div class="home-tier-badge">${label}</div>
+        <div class="home-tier-badge"><span>${label}</span><span class="home-tier-ord">0${window.TIER_DEFINITIONS.indexOf(tier) + 1}</span></div>
         <div class="home-tier-best">
           <span class="home-kicker">${s('tierBestFor')}</span>
           <span class="home-tier-best-text">${bestFor}</span>

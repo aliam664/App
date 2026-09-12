@@ -485,3 +485,121 @@ body[data-theme='day'] .settings-row, body[data-theme='day'] .manage-card, body[
 .donate-thanks-title { font-family: var(--font-display); }
 .about-donate { background: var(--color-surface); border: none; }
 .about-donate:hover { background: var(--color-surface-2); box-shadow: none; border-color: transparent; }
+
+/* ================================================================== */
+/*  PASS 2 — after studying the F1 livery / telemetry design language */
+/*  Principles applied: one saturated hue on a deep ground, hard color */
+/*  boundaries (no soft tints where a block will do), speed-line as a  */
+/*  divider not a texture, thin rule lines instead of card outlines,   */
+/*  mono numerals as "drama", recommended tier in full team color.     */
+/* ================================================================== */
+
+/* --- Persian type tuning: Estedad needs a touch more leading and no  */
+/*     negative tracking (Arabic script has no x-height to compress).  */
+body[dir='rtl'] h1, body[dir='rtl'] h2, body[dir='rtl'] h3,
+body[dir='rtl'] .home-slider-title, body[dir='rtl'] .ui-section-title,
+body[dir='rtl'] .home-section-title, body[dir='rtl'] .done-title { letter-spacing: 0; line-height: 1.45; }
+body[dir='rtl'] { word-spacing: 0.02em; }
+body[dir='rtl'] .text-dim, body[dir='rtl'] .home-slider-sub, body[dir='rtl'] .ui-section-sub { line-height: 1.95; }
+/* Latin numerals inside Persian text should not fall back to Vazirmatn digits */
+.num, .install-percent, .stat-value, .ui-stat-value { font-feature-settings: 'tnum', 'zero'; }
+
+/* --- Hero as a poster: the color moves through the frame. ---------- */
+.home-hero-main { position: relative; padding: 22px; border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); isolation: isolate; }
+.home-hero-main::before {
+  /* the diagonal team-color block, sitting behind the copy column */
+  content: '';
+  position: absolute; inset: -20% -10% -20% auto; width: 46%;
+  background: var(--color-accent);
+  transform: skewX(-12deg);
+  z-index: -1;
+  opacity: .95;
+}
+.home-hero-main::after {
+  /* one speed line, as a divider — not a texture */
+  content: '';
+  position: absolute; top: 0; bottom: 0; right: 46%; width: 2px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-12deg);
+  z-index: -1;
+}
+.home-hero-copy { padding: 6px 4px 6px 12px; color: #fff; }
+body[dir='ltr'] .home-hero-copy { padding: 6px 12px 6px 4px; }
+.home-hero-copy .home-slider-badge { color: #fff; }
+.home-hero-copy .home-slider-badge::before { background: #fff; }
+.home-hero-copy .home-slider-title { color: #fff; text-wrap: balance; }
+.home-hero-copy .home-slider-sub { color: rgba(255, 255, 255, 0.82); }
+.home-hero-copy .btn-primary { background: #17191d; color: #fff; }
+.home-hero-copy .btn-primary:hover { background: #000; }
+.home-hero-copy .btn-secondary { background: rgba(255, 255, 255, 0.14); color: #fff; border: none; }
+.home-hero-copy .btn-secondary:hover { background: rgba(255, 255, 255, 0.24); }
+.home-slider { box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45); }
+body[data-theme='day'] .home-hero-main::before { opacity: 1; }
+
+/* --- Status strip → telemetry readout ------------------------------ */
+.home-status { gap: 0; }
+.home-status-grid { gap: 0; background: transparent; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline); }
+.home-status-card { background: transparent; border-radius: 0; padding: 14px 18px; position: relative; }
+.home-status-card + .home-status-card { border-inline-start: 1px solid var(--color-hairline); }
+.home-status-card::before {
+  /* blinking indicator state, like a pit-wall panel */
+  content: ''; position: absolute; top: 18px; inset-inline-end: 16px;
+  width: 6px; height: 6px; border-radius: 1px; background: var(--color-text-faint);
+}
+.home-status-card.is-ok::before { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+.home-status-card.is-warn::before { background: var(--color-flag); animation: uhmPulse 1.6s infinite; }
+.home-status-label { margin-bottom: 4px; }
+.home-status-value { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; margin-top: 0; }
+.home-status-tag { display: inline-flex; margin-top: 6px; padding: 0; background: transparent; border: none; border-radius: 0; }
+.home-next { background: var(--color-flag); color: #17191d; border: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 12px 18px; }
+.home-next-text { color: #17191d; font-weight: 600; }
+.home-next .btn-secondary { background: #17191d; color: #fff; border: none; }
+
+/* --- Home tier cards: recommended tier in full team color ---------- */
+.home-tier-card.is-recommended { background: var(--color-accent); color: #fff; }
+.home-tier-card.is-recommended .home-tier-badge::before { background: #fff; }
+.home-tier-card.is-recommended .home-tier-best-text,
+.home-tier-card.is-recommended .home-kicker { color: rgba(255, 255, 255, 0.85); }
+.home-tier-card.is-recommended .home-chip { background: rgba(0, 0, 0, 0.22); color: #fff; }
+.home-tier-card.is-recommended::after {
+  content: attr(data-rec-label);
+  position: absolute; top: 10px; inset-inline-end: 10px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  background: #17191d; color: #fff; padding: 3px 7px; border-radius: 2px;
+}
+.home-tier-card { position: relative; }
+/* Ordinal on each card, like a grid position */
+.home-tier-card .home-tier-badge { justify-content: space-between; }
+.home-tier-card .home-tier-ord { font-family: var(--font-display-latin); font-size: 13px; color: var(--color-text-faint); font-weight: 700; }
+.home-tier-card.is-recommended .home-tier-ord { color: rgba(255, 255, 255, 0.7); }
+
+/* --- Tier select: same "pricing" logic, hard boundaries ------------ */
+.tier-card.selected { background: var(--color-surface-2); }
+.tier-card.selected .tier-name { color: var(--color-accent); }
+.tier-card .tier-check { background: var(--color-accent); }
+
+/* --- Section heads: kicker + hairline rule extends to the edge ----- */
+.ui-section-head, .home-section-head { position: relative; }
+.ui-section-head::after, .home-section-head::after {
+  content: ''; position: absolute; bottom: -1px; inset-inline-start: 0;
+  width: 42px; height: 2px; background: var(--color-accent);
+}
+
+/* --- Install: the number is the hero; add a lap-timer readout ------ */
+.install-status-head { padding-bottom: 12px; border-bottom: 1px solid var(--color-hairline); margin-bottom: 12px; }
+.install-percent { font-size: 40px; letter-spacing: -0.02em; }
+.install-percent::after { content: '%'; font-size: 16px; margin-inline-start: 2px; color: var(--color-text-dim); }
+.install-progress-text { display: flex; gap: 14px; }
+.install-progress-text::before { content: 'MODS'; color: var(--color-text-faint); letter-spacing: 0.1em; }
+.install-timer { font-family: var(--font-mono); font-size: 11px; color: var(--color-text-faint); letter-spacing: 0.08em; }
+
+/* --- Buttons: hard edges, no sheen on secondary ------------------- */
+.btn-secondary, .btn-ghost { border-radius: var(--radius-xs, 6px); }
+.btn-primary { border-radius: var(--radius-xs, 6px); font-weight: 700; letter-spacing: 0.01em; }
+
+/* --- Modal: top rail becomes a full-width accent block ------------ */
+.modal-title { font-family: var(--font-display); }
+
+/* --- Day theme: the accent block must stay legible on paper ------- */
+body[data-theme='day'] .home-hero-main { background: #ffffff; }
+body[data-theme='day'] .home-status-card.is-ok::before { box-shadow: none; }

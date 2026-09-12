@@ -96,3 +96,26 @@ the above (handled in `base.css` and in `app.js#choreographPage`).
 - floating emoji / hearts / sparkles; infinite sheen sweeps on content
 - animating forms and settings on entry
 - centered "hero + pill badge + three feature cards" layout on utility pages
+
+## 6. Pass 2 — lessons from the F1 livery / telemetry language
+
+Source: Curio "F1 Formula One Livery" style guide (2026). Applied rules:
+
+- **One saturated hue, deep ground, hard boundaries.** The home hero now has
+  a skewed solid red block behind the copy (poster logic) instead of tinted
+  text on a dark card. Copy on the block is white; the primary button flips
+  to near-black so it still reads as the single CTA.
+- **Speed line as divider, not texture.** One 2px skewed line at the block
+  edge; the background grid stays at 3.5% opacity and is the only texture.
+- **Telemetry readout.** The status strip is three zones split by hairlines,
+  mono values, and a 6px square indicator (grey / green / blinking yellow).
+- **Tier differentiation like a pricing page.** The recommended tier card is
+  filled with the team color and carries a black "recommended" tag; others
+  stay neutral. Each card shows a grid ordinal (01–05) in Chakra Petch.
+- **Numbers as drama.** Install percentage is 40px Chakra Petch with a
+  small dim `%`; an `mm:ss` lap-timer runs beside the mod counter.
+- **Persian type tuning.** Estedad headings: `letter-spacing: 0` (never
+  negative for Arabic script), `line-height: 1.45`; body/dim text 1.95.
+
+Explicitly *not* adopted: chrome/metallic gradients, dense speed-line
+backgrounds, red as a body-text background.
