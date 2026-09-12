@@ -1,0 +1,14 @@
+{
+  "name": { "fa": "افزونه‌ی نمونه", "en": "Example Add-on" },
+  "description": {
+    "fa": "این پوشه فقط یک الگو است و در برنامه نمایش داده نمی‌شود (نامش با _ شروع می‌شود). برای ساخت افزونه‌ی واقعی، این پوشه را کپی کنید و نامش را عوض کنید.",
+    "en": "This folder is only a template and is hidden in the app (its name starts with _). Copy it and rename it to create a real add-on."
+  },
+  "version": "1.0",
+  "author": "UHM",
+  "category": "hud",
+  "requires": ["csp"],
+  "recommendedTiers": ["high", "veryhigh", "ultra"],
+  "order": 100,
+  "preview": "preview.png"
+}

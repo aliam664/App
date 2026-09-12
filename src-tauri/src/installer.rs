@@ -1,13 +1,38 @@
-//! Tier-pack installer core — port of `src/lib/installer.js`.
+//! Pack installer core.
 //!
-//! Copies bundled mod folders (or extracts bundled archives) into the game
-//! directory with per-file backups, emitting progress after every mod.
+//! Two kinds of bundled content live under the app's `mods/` resource dir:
+//!
+//! ```text
+//! mods/
+//! ├── graphics/                 the 5-tier graphics pack
+//! │   ├── common/               optional — installed for every tier
+//! │   └── low|medium|high|veryhigh|ultra/
+//! │       └── <mirror of the game folder>
+//! └── addons/                   any number of optional add-ons
+//!     └── <id>/
+//!         ├── mod.json          optional metadata (name/description/…)
+//!         ├── preview.png       card image shown in the app
+//!         └── files/            <mirror of the game folder>
+//! ```
+//!
+//! Every source folder is a *mirror* of the game directory: whatever is inside
+//! is copied 1:1 onto the game root, with a per-file backup of anything that
+//! already existed so the operation can be reverted later.
 
-use crate::archive;
-use crate::util::{ext_lower, is_within, rel_from, resolve_inside};
+use crate::util::{is_within, rel_from, resolve_inside};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub const TIER_IDS: [&str; 5] = ["low", "medium", "high", "veryhigh", "ultra"];
+pub const GRAPHICS_DIR: &str = "graphics";
+pub const ADDONS_DIR: &str = "addons";
+pub const ADDON_FILES_DIR: &str = "files";
+pub const GRAPHICS_MOD_ID: &str = "graphics";
+
+/* ------------------------------------------------------------------ */
+/*  Wire types (camelCase — consumed directly by the webview)          */
+/* ------------------------------------------------------------------ */
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -18,21 +43,26 @@ pub struct InstalledFile {
     pub backup_path: Option<String>,
 }
 
+/// One unit of work in an install plan.
+///
+/// * `id == "graphics"` → the tier pack (`tier` selects the folder)
+/// * anything else      → an add-on id under `mods/addons/`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModSpec {
     pub id: Option<String>,
     #[serde(default)]
-    pub dest: Option<String>,
-    #[serde(rename = "type", default)]
-    pub kind: Option<String>,
-    #[serde(default)]
-    pub source: Option<String>,
-    #[serde(default)]
     pub tier: Option<String>,
-    /// `overwrite === false` means "keep the user's existing files".
+    /// Relative destination inside the game folder ("" = game root).
+    #[serde(default)]
+    pub dest: Option<String>,
+    /// `false` = "keep the user's existing files" → skipped.
     #[serde(default)]
     pub overwrite: Option<bool>,
+    /// Top-level relative paths that must NOT be touched (e.g. keep the
+    /// user's own CSP: `["extension", "dwrite.dll"]`).
+    #[serde(default)]
+    pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,6 +85,13 @@ pub struct InstallProgress {
     pub stage: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// File-level progress inside the current mod (for the live bar).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_done: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_total: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -70,12 +107,56 @@ pub struct InstallOutcome {
 pub struct InstallOptions<'a> {
     pub game_path: &'a str,
     pub mods: &'a [ModSpec],
-    pub assets_mod_dir: &'a Path,
+    /// The bundled `mods/` directory.
+    pub mods_dir: &'a Path,
     pub backups_dir: &'a Path,
     pub tier: Option<&'a str>,
     pub on_progress: &'a dyn Fn(InstallProgress),
     pub is_cancelled: &'a dyn Fn() -> bool,
 }
+
+/* ------------------------------------------------------------------ */
+/*  Source resolution                                                  */
+/* ------------------------------------------------------------------ */
+
+pub fn is_valid_tier(t: &str) -> bool {
+    TIER_IDS.contains(&t)
+}
+
+/// Folders (in copy order) that make up the graphics pack for `tier`.
+/// Later folders overwrite earlier ones, so `<tier>/` beats `common/`.
+pub fn graphics_sources(mods_dir: &Path, tier: &str) -> Vec<PathBuf> {
+    let root = mods_dir.join(GRAPHICS_DIR);
+    let mut out = Vec::new();
+    if root.join("common").is_dir() {
+        out.push(root.join("common"));
+    }
+    if is_valid_tier(tier) && root.join(tier).is_dir() {
+        out.push(root.join(tier));
+    }
+    out
+}
+
+/// `mods/addons/<id>/files` for a sanitised add-on id.
+pub fn addon_files_dir(mods_dir: &Path, id: &str) -> Option<PathBuf> {
+    let clean = sanitize_id(id);
+    if clean.is_empty() {
+        return None;
+    }
+    Some(mods_dir.join(ADDONS_DIR).join(clean).join(ADDON_FILES_DIR))
+}
+
+pub fn sanitize_id(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
+        .collect::<String>()
+        .trim_matches('.')
+        .to_string()
+}
+
+/* ------------------------------------------------------------------ */
+/*  File operations                                                    */
+/* ------------------------------------------------------------------ */
 
 fn backup_path_for(backups_dir: &Path, mod_id: &str, rel: &str) -> PathBuf {
     backups_dir.join(mod_id).join("backup").join(format!("{rel}.bak"))
@@ -96,7 +177,11 @@ fn copy_with_backup(
         if let Some(p) = b.parent() {
             fs::create_dir_all(p)?;
         }
-        fs::copy(dest, &b)?;
+        // Only the FIRST backup of a file is the user's original; never let
+        // a re-install overwrite it with our own previous copy.
+        if !b.exists() {
+            fs::copy(dest, &b)?;
+        }
         backup = Some(b.to_string_lossy().to_string());
     }
     if let Some(p) = dest.parent() {
@@ -112,115 +197,71 @@ fn copy_with_backup(
     Ok(())
 }
 
-pub fn copy_directory_contents(
-    source_dir: &Path,
-    dest_root: &Path,
-    mod_id: &str,
-    backups_dir: &Path,
-    records: &mut Vec<InstalledFile>,
-) -> std::io::Result<()> {
-    for entry in walkdir::WalkDir::new(source_dir).min_depth(1).into_iter().flatten() {
-        let rel = match rel_from(source_dir, entry.path()) {
-            Some(r) => r,
-            None => continue,
-        };
-        let dest = dest_root.join(&rel);
-        if entry.file_type().is_dir() {
-            fs::create_dir_all(&dest)?;
-        } else if entry.file_type().is_file() {
-            copy_with_backup(entry.path(), &dest, &rel, mod_id, backups_dir, records)?;
+fn is_excluded(rel: &str, exclude: &[String]) -> bool {
+    let rel_l = rel.to_ascii_lowercase();
+    exclude.iter().any(|e| {
+        let e = crate::util::norm_rel(e).to_ascii_lowercase();
+        !e.is_empty() && (rel_l == e || rel_l.starts_with(&format!("{e}/")))
+    })
+}
+
+/// Collect `(absolute source, relative path)` pairs of every regular file in
+/// `source_dir`, honouring `exclude`. Files from later dirs replace earlier
+/// ones with the same relative path.
+fn collect_files(sources: &[PathBuf], exclude: &[String]) -> Vec<(PathBuf, String)> {
+    let mut map: std::collections::BTreeMap<String, PathBuf> = std::collections::BTreeMap::new();
+    for dir in sources {
+        for entry in walkdir::WalkDir::new(dir).min_depth(1).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let Some(rel) = rel_from(dir, entry.path()) else { continue };
+            if is_ignored_file(&rel) || is_excluded(&rel, exclude) {
+                continue;
+            }
+            map.insert(rel, entry.path().to_path_buf());
         }
     }
-    Ok(())
+    map.into_iter().map(|(rel, src)| (src, rel)).collect()
 }
 
-/// Extract an archive straight into `dest_root`, backing up every existing
-/// file first. Uses a temp staging dir so the backup logic stays uniform.
-pub fn extract_archive(
-    source: &Path,
+/// Housekeeping files that must never land in the game folder.
+fn is_ignored_file(rel: &str) -> bool {
+    let leaf = rel.rsplit('/').next().unwrap_or(rel);
+    matches!(leaf, ".gitkeep" | ".DS_Store" | "Thumbs.db" | "desktop.ini")
+}
+
+/// Copy every file of `sources` onto `dest_root`, reporting per-file progress.
+#[allow(clippy::too_many_arguments)]
+fn copy_sources(
+    sources: &[PathBuf],
     dest_root: &Path,
     mod_id: &str,
+    exclude: &[String],
     backups_dir: &Path,
     records: &mut Vec<InstalledFile>,
-) -> Result<(), String> {
-    let staging = std::env::temp_dir().join(format!("uhm-pack-{}-{}", mod_id, crate::util::now_millis()));
-    let ext = ext_lower(source);
-    let extracted = match ext.as_str() {
-        ".zip" => archive::extract_zip_to(source, &staging),
-        ".rar" | ".cbr" => archive::extract_rar_to(source, &staging, None),
-        _ => return Ok(()),
-    };
-    let result = match extracted {
-        Ok(()) => copy_directory_contents(&staging, dest_root, mod_id, backups_dir, records).map_err(|e| e.to_string()),
-        Err(e) => Err(e.to_string()),
-    };
-    let _ = fs::remove_dir_all(&staging);
-    result
-}
-
-pub const TIER_IDS: [&str; 5] = ["low", "medium", "high", "veryhigh", "ultra"];
-
-/// Resolve which folders inside `mod-files/<mod>/` feed a given tier.
-///
-/// Layout A (same files for every tier):
-///     mod-files/<mod>/**            → everything is copied
-///
-/// Layout B (per-tier files):
-///     mod-files/<mod>/common/**     → copied for every tier (optional)
-///     mod-files/<mod>/<tier>/**     → copied only for that tier
-///     (loose files directly in <mod>/ are still copied for every tier)
-///
-/// Returned in copy order; later folders overwrite earlier ones, so the tier
-/// folder always wins over `common`.
-pub fn resolve_mod_sources(mod_dir: &Path, tier: Option<&str>) -> Vec<PathBuf> {
-    let tiered = mod_dir.join("common").is_dir() || TIER_IDS.iter().any(|t| mod_dir.join(t).is_dir());
-    if !tiered {
-        return vec![mod_dir.to_path_buf()];
-    }
-    let mut out = vec![mod_dir.to_path_buf()]; // loose root files (tier dirs skipped in copy)
-    if mod_dir.join("common").is_dir() {
-        out.push(mod_dir.join("common"));
-    }
-    if let Some(t) = tier {
-        if mod_dir.join(t).is_dir() {
-            out.push(mod_dir.join(t));
+    mut on_file: impl FnMut(usize, usize, &str),
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<bool, String> {
+    let files = collect_files(sources, exclude);
+    let total = files.len();
+    for (i, (src, rel)) in files.iter().enumerate() {
+        if is_cancelled() {
+            return Ok(false);
         }
-    }
-    out
-}
-
-fn is_tier_layout_dir(name: &str) -> bool {
-    name == "common" || TIER_IDS.contains(&name)
-}
-
-/// Like `copy_directory_contents` but skips the `common/` and `<tier>/`
-/// sub-folders (used for the root of a per-tier mod folder).
-fn copy_root_loose_files(
-    source_dir: &Path,
-    dest_root: &Path,
-    mod_id: &str,
-    backups_dir: &Path,
-    records: &mut Vec<InstalledFile>,
-) -> std::io::Result<()> {
-    for entry in walkdir::WalkDir::new(source_dir)
-        .min_depth(1)
-        .into_iter()
-        .filter_entry(|e| !(e.depth() == 1 && e.file_type().is_dir() && is_tier_layout_dir(&e.file_name().to_string_lossy())))
-        .flatten()
-    {
-        let rel = match rel_from(source_dir, entry.path()) {
-            Some(r) => r,
-            None => continue,
-        };
-        let dest = dest_root.join(&rel);
-        if entry.file_type().is_dir() {
-            fs::create_dir_all(&dest)?;
-        } else if entry.file_type().is_file() {
-            copy_with_backup(entry.path(), &dest, &rel, mod_id, backups_dir, records)?;
+        let dest = dest_root.join(rel);
+        if !is_within(dest_root, &dest) {
+            continue;
         }
+        on_file(i + 1, total, rel);
+        copy_with_backup(src, &dest, rel, mod_id, backups_dir, records).map_err(|e| format!("{rel}: {e}"))?;
     }
-    Ok(())
+    Ok(true)
 }
+
+/* ------------------------------------------------------------------ */
+/*  Install                                                            */
+/* ------------------------------------------------------------------ */
 
 pub fn install_mods(opts: InstallOptions<'_>) -> InstallOutcome {
     let game = Path::new(opts.game_path);
@@ -234,101 +275,114 @@ pub fn install_mods(opts: InstallOptions<'_>) -> InstallOutcome {
     let total = opts.mods.len();
     let mut done = 0usize;
     let mut results: Vec<ModResult> = Vec::with_capacity(total);
+    let mut was_cancelled = false;
+
+    let emit = |done: usize, res: &ModResult, stage: &str| {
+        (opts.on_progress)(InstallProgress {
+            done, total, mod_result: res.clone(), stage: stage.into(), message: None,
+            file_done: None, file_total: None, current_file: None,
+        });
+    };
 
     for m in opts.mods {
         if (opts.is_cancelled)() {
+            was_cancelled = true;
             break;
         }
-        let mod_id: String = m
-            .id
-            .clone()
-            .unwrap_or_else(|| "unknown".into())
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
-            .collect();
-        let tier = opts.tier.map(|t| t.to_string()).or_else(|| m.tier.clone());
+        let mod_id = sanitize_id(m.id.as_deref().unwrap_or("unknown"));
+        let tier = opts.tier.map(str::to_string).or_else(|| m.tier.clone());
+        done += 1;
+        let mut res = ModResult { id: mod_id.clone(), tier: tier.clone(), status: "pending".into(), installed_files: vec![], message: String::new() };
 
         if m.overwrite == Some(false) {
-            done += 1;
-            let skipped = ModResult { id: mod_id, tier, status: "skipped".into(), installed_files: vec![], message: "SKIPPED_KEEP_EXISTING".into() };
-            (opts.on_progress)(InstallProgress { done, total, mod_result: skipped.clone(), stage: "skipped".into(), message: None });
-            results.push(skipped);
+            res.status = "skipped".into();
+            res.message = "SKIPPED_KEEP_EXISTING".into();
+            emit(done, &res, "skipped");
+            results.push(res);
             continue;
         }
 
-        done += 1;
-        let source: PathBuf = match &m.source {
-            Some(s) if !s.is_empty() => PathBuf::from(s),
-            _ => opts.assets_mod_dir.join(&mod_id),
+        // Where do the files come from?
+        let sources: Vec<PathBuf> = if mod_id == GRAPHICS_MOD_ID {
+            match tier.as_deref().filter(|t| is_valid_tier(t)) {
+                Some(t) => graphics_sources(opts.mods_dir, t),
+                None => {
+                    res.status = "error".into();
+                    res.message = "INVALID_TIER".into();
+                    emit(done, &res, "error");
+                    results.push(res);
+                    continue;
+                }
+            }
+        } else {
+            addon_files_dir(opts.mods_dir, &mod_id).filter(|d| d.is_dir()).into_iter().collect()
         };
-        let mut res = ModResult { id: mod_id.clone(), tier, status: "pending".into(), installed_files: vec![], message: String::new() };
 
         let dest_root = match resolve_inside(game, m.dest.as_deref().unwrap_or("")) {
             Some(d) => d,
             None => {
                 res.status = "error".into();
                 res.message = "UNSAFE_DEST".into();
-                (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "error".into(), message: None });
+                emit(done, &res, "error");
                 results.push(res);
                 continue;
             }
         };
 
-        if !source.exists() {
+        if sources.is_empty() {
             res.status = "missing".into();
             res.message = "MISSING_FILES".into();
-            (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "missing".into(), message: None });
+            emit(done, &res, "missing");
             results.push(res);
             continue;
         }
 
-        (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "start".into(), message: Some(String::new()) });
+        emit(done, &res, "start");
 
-        let ext = ext_lower(&source);
-        let is_archive = matches!(ext.as_str(), ".zip" | ".rar" | ".cbr");
-        let outcome: Result<(), String> = if let Err(e) = fs::create_dir_all(&dest_root) {
-            Err(e.to_string())
-        } else if m.kind.as_deref() == Some("extract") && is_archive {
-            extract_archive(&source, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
-        } else if source.is_dir() {
-            // Folder source: flat layout or per-tier layout (common/ + <tier>/).
-            let sources = resolve_mod_sources(&source, res.tier.as_deref());
-            let tiered = sources.len() > 1;
-            let mut r = Ok(());
-            for (i, dir) in sources.iter().enumerate() {
-                r = if tiered && i == 0 {
-                    copy_root_loose_files(dir, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
-                } else {
-                    copy_directory_contents(dir, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files)
-                };
-                if r.is_err() { break; }
-            }
-            r.map_err(|e| e.to_string())
-        } else {
-            copy_directory_contents(&source, &dest_root, &mod_id, opts.backups_dir, &mut res.installed_files).map_err(|e| e.to_string())
-        };
+        let outcome = fs::create_dir_all(&dest_root).map_err(|e| e.to_string()).and_then(|_| {
+            let progress_res = res.clone();
+            copy_sources(
+                &sources, &dest_root, &mod_id, &m.exclude, opts.backups_dir, &mut res.installed_files,
+                |fd, ft, rel| {
+                    (opts.on_progress)(InstallProgress {
+                        done, total, mod_result: progress_res.clone(), stage: "file".into(), message: None,
+                        file_done: Some(fd), file_total: Some(ft), current_file: Some(rel.to_string()),
+                    });
+                },
+                opts.is_cancelled,
+            )
+        });
 
         match outcome {
-            Ok(()) if res.installed_files.is_empty() => {
+            Ok(false) => {
+                // Cancelled mid-way: keep what was copied so it can be reverted.
+                was_cancelled = true;
+                res.status = "error".into();
+                res.message = "CANCELLED".into();
+                emit(done, &res, "error");
+                results.push(res);
+                break;
+            }
+            Ok(true) if res.installed_files.is_empty() => {
                 res.status = "missing".into();
                 res.message = "MISSING_FILES".into();
-                (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "missing".into(), message: None });
+                emit(done, &res, "missing");
             }
-            Ok(()) => {
+            Ok(true) => {
                 res.status = "installed".into();
                 res.message = format!("FILES_{}", res.installed_files.len());
-                (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "installed".into(), message: None });
+                emit(done, &res, "installed");
             }
             Err(e) => {
                 res.status = "error".into();
                 res.message = e;
-                (opts.on_progress)(InstallProgress { done, total, mod_result: res.clone(), stage: "error".into(), message: None });
+                emit(done, &res, "error");
             }
         }
         results.push(res);
     }
 
-    let cancelled = (opts.is_cancelled)();
+    let cancelled = was_cancelled || (opts.is_cancelled)();
     let has_errors = results.iter().any(|r| r.status == "error");
     let has_installed = results.iter().any(|r| r.status == "installed");
     InstallOutcome { success: !cancelled && !has_errors && has_installed, cancelled, error: None, mods: results }
@@ -355,8 +409,11 @@ pub struct UninstallResult {
     pub message: Option<String>,
 }
 
+/// Revert installed files: restore the backup when there is one, otherwise
+/// delete the file we created. Empty directories left behind are pruned.
 pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
     let mut out = Vec::new();
+    let mut touched_dirs: Vec<PathBuf> = Vec::new();
     for f in files {
         let Some(dest) = f.dest.as_deref().filter(|d| !d.is_empty()) else { continue };
         let dest_p = Path::new(dest);
@@ -371,6 +428,9 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
                 Ok("restored")
             } else if dest_p.exists() {
                 fs::remove_file(dest_p)?;
+                if let Some(p) = dest_p.parent() {
+                    touched_dirs.push(p.to_path_buf());
+                }
                 Ok("deleted")
             } else {
                 Ok("not_found")
@@ -381,13 +441,30 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
             Err(e) => out.push(UninstallResult { dest: dest.to_string(), status: "error".into(), message: Some(e.to_string()) }),
         }
     }
+    // Prune now-empty directories (deepest first) so uninstalling an add-on
+    // does not leave an empty `apps/python/<x>/` skeleton behind.
+    touched_dirs.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+    touched_dirs.dedup();
+    for d in touched_dirs {
+        let mut cur = Some(d);
+        while let Some(p) = cur {
+            match fs::read_dir(&p) {
+                Ok(mut it) if it.next().is_none() => {
+                    if fs::remove_dir(&p).is_err() {
+                        break;
+                    }
+                    cur = p.parent().map(Path::to_path_buf);
+                }
+                _ => break,
+            }
+        }
+    }
     out
 }
 
-#[allow(dead_code)]
-pub fn is_inside(base: &Path, target: &Path) -> bool {
-    is_within(base, target)
-}
+/* ------------------------------------------------------------------ */
+/*  Tests                                                              */
+/* ------------------------------------------------------------------ */
 
 #[cfg(test)]
 mod tests {
@@ -398,105 +475,181 @@ mod tests {
         fs::write(p, s).unwrap();
     }
 
-    #[test]
-    fn install_copy_with_backup_then_uninstall() {
+    fn spec(id: &str) -> ModSpec {
+        ModSpec { id: Some(id.into()), tier: None, dest: None, overwrite: None, exclude: vec![] }
+    }
+
+    struct Env {
+        _tmp: tempfile::TempDir,
+        game: PathBuf,
+        mods: PathBuf,
+        backups: PathBuf,
+    }
+
+    fn env() -> Env {
         let tmp = tempfile::tempdir().unwrap();
         let game = tmp.path().join("game");
-        let assets = tmp.path().join("assets");
+        let mods = tmp.path().join("mods");
         let backups = tmp.path().join("backups");
-        write(&game.join("system/cfg/video.ini"), "old");
-        write(&assets.join("video/video.ini"), "new");
-        write(&assets.join("video/sub/extra.ini"), "x");
+        fs::create_dir_all(&game).unwrap();
+        Env { game, mods, backups, _tmp: tmp }
+    }
 
-        let mods = vec![ModSpec { id: Some("video".into()), dest: Some("system/cfg".into()), kind: Some("copy".into()), source: None, tier: None, overwrite: None }];
-        let progress = std::cell::RefCell::new(Vec::new());
-        let out = install_mods(InstallOptions {
-            game_path: game.to_str().unwrap(),
-            mods: &mods,
-            assets_mod_dir: &assets,
-            backups_dir: &backups,
-            tier: Some("low"),
-            on_progress: &|p| progress.borrow_mut().push(p.stage),
+    fn run(e: &Env, mods: &[ModSpec], tier: Option<&str>, log: &std::cell::RefCell<Vec<InstallProgress>>) -> InstallOutcome {
+        install_mods(InstallOptions {
+            game_path: e.game.to_str().unwrap(),
+            mods,
+            mods_dir: &e.mods,
+            backups_dir: &e.backups,
+            tier,
+            on_progress: &|p| log.borrow_mut().push(p),
             is_cancelled: &|| false,
-        });
+        })
+    }
+
+    #[test]
+    fn graphics_pack_tier_overrides_common_and_backs_up() {
+        let e = env();
+        write(&e.game.join("system/cfg/video.ini"), "user-original");
+        write(&e.mods.join("graphics/common/extension/config/shared.ini"), "shared");
+        write(&e.mods.join("graphics/common/system/cfg/video.ini"), "common");
+        write(&e.mods.join("graphics/ultra/system/cfg/video.ini"), "ultra");
+        write(&e.mods.join("graphics/ultra/.gitkeep"), "");
+        write(&e.mods.join("graphics/low/system/cfg/video.ini"), "low");
+
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[spec("graphics")], Some("ultra"), &log);
         assert!(out.success, "{out:?}");
-        assert_eq!(out.mods[0].status, "installed");
+        let g = &out.mods[0];
+        assert_eq!(g.status, "installed");
+        assert_eq!(g.installed_files.len(), 2, "gitkeep must be ignored: {:?}", g.installed_files);
+        assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "ultra");
+        assert_eq!(fs::read_to_string(e.game.join("extension/config/shared.ini")).unwrap(), "shared");
+        let v = g.installed_files.iter().find(|f| f.file == "system/cfg/video.ini").unwrap();
+        assert!(v.existed);
+        assert_eq!(fs::read_to_string(v.backup_path.as_ref().unwrap()).unwrap(), "user-original");
+
+        // File-level progress was reported.
+        let stages: Vec<String> = log.borrow().iter().map(|p| p.stage.clone()).collect();
+        assert_eq!(stages.first().map(String::as_str), Some("start"));
+        assert!(stages.iter().any(|s| s == "file"));
+        assert_eq!(stages.last().map(String::as_str), Some("installed"));
+
+        // Re-install with another tier must NOT clobber the original backup.
+        let out2 = run(&e, &[spec("graphics")], Some("low"), &log);
+        assert!(out2.success);
+        assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "low");
+        assert_eq!(fs::read_to_string(v.backup_path.as_ref().unwrap()).unwrap(), "user-original");
+
+        // Uninstall restores the user's original and deletes the new file.
+        let files: Vec<UninstallFile> = out2.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone() }).collect();
+        let res = uninstall_files(&files);
+        assert!(res.iter().any(|r| r.status == "restored"));
+        assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "user-original");
+    }
+
+    #[test]
+    fn graphics_exclude_keeps_users_csp() {
+        let e = env();
+        write(&e.game.join("dwrite.dll"), "user-csp");
+        write(&e.game.join("extension/config/general.ini"), "user-csp-cfg");
+        write(&e.mods.join("graphics/high/dwrite.dll"), "pack-csp");
+        write(&e.mods.join("graphics/high/extension/config/general.ini"), "pack");
+        write(&e.mods.join("graphics/high/system/cfg/video.ini"), "pack");
+
+        let mut s = spec("graphics");
+        s.exclude = vec!["extension".into(), "dwrite.dll".into()];
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[s], Some("high"), &log);
+        assert!(out.success, "{out:?}");
+        assert_eq!(out.mods[0].installed_files.len(), 1);
+        assert_eq!(fs::read_to_string(e.game.join("dwrite.dll")).unwrap(), "user-csp");
+        assert_eq!(fs::read_to_string(e.game.join("extension/config/general.ini")).unwrap(), "user-csp-cfg");
+        assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "pack");
+    }
+
+    #[test]
+    fn graphics_missing_tier_and_invalid_tier() {
+        let e = env();
+        write(&e.mods.join("graphics/ultra/a.txt"), "x");
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[spec("graphics")], Some("medium"), &log);
+        assert_eq!(out.mods[0].status, "missing");
+        let out = run(&e, &[spec("graphics")], Some("../evil"), &log);
+        assert_eq!(out.mods[0].status, "error");
+        assert_eq!(out.mods[0].message, "INVALID_TIER");
+        let out = run(&e, &[spec("graphics")], None, &log);
+        assert_eq!(out.mods[0].message, "INVALID_TIER");
+    }
+
+    #[test]
+    fn addon_install_ignores_metadata_and_prunes_dirs_on_uninstall() {
+        let e = env();
+        write(&e.mods.join("addons/hud-gas/mod.json"), "{}");
+        write(&e.mods.join("addons/hud-gas/preview.png"), "png");
+        write(&e.mods.join("addons/hud-gas/files/apps/python/GasHUD/GasHUD.py"), "py");
+        write(&e.mods.join("addons/hud-gas/files/apps/python/GasHUD/icon.png"), "ico");
+
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[spec("hud-gas")], Some("ultra"), &log);
+        assert!(out.success, "{out:?}");
         assert_eq!(out.mods[0].installed_files.len(), 2);
-        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "new");
-        let backed = out.mods[0].installed_files.iter().find(|f| f.file == "video.ini").unwrap();
-        assert!(backed.existed && backed.backup_path.is_some());
-        assert_eq!(progress.borrow().as_slice(), &["start".to_string(), "installed".to_string()]);
+        assert!(!e.game.join("mod.json").exists());
+        assert!(!e.game.join("preview.png").exists());
+        assert!(e.game.join("apps/python/GasHUD/GasHUD.py").exists());
 
         let files: Vec<UninstallFile> = out.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone() }).collect();
         let res = uninstall_files(&files);
-        assert!(res.iter().any(|r| r.status == "restored"));
-        assert!(res.iter().any(|r| r.status == "deleted"));
-        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "old");
+        assert!(res.iter().all(|r| r.status == "deleted"));
+        assert!(!e.game.join("apps").exists(), "empty dirs must be pruned");
+        assert!(e.game.exists(), "game root itself must survive");
     }
 
     #[test]
-    fn install_per_tier_layout() {
-        let tmp = tempfile::tempdir().unwrap();
-        let game = tmp.path().join("game");
-        let assets = tmp.path().join("assets");
-        fs::create_dir_all(&game).unwrap();
-        write(&assets.join("video/readme.txt"), "loose");
-        write(&assets.join("video/common/shared.ini"), "shared");
-        write(&assets.join("video/common/video.ini"), "common");
-        write(&assets.join("video/ultra/video.ini"), "ultra");
-        write(&assets.join("video/low/video.ini"), "low");
-
-        let run = |tier: &str| {
-            let mods = vec![ModSpec { id: Some("video".into()), dest: Some("system/cfg".into()), kind: None, source: None, tier: None, overwrite: None }];
-            install_mods(InstallOptions {
-                game_path: game.to_str().unwrap(), mods: &mods, assets_mod_dir: &assets,
-                backups_dir: &tmp.path().join("b"), tier: Some(tier), on_progress: &|_| {}, is_cancelled: &|| false,
-            })
-        };
-        let out = run("ultra");
-        assert!(out.success, "{out:?}");
-        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "ultra");
-        assert_eq!(fs::read_to_string(game.join("system/cfg/shared.ini")).unwrap(), "shared");
-        assert_eq!(fs::read_to_string(game.join("system/cfg/readme.txt")).unwrap(), "loose");
-        assert!(!game.join("system/cfg/ultra").exists(), "tier folder itself must not be copied");
-        assert!(!game.join("system/cfg/common").exists());
-
-        let out = run("low");
-        assert!(out.success);
-        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "low");
-
-        // Tier without its own folder falls back to common/ + loose files.
-        let out = run("medium");
-        assert!(out.success);
-        assert_eq!(fs::read_to_string(game.join("system/cfg/video.ini")).unwrap(), "common");
-
-        // Flat layout is untouched.
-        assert_eq!(resolve_mod_sources(&assets.join("nothing"), Some("low")), vec![assets.join("nothing")]);
-    }
-
-    #[test]
-    fn install_missing_unsafe_and_skipped() {
-        let tmp = tempfile::tempdir().unwrap();
-        let game = tmp.path().join("game");
-        fs::create_dir_all(&game).unwrap();
-        let mods = vec![
-            ModSpec { id: Some("csp".into()), dest: None, kind: None, source: None, tier: None, overwrite: None },
-            ModSpec { id: Some("hud".into()), dest: Some("../evil".into()), kind: None, source: None, tier: None, overwrite: None },
-            ModSpec { id: Some("pure".into()), dest: None, kind: None, source: None, tier: None, overwrite: Some(false) },
-        ];
-        let out = install_mods(InstallOptions {
-            game_path: game.to_str().unwrap(),
-            mods: &mods,
-            assets_mod_dir: &tmp.path().join("none"),
-            backups_dir: &tmp.path().join("b"),
-            tier: None,
-            on_progress: &|_| {},
-            is_cancelled: &|| false,
-        });
-        assert!(!out.success);
+    fn addon_unknown_id_is_missing_and_ids_are_sanitised() {
+        let e = env();
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[spec("../../etc")], None, &log);
         assert_eq!(out.mods[0].status, "missing");
-        assert_eq!(out.mods[1].status, "error");
+        assert_eq!(out.mods[0].id, "etc");
+        assert_eq!(sanitize_id("my addon!"), "myaddon");
+        assert!(addon_files_dir(&e.mods, "///").is_none());
+    }
+
+    #[test]
+    fn skipped_and_unsafe_dest() {
+        let e = env();
+        let mut keep = spec("graphics");
+        keep.overwrite = Some(false);
+        let mut bad = spec("x");
+        bad.dest = Some("../evil".into());
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[keep, bad], Some("low"), &log);
+        assert_eq!(out.mods[0].status, "skipped");
         assert_eq!(out.mods[1].message, "UNSAFE_DEST");
-        assert_eq!(out.mods[2].status, "skipped");
+        assert!(!out.success);
+    }
+
+    #[test]
+    fn cancel_mid_copy_keeps_records_for_revert() {
+        let e = env();
+        for i in 0..5 {
+            write(&e.mods.join(format!("graphics/low/f{i}.txt")), "x");
+        }
+        let count = std::cell::Cell::new(0);
+        let out = install_mods(InstallOptions {
+            game_path: e.game.to_str().unwrap(),
+            mods: &[spec("graphics")],
+            mods_dir: &e.mods,
+            backups_dir: &e.backups,
+            tier: Some("low"),
+            on_progress: &|p| if p.stage == "file" { count.set(count.get() + 1) },
+            is_cancelled: &|| count.get() >= 2,
+        });
+        assert!(out.cancelled);
+        assert!(!out.success);
+        assert_eq!(out.mods[0].message, "CANCELLED");
+        assert!(!out.mods[0].installed_files.is_empty());
+        assert!(out.mods[0].installed_files.len() < 5);
     }
 }

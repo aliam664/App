@@ -5,6 +5,7 @@
 //! Rust cores in the sibling modules.
 
 mod archive;
+mod catalog;
 mod hardware;
 mod installer;
 mod library;
@@ -39,7 +40,7 @@ impl AppState {
     fn backups_dir(&self) -> PathBuf { self.user_data_dir.join("backups") }
     fn trash_path(&self) -> PathBuf { self.user_data_dir.join("trash.json") }
     fn trash_dir(&self) -> PathBuf { self.user_data_dir.join("trash") }
-    fn assets_mod_dir(&self) -> PathBuf { self.resource_root.join("mod-files") }
+    fn mods_dir(&self) -> PathBuf { self.resource_root.join("mods") }
 }
 
 fn ensure_user_data_files(state: &AppState, version: &str) {
@@ -190,13 +191,13 @@ async fn install_run(app: AppHandle, state: State<'_, AppState>, payload: Option
     let payload = payload.unwrap_or(InstallPayload { game_path: String::new(), tier: None, mods: vec![] });
     let flag = state.install_cancelled.clone();
     flag.store(false, Ordering::SeqCst);
-    let assets = state.assets_mod_dir();
+    let mods_dir = state.mods_dir();
     let backups = state.backups_dir();
     let out = tauri::async_runtime::spawn_blocking(move || {
         let is_cancelled = || flag.load(Ordering::SeqCst);
         let on_progress = |p: installer::InstallProgress| { let _ = app.emit("install:progress", &p); };
         installer::install_mods(installer::InstallOptions {
-            game_path: &payload.game_path, mods: &payload.mods, assets_mod_dir: &assets, backups_dir: &backups,
+            game_path: &payload.game_path, mods: &payload.mods, mods_dir: &mods_dir, backups_dir: &backups,
             tier: payload.tier.as_deref(), on_progress: &on_progress, is_cancelled: &is_cancelled,
         })
     }).await.map_err(|e| e.to_string())?;
@@ -213,6 +214,27 @@ struct UninstallPayload { #[serde(default)] files: Vec<installer::UninstallFile>
 #[tauri::command]
 fn uninstall_run(payload: Option<UninstallPayload>) -> Vec<installer::UninstallResult> {
     installer::uninstall_files(&payload.map(|p| p.files).unwrap_or_default())
+}
+
+/// Which graphics tiers actually have files bundled (drives the UI badges).
+#[tauri::command]
+fn graphics_info(state: State<AppState>) -> Value {
+    let mods_dir = state.mods_dir();
+    let root = mods_dir.join(installer::GRAPHICS_DIR);
+    let tiers: serde_json::Map<String, Value> = installer::TIER_IDS.iter().map(|t| {
+        let dir = root.join(t);
+        let (files, bytes) = catalog::count_files(&dir);
+        (t.to_string(), json!({ "available": files > 0, "fileCount": files, "sizeBytes": bytes }))
+    }).collect();
+    let (cf, cb) = catalog::count_files(&root.join("common"));
+    json!({ "tiers": tiers, "common": { "available": cf > 0, "fileCount": cf, "sizeBytes": cb } })
+}
+
+/// All bundled add-ons under `mods/addons/*` with metadata + preview thumbnail.
+#[tauri::command]
+async fn addons_list(state: State<'_, AppState>) -> Result<Vec<catalog::AddonInfo>, String> {
+    let mods_dir = state.mods_dir();
+    Ok(tauri::async_runtime::spawn_blocking(move || catalog::list_addons(&mods_dir)).await.map_err(|e| e.to_string())?)
 }
 
 /* ------------------------------------------------------------------ */
@@ -420,10 +442,10 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let user_data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("uhm-pack-installer"));
-            // In a packaged build `mod-files/` lives next to the executable
+            // In a packaged build `mods/` lives next to the executable
             // (bundled as a resource); in dev it is the repository folder.
             let resource_root = app.path().resource_dir().ok()
-                .filter(|r| r.join("mod-files").exists())
+                .filter(|r| r.join("mods").exists())
                 .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("..").to_path_buf());
             let state = AppState {
                 user_data_dir,
@@ -449,7 +471,7 @@ pub fn run() {
             window_minimize, window_toggle_maximize, window_close, window_start_drag,
             settings_get, settings_set, manifest_get, manifest_save,
             game_browse_path, game_validate_path, game_auto_detect, game_check_base_mods,
-            install_run, install_cancel, uninstall_run,
+            install_run, install_cancel, uninstall_run, graphics_info, addons_list,
             mods_analyze, mods_install, mods_cancel, mods_pick_file,
             library_scan, library_get_preview, library_reveal, library_delete, library_restore,
             library_purge, library_empty_trash, library_trash, library_preview_candidates,

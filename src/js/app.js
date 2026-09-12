@@ -270,6 +270,14 @@ async function bootstrap() {
 
   window.appState.navStack = [];
   renderPage('showcase', {});
+
+  // Warm the add-on name cache so manage/done pages can label add-ons
+  // installed in earlier sessions. Non-blocking; failures are harmless.
+  if (window.uhm.listAddons) {
+    window.uhm.listAddons().then((list) => {
+      (list || []).forEach((a) => { window.ADDON_NAME_CACHE[a.id] = a.name; });
+    }).catch(() => {});
+  }
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);

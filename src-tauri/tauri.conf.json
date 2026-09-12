@@ -41,7 +41,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../mod-files/": "mod-files/"
+      "../mods/": "mods/"
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },

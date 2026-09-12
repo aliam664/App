@@ -128,6 +128,7 @@
                 </button>
                 <div class="home-hero-secondary">
                   <button class="btn-secondary home-action" id="btn-library">${s('libraryBtn')}</button>
+                  <button class="btn-secondary home-action" id="btn-addons">${t('addons.homeBtn')}</button>
                   <button class="btn-secondary home-action" id="btn-donate">${s('donateBtn')}</button>
                   <button class="btn-secondary home-action" id="btn-about">${s('about')}</button>
                   ${hasAnyInstalledMod ? `<button class="btn-secondary home-action" id="btn-manage-mods">${s('manageShort')}</button>` : ''}
@@ -215,6 +216,7 @@
     document.getElementById('btn-start-install').addEventListener('click', () => navigate('gamePath'));
     document.getElementById('btn-about').addEventListener('click', () => navigate('about'));
     document.getElementById('btn-library').addEventListener('click', () => navigate('library'));
+    document.getElementById('btn-addons').addEventListener('click', () => navigate('addons'));
     document.getElementById('btn-donate').addEventListener('click', () => navigate('donate'));
     document.getElementById('btn-settings-home').addEventListener('click', () => navigate('settings'));
 

@@ -173,15 +173,15 @@
   }
 
   function buildPlan(tier) {
-    const existing = window.appState.overwriteDecisions || {};
-    const enabledMods = window.MOD_DEFINITIONS.filter((m) => m.enabled);
-    // A tier is not cosmetic: each preset installs a specific subset of mods.
-    // (Previously every tier silently installed ALL 7 mods.)
-    const tierMods = TIER_MODS[tier] || [];
-    const mods = enabledMods
-      .filter((m) => tierMods.includes(m.id))
-      .filter((m) => !((m.id === 'csp' || m.id === 'pure') && existing[m.id] === false))
-      .map((m) => ({ id: m.id, dest: m.dest || '', type: m.type || 'copy', source: undefined, overwrite: true }));
+    // The whole graphics pack is ONE install unit: mods/graphics/<tier>/ is a
+    // mirror of the game folder and is copied onto the game root.
+    // If the user chose to keep an existing CSP/PURE, their paths are excluded.
+    const keep = window.appState.overwriteDecisions || {};
+    const exclude = [];
+    Object.keys(window.BASE_MOD_PATHS || {}).forEach((base) => {
+      if (keep[base] === false) exclude.push(...window.BASE_MOD_PATHS[base]);
+    });
+    const mods = [{ id: window.GRAPHICS_PACK_ID, tier, dest: '', overwrite: true, exclude }];
     return { tier, gamePath: window.appState.settings.gamePath, mods };
   }
 

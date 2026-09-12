@@ -39,7 +39,7 @@
 - امکان **حذف/بازگردانی** مودها را از یک صفحه‌ی مدیریت ساده فراهم می‌کند.
 - رابط کاربری فارسی و انگلیسی با پشتیبانی کامل RTL/LTR دارد.
 
-> ⚠️ **نکته‌ی مهم:** برنامه «قاب نصب» و «موتور نصب» را کامل پیاده‌سازی کرده، اما **فایل‌های واقعی مودها** (فایل‌های CSP، PURE، فیلترها و …) باید توسط شما داخل پوشه‌ی `src/assets/mod-files` قرار بگیرد. تا وقتی فایلی وجود نداشته باشد، نصب به‌صورت امن با وضعیت **«⚠️ فایل مود موجود نیست»** متوقف می‌شود و برنامه از کار نمی‌افتد.
+> ⚠️ **نکته‌ی مهم:** برنامه «قاب نصب» و «موتور نصب» را کامل پیاده‌سازی کرده، اما **فایل‌های واقعی مودها** (فایل‌های CSP، PURE، فیلترها و …) باید توسط شما داخل پوشه‌ی `mods/` قرار بگیرد (پک ۵ سطحی در `mods/graphics/<سطح>/` و افزونه‌ها در `mods/addons/`؛ راهنمای کامل: [MODS-GUIDE.md](MODS-GUIDE.md)). تا وقتی فایلی وجود نداشته باشد، نصب به‌صورت امن با وضعیت **«⚠️ فایل مود موجود نیست»** متوقف می‌شود و برنامه از کار نمی‌افتد.
 
 ---
 
@@ -84,7 +84,7 @@
 | **Rust + VS Build Tools** | stable | فقط برای توسعه/بیلد ([rustup.rs](https://rustup.rs)) |
 | **WebView2** | — | روی Win10/11 از قبل نصب است؛ در غیر این صورت نصب‌کننده خودش دانلود می‌کند |
 | **Assetto Corsa** | نسخه‌ی Steam | برای نصب مودها |
-| **فایل‌های مود UHM** | — | داخل `mod-files/` (ریشه‌ی پروژه) — راهنمای دقیق: [MOD-FILES-GUIDE.md](MOD-FILES-GUIDE.md) |
+| **فایل‌های مود UHM** | — | داخل `mods/` (ریشه‌ی پروژه) — راهنمای دقیق: [MODS-GUIDE.md](MODS-GUIDE.md) |
 
 > نکته: اگر فقط می‌خواهید UI را ببینید، می‌توانید بدون نصب Rust از حالت **Browser Preview** استفاده کنید (پایین‌تر توضیح داده شده).
 
@@ -212,40 +212,28 @@ dist/UHM Pack Installer-1.0.0-x64.exe
 
 ## 📂 محل قرار دادن فایل‌های مودها
 
-هر مود باید داخل پوشه‌ی `src/assets/mod-files/<mod-id>` قرار بگیرد. نرم‌افزار محتویات این پوشه را با حفظ ساختار زیرپوشه‌ها به مسیر مقصد بازی کپی می‌کند.
+پک گرافیکی هر سطح داخل `mods/graphics/<low|medium|high|veryhigh|ultra>/` و افزونه‌ها داخل `mods/addons/<id>/files/` قرار می‌گیرند. هر پوشه **آینه‌ی پوشه‌ی بازی** است و عیناً روی ریشه‌ی بازی کپی می‌شود (با بکاپ). راهنمای کامل: [MODS-GUIDE.md](MODS-GUIDE.md).
 
-| مود | پوشه‌ی منبع | مسیر مقصد پیش‌فرض |
-|---|---|---|
-| **CSP** (Custom Shaders Patch) | `src/assets/mod-files/csp` | ریشه‌ی بازی (`/`) |
-| **PURE** | `src/assets/mod-files/pure` | ریشه‌ی بازی (`/`) |
-| **PP Filter** | `src/assets/mod-files/ppfilter` | `system/cfg` |
-| **Chase Cam** | `src/assets/mod-files/chasecam` | `system/cfg` |
-| **HUD** | `src/assets/mod-files/hud` | ریشه‌ی بازی (`/`) |
-| **SRP Light** | `src/assets/mod-files/srp` | `extension/config-ext/pure` |
-| **Video** | `src/assets/mod-files/video` | `system/cfg` |
-
-مثال ساختار CSP:
-
-```
-src/assets/mod-files/csp/
-├── extension/
-│   ├── config/
-│   │   └── data_manifest.ini
-│   └── ...
-├── system/
-│   └── ...
-└── ...
+```text
+mods/
+├── graphics/
+│   ├── common/                       ← اختیاری: برای همه‌ی سطح‌ها
+│   └── ultra/                        ← (و low / medium / high / veryhigh)
+│       ├── dwrite.dll                → <AC>\dwrite.dll
+│       ├── extension/config/…        → <AC>\extension\config\…
+│       ├── extension/config-ext/pure → <AC>\extension\config-ext\pure
+│       ├── system/cfg/video.ini      → <AC>\system\cfg\video.ini
+│       └── apps/python/UHM_HUD/…     → <AC>\apps\python\UHM_HUD\…
+└── addons/
+    └── hud-gas/
+        ├── mod.json                  ← نام/توضیح/نسخه (اختیاری)
+        ├── preview.png               ← عکس کارت در برنامه
+        └── files/apps/python/GasHUD/ → <AC>\apps\python\GasHUD\
 ```
 
-### پشتیبانی از آرشیو
-
-اگر در فایل تعریف مود `type: "extract"` باشد، به‌جای پوشه می‌توانید فایل‌های زیر را در `src/assets/mod-files/<mod-id>` قرار دهید:
-
-- `.zip`
-- `.rar`
-- `.cbr`
-
-در این حالت موتور نصب، آرشیو را استخراج و سپس بکاپ‌گیری و نصب را انجام می‌دهد.
+- پک گرافیکی به‌عنوان **یک واحد** نصب می‌شود؛ پوشه‌ی سطح انتخابی روی `common/` می‌نشیند.
+- افزونه‌ها از صفحه‌ی **«مودهای جانبی»** جداگانه نصب/حذف می‌شوند (کارت عکس‌دار از `preview.png`).
+- آرشیو ZIP/RAR داخل `mods/` پشتیبانی نمی‌شود — همیشه اکسترکت‌شده بریزید.
 
 ---
 
@@ -259,15 +247,16 @@ App/
 │   ├── capabilities/default.json
 │   └── src/
 │       ├── main.rs / lib.rs    ← ثبت دستورات IPC و راه‌اندازی
-│       ├── installer.rs        ← موتور نصب، بکاپ، مانیفست
+│       ├── installer.rs        ← موتور نصب (پک ۵ سطحی + افزونه‌ها)، بکاپ
+│       ├── catalog.rs          ← خواندن افزونه‌ها (mod.json, preview.png)
 │       ├── archive.rs          ← ZIP + RAR (با رمز) از طریق crate‌های zip/unrar
 │       ├── library.rs          ← تشخیص Steam/AC، libraryfolders.vdf
 │       ├── hardware.rs         ← تشخیص CPU/RAM/GPU و پیشنهاد سطح
 │       └── preview.rs          ← پیش‌نمایش تصاویر
-├── mod-files/                  ← فایل‌های واقعی مودها (به‌عنوان resource باندل می‌شود)
+├── mods/                       ← محتوا (resource): graphics/<tier>/ + addons/<id>/
 ├── docs/build.yml.example      ← ورک‌فلو GitHub Actions (کپی به .github/workflows/)
 ├── RELEASE-GUIDE.md            ← راهنمای ساخت exe
-├── MOD-FILES-GUIDE.md          ← راهنمای دقیق جای‌گذاری مودها (۵ سطح) و ساخت exe
+├── MODS-GUIDE.md          ← راهنمای دقیق جای‌گذاری مودها (۵ سطح) و ساخت exe
 ├── package.json                ← اسکریپت‌ها (dev/build/check)
 ├── package-lock.json           ← وابستگی‌های قفل‌شده
 ├── README.md
@@ -296,7 +285,8 @@ App/
 │   │   ├── tierSelect.js       ← مرحله ۳: انتخاب سطح
 │   │   ├── install.js          ← مرحله ۴: نصب خودکار
 │   │   ├── done.js             ← مرحله ۵: پایان
-│   │   └── manageMods.js       ← مدیریت/حذف مودها
+│   │   ├── manageMods.js       ← مدیریت/حذف مودها
+│   │   └── addons.js           ← افزونه‌های جانبی (کارت‌های عکس‌دار، نصب/حذف)
 │   └── assets/
 │       ├── fonts/              ← Vazirmatn (Regular/Medium/Bold/ExtraBold/Black)
 │       └── images/             ← لوگو، پس‌زمینه، اسکرین‌شات‌ها، سطوح (همه WebP)
@@ -383,7 +373,7 @@ RENDERER TESTS PASSED
 Visual Studio Build Tools با workload «Desktop development with C++» لازم است. بعد از نصب، ترمینال را دوباره باز کنید.
 
 ### ۲. برنامه می‌گوید «فایل مود موجود نیست»
-فایل‌های مود را در پوشه‌ی صحیح `mod-files/<mod-id>` قرار دهید. ببینید جدول بالا.
+فایل‌های مود را در `mods/graphics/<سطح>/` قرار دهید. ببینید جدول بالا.
 
 ### ۳. مسیر دستی را می‌گیرد ولی خطای «acs.exe پیدا نشد» می‌دهد
 پوشه‌ی **ریشه‌ی نصب Assetto Corsa** را انتخاب کنید (جایی که `acs.exe` یا `assettocorsa.exe` در آن است)، نه پوشه‌ی `steamapps` یا پوشه‌ی `content`.
@@ -434,7 +424,7 @@ WebView2 Runtime نصب نیست: https://go.microsoft.com/fwlink/p/?LinkId=2124
 
 ## 🗺 نقشه‌ی راه آینده
 
-- [ ] افزودن فایل‌های واقعی مودها به پوشه‌های `mod-files`
+- [ ] افزودن فایل‌های واقعی پک به `mods/graphics/<سطح>/`
 - [ ] انتخاب نسخه‌ی PURE و گزینه‌های پیشرفته‌ی کاربر
 - [ ] صفحه‌ی تاریخچه‌ی نصب و پشتیبان‌های چند نسخه‌ای
 - [ ] امضای کد (Code Signing) برای توزیع Windows

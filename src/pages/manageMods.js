@@ -69,7 +69,7 @@
 
   function renderModCard(id, entries) {
     const latest = entries[0] || entries[entries.length - 1] || {};
-    const name = MOD_LABEL[id] || id;
+    const name = window.modDisplayName ? window.modDisplayName(id) : (MOD_LABEL[id] || id);
     const installedCount = Array.isArray(latest.files) ? latest.files.length : 0;
     const status = latest.status || 'missing';
     const tierValue = latest.tier ? t('tierSelect.' + latest.tier) : '—';

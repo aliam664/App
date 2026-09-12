@@ -1060,3 +1060,41 @@ body[dir='ltr'] .contact-row:hover { transform: translateX(3px); }
 .drop-overlay-icon { font-size: 54px; }
 .drop-overlay-title { font-size: 22px; font-weight: 800; color: var(--color-text); }
 .drop-overlay-sub { font-size: 13px; color: var(--color-text-dim); }
+
+/* ================================================================= */
+/*  Add-ons page                                                      */
+/* ================================================================= */
+.addons-wrap { gap: 18px; }
+.addons-nopath { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-color: rgba(255,194,75,.35); }
+.addons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.addons-loading { padding: 24px; text-align: center; grid-column: 1 / -1; }
+.addon-card {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--color-card-bg); border: 1px solid var(--color-card-border); border-radius: 16px;
+  box-shadow: var(--shadow-soft); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.addon-card:hover { transform: translateY(-3px); border-color: var(--color-accent-2); box-shadow: 0 12px 30px rgba(30,144,255,.15); }
+.addon-card.is-installed { border-color: rgba(61,220,132,.35); }
+.addon-card.is-unavailable { opacity: .72; }
+.addon-media { position: relative; aspect-ratio: 16 / 9; background: rgba(0,0,0,.25); overflow: hidden; }
+.addon-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+.addon-card:hover .addon-img { transform: scale(1.04); }
+.addon-img-placeholder {
+  display: flex; align-items: center; justify-content: center; font-size: 42px; font-weight: 900;
+  color: var(--color-accent-2); background: linear-gradient(135deg, var(--color-accent-soft), rgba(0,0,0,.2));
+}
+.addon-badge { position: absolute; top: 10px; inset-inline-start: 10px; }
+.addon-body { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 6px; flex: 1; }
+.addon-name { font-size: 15px; font-weight: 800; }
+.addon-desc { font-size: 12.5px; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.addon-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.addon-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; }
+.addon-paths { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.addon-installed-at { font-size: 11px; }
+.addon-actions { display: flex; gap: 8px; padding: 10px 16px 16px; }
+.addon-actions .btn-primary, .addon-actions .btn-secondary { flex: 1; }
+.addon-progress { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.addon-progress-text { font-size: 11px; direction: ltr; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-danger-soft { color: var(--color-error); border-color: rgba(255,91,110,.35); }
+.btn-danger-soft:hover { background: rgba(255,91,110,.12); }
+.install-current-file { margin-top: 6px; font-size: 11px; direction: ltr; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; }

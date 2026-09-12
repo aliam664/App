@@ -143,6 +143,18 @@
     },
     async cancelInstall() { return true; },
     async runUninstall() { return []; },
+    async getGraphicsInfo() {
+      const tiers = {};
+      ['low', 'medium', 'high', 'veryhigh', 'ultra'].forEach((t) => { tiers[t] = { available: true, fileCount: 42, sizeBytes: 12 * 1024 * 1024 }; });
+      return { tiers, common: { available: true, fileCount: 3, sizeBytes: 2048 } };
+    },
+    async listAddons() {
+      return [
+        { id: 'hud-gas', name: { fa: 'نمایشگر گاز', en: 'Gas HUD' }, description: { fa: 'نمایش زنده‌ی گاز و ترمز', en: 'Live throttle & brake HUD' }, version: '1.2', author: 'UHM', category: 'hud', requires: ['csp'], recommendedTiers: ['high', 'veryhigh', 'ultra'], order: 1, fileCount: 12, sizeBytes: 640 * 1024, available: true, hasMeta: true, previewDataUrl: createDemoPreview('addons/hud-gas/preview.png'), topLevel: ['apps/'] },
+        { id: 'rain-fx', name: { fa: 'افکت باران', en: 'Rain FX' }, description: { fa: '', en: '' }, version: null, author: null, category: 'weather', requires: [], recommendedTiers: ['ultra'], order: 1000, fileCount: 30, sizeBytes: 4 * 1024 * 1024, available: true, hasMeta: false, previewDataUrl: null, topLevel: ['extension/'] },
+        { id: 'empty-addon', name: { fa: 'Empty Addon', en: 'Empty Addon' }, description: { fa: '', en: '' }, version: null, author: null, category: null, requires: [], recommendedTiers: [], order: 1000, fileCount: 0, sizeBytes: 0, available: false, hasMeta: false, previewDataUrl: null, topLevel: [] }
+      ];
+    },
     async listModAssets() { return ['csp', 'pure', 'ppfilter', 'chasecam', 'hud', 'srp', 'video']; },
     onInstallProgress(cb) {
       let cancelled = false;

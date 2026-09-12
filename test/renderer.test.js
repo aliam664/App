@@ -42,6 +42,11 @@ async function bootstrap() {
     runInstall: async (plan) => ({ success: true, mods: plan.mods.map((m) => ({ ...m, status: 'installed', installedFiles: [{ dest: '/x', backupPath: null }] })) }),
     cancelInstall: async () => true,
     runUninstall: async () => [],
+    getGraphicsInfo: async () => ({ tiers: {}, common: { available: false } }),
+    listAddons: async () => ([
+      { id: 'hud-gas', name: { fa: 'نمایشگر گاز', en: 'Gas HUD' }, description: { fa: 'توضیح', en: 'desc' }, version: '1.0', author: 'UHM', category: 'hud', requires: [], recommendedTiers: ['ultra'], order: 1, fileCount: 2, sizeBytes: 100, available: true, hasMeta: true, previewDataUrl: null, topLevel: ['apps/'] },
+      { id: 'empty-addon', name: { fa: 'Empty', en: 'Empty' }, description: { fa: '', en: '' }, version: null, author: null, category: null, requires: [], recommendedTiers: [], order: 1000, fileCount: 0, sizeBytes: 0, available: false, hasMeta: false, previewDataUrl: null, topLevel: [] }
+    ]),
     listModAssets: async () => ['csp', 'pure'],
     onInstallProgress: () => () => {},
     openExternal: () => {},
@@ -106,6 +111,7 @@ async function bootstrap() {
     'src/pages/install.js',
     'src/pages/done.js',
     'src/pages/manageMods.js',
+    'src/pages/addons.js',
     'src/js/libraryData.js',
     'src/pages/library.js',
     'src/pages/modInstall.js',
@@ -237,12 +243,51 @@ async function bootstrap() {
   assert.strictEqual(window.appState.lang, 'ja');
   assert.ok(container.innerHTML.includes('設定'), 'settings should render in Japanese');
 
+  // == صفحه‌ی افزونه‌ها: لیست، نصب، حذف ==
+  window.appState.lang = 'fa';
+  window.appState.settings.gamePath = 'C:/game';
+  window.navigate('addons');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(container.innerHTML.includes('نمایشگر گاز'), 'addons should list add-on with localized name');
+  assert.ok(container.innerHTML.includes('فایل افزونه موجود نیست'), 'addons should flag empty add-on');
+  const installBtn = container.querySelector('[data-action="install"][data-id="hud-gas"]');
+  assert.ok(installBtn && !installBtn.disabled, 'available add-on should be installable');
+  assert.ok(container.querySelector('[data-action="install"][data-id="empty-addon"]').disabled, 'empty add-on must be disabled');
+  installBtn.click();
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(window.appState.manifest.mods['hud-gas'], 'install should record add-on in manifest');
+  assert.strictEqual(window.appState.manifest.mods['hud-gas'][0].kind, 'addon');
+  assert.ok(container.querySelector('[data-action="remove"][data-id="hud-gas"]'), 'installed add-on should offer remove');
+  window.uhmConfirm = async () => true;
+  container.querySelector('[data-action="remove"][data-id="hud-gas"]').click();
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(!window.appState.manifest.mods['hud-gas'], 'remove should drop add-on from manifest');
+  assert.ok(container.querySelector('[data-action="install"][data-id="hud-gas"]'), 'removed add-on should be installable again');
+
+  // == پلن نصب پک گرافیکی: یک واحد + exclude برای CSP نگه‌داشته‌شده ==
+  window.appState.overwriteDecisions = { csp: false, pure: true };
+  window.navigate('tierSelect');
+  await new Promise((r) => setTimeout(r, 30));
+  const ultraCard = container.querySelector('.tier-card[data-tier="ultra"]');
+  assert.ok(ultraCard, 'tier cards should render');
+  ultraCard.click();
+  const continueBtn = container.querySelector('#btn-continue') || container.querySelector('#btn-next') || container.querySelector('.wizard-footer .btn-primary');
+  assert.ok(continueBtn, 'tier select should have a continue button');
+  continueBtn.click();
+  await new Promise((r) => setTimeout(r, 30));
+  const gplan = window.appState.installPlan;
+  assert.ok(gplan && gplan.mods.length === 1 && gplan.mods[0].id === 'graphics', 'plan must contain exactly the graphics pack');
+  assert.strictEqual(gplan.tier, 'ultra');
+  assert.ok(gplan.mods[0].exclude.includes('dwrite.dll'), 'keeping CSP must exclude its paths');
+  assert.ok(!gplan.mods[0].exclude.some((p) => /pure/i.test(p)), 'PURE overwrite=true must not be excluded');
+
   // == تست mock پیش‌نمایش مرورگر (npm run serve) ==
   const { window: pw, document: pd } = parseHTML('<!DOCTYPE html><body></body>');
   pw.localStorage = { getItem: () => null, setItem: () => {} };
   loadScript({ window: pw, document: pd }, 'src/js/browser-preview.js');
   assert.ok(pw.uhm, 'browser preview should define window.uhm when absent');
-  const pv = await pw.uhm.runInstall({ tier: 'high', mods: [{ id: 'csp' }] });
+  const pv = await pw.uhm.runInstall({ tier: 'high', mods: [{ id: 'graphics' }] });
+  assert.ok((await pw.uhm.listAddons()).length >= 2, 'browser preview should list demo add-ons');
   assert.strictEqual(pv.success, true);
   assert.strictEqual(pv.mods.length, 1);
 

@@ -90,6 +90,8 @@
     runInstall: (payload) => invoke('install_run', { payload }),
     cancelInstall: () => invoke('install_cancel'),
     runUninstall: (payload) => invoke('uninstall_run', { payload }),
+    getGraphicsInfo: () => invoke('graphics_info'),
+    listAddons: () => invoke('addons_list'),
 
     // drag-and-drop mod install
     getPathForFile: () => null, // paths come from onDragDropEvent instead

@@ -16,7 +16,7 @@
 
   const MOD_LABEL = window.MOD_LABEL;
 
-  function modLabel(id) { return MOD_LABEL[id] || id; }
+  function modLabel(id) { return window.modDisplayName ? window.modDisplayName(id) : (MOD_LABEL[id] || id); }
 
   function render(container, params) {
     active = true;
@@ -58,6 +58,7 @@
               <div class="install-progress-track"><div class="install-progress-bar" id="install-bar"></div></div>
               <div class="install-progress-text" id="install-progress-text">0 / ${plan.mods.length}</div>
             </div>
+            <div class="install-current-file text-dim" id="install-current-file"></div>
           </div>
         </section>
 
@@ -111,7 +112,7 @@
         <div class="stack-gap">
           ${window.ui.infoRow(s('gamePath'), plan.gamePath || '—')}
           ${window.ui.infoRow(s('tier'), tierName, 'accent')}
-          ${window.ui.infoRow(s('modsCount'), plan.mods.length)}
+          ${window.ui.infoRow(s('modsCount'), plan.mods.map((m) => modLabel(m.id)).join(' · '))}
         </div>
       </section>
     `;
@@ -143,6 +144,27 @@
 
   function handleProgress(data) {
     const { done, total, mod } = data;
+    const fileEl = document.getElementById('install-current-file');
+    if (data.stage === 'file') {
+      // File-level progress inside the current mod: drive the bar smoothly
+      // and show the file being copied, without touching the row states.
+      const ft = data.fileTotal || 0;
+      const fd = data.fileDone || 0;
+      const idx = mod && Object.prototype.hasOwnProperty.call(modIndex, mod.id) ? modIndex[mod.id] : -1;
+      if (idx >= 0) setItemState(idx, 'running', `${s('statusRunning')} ${fd}/${ft}`);
+      if (fileEl) fileEl.textContent = data.currentFile ? `${fd} / ${ft} · ${data.currentFile}` : '';
+      const bar = document.getElementById('install-bar');
+      const percent = document.getElementById('install-percent');
+      const base = total > 0 ? ((done - 1) / total) : 0;
+      const frac = ft > 0 ? (fd / ft) / Math.max(total, 1) : 0;
+      const pct = Math.min(99, Math.round((base + frac) * 100));
+      if (bar) bar.style.width = pct + '%';
+      if (percent) percent.textContent = pct + '%';
+      const statusTitle = document.getElementById('install-status-title');
+      if (statusTitle) statusTitle.textContent = s('title');
+      return;
+    }
+    if (fileEl && data.stage !== 'start') fileEl.textContent = '';
     if (mod && mod.id) {
       const idx = currentResults.findIndex((r) => r.id === mod.id);
       if (idx === -1) currentResults.push(mod); else currentResults[idx] = mod;

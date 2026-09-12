@@ -96,13 +96,13 @@
     return `
       <div class="report-row">
         <span class="report-icon">${MOD_ICON[m.id] || ''}</span>
-        <span class="report-name">${MOD_LABEL[m.id] || m.id}</span>
+        <span class="report-name">${window.modDisplayName ? window.modDisplayName(m.id) : (MOD_LABEL[m.id] || m.id)}</span>
         ${window.ui.statusBadge(label, variant)}
       </div>`;
   }
 
   async function copyReport(details) {
-    const lines = details.map((m) => `${MOD_LABEL[m.id] || m.id}: ${m.status}`).join('\n');
+    const lines = details.map((m) => `${window.modDisplayName ? window.modDisplayName(m.id) : (MOD_LABEL[m.id] || m.id)}: ${m.status}`).join('\n');
     const text = `UHM Install Report\n${new Date().toLocaleString()}\n\n${lines}`;
     let ok = false;
     try {

@@ -9,7 +9,7 @@ const files = [
   'src/js/browser-preview.js', 'src/js/libraryData.js',
   'src/pages/showcase.js', 'src/pages/settings.js', 'src/pages/about.js',
   'src/pages/gamePath.js', 'src/pages/baseModsCheck.js', 'src/pages/tierSelect.js',
-  'src/pages/install.js', 'src/pages/done.js', 'src/pages/manageMods.js',
+  'src/pages/install.js', 'src/pages/done.js', 'src/pages/manageMods.js', 'src/pages/addons.js',
   'src/pages/library.js',
   'src/pages/modInstall.js',
   'src/pages/donate.js',
