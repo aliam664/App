@@ -145,7 +145,7 @@
     if (!confirmed) { busy = false; return; }
 
     btn.disabled = true;
-    const result = await window.uhm.runUninstall({ files: files.map((f) => ({ dest: f.dest, backupPath: f.backupPath })) });
+    const result = await window.uhm.runUninstall({ files: files.map((f) => ({ dest: f.dest, backupPath: f.backupPath, stopAt: (window.appState.settings && window.appState.settings.gamePath) || (window.appState.manifest && window.appState.manifest.gamePath) || null })) });
     const failed = result.some((r) => r.status === 'error');
     if (!failed) {
       delete manifest.mods[modId];

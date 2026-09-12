@@ -363,6 +363,17 @@ pub fn detect_mods(entries: &[Entry]) -> Detected {
         it.files = nfiles.iter().filter(|f| f.starts_with(&prefix)).map(|f| PlanFile { rel: f[prefix.len()..].to_string(), size: size_of(f) }).collect();
     }
 
+    // Detection ran on wrapper-stripped paths, but `source_root` is later
+    // joined onto the *real* archive/folder root (staging dir, RAR entry
+    // names, ui_car.json lookups). Re-attach the wrapper so a mod packed as
+    // `Some Mod v1/content/cars/x` resolves to actual files.
+    if !base.is_empty() {
+        let wrapper = base.trim_end_matches('/');
+        for it in items.iter_mut() {
+            it.source_root = if it.source_root.is_empty() { wrapper.to_string() } else { format!("{wrapper}/{}", it.source_root) };
+        }
+    }
+
     Detected { items, warnings, root: if base.is_empty() { None } else { Some(base) } }
 }
 
@@ -966,6 +977,38 @@ mod tests {
         let d = detect_mods(&list_folder_entries(tmp.path()));
         assert_eq!(d.items[0].kind, "car");
         assert_eq!(d.items[0].source_root, "Some Mod v1/content/cars/x_car");
+        assert_eq!(d.root.as_deref(), Some("Some Mod v1/"));
+        assert_eq!(d.items[0].files.len(), 1);
+    }
+
+    /// A mod zipped inside a wrapper folder must analyze with metadata AND
+    /// install to the real target — this is the most common real-world layout.
+    #[test]
+    fn wrapped_mod_installs_end_to_end() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        let game = tmp.path().join("game");
+        write(&src.join("Cool Pack v2/content/cars/w_car/ui/ui_car.json"), r#"{"name":"Wrapped Car"}"#);
+        write(&src.join("Cool Pack v2/content/cars/w_car/data.acd"), "ACD");
+        write(&game.join("content/cars/.keep"), "");
+
+        let a = analyze_source(src.to_str().unwrap(), Some(game.to_str().unwrap()), None);
+        assert!(a.ok, "{a:?}");
+        let items = a.items.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].display_name, "Wrapped Car", "metadata must resolve through the wrapper");
+        assert_eq!(items[0].target_relative, "content/cars/w_car");
+
+        let raw: Vec<RawItem> = items.iter().map(|i| RawItem {
+            id: Some(i.id.clone()), kind: Some(i.kind.clone()), name: Some(i.name.clone()), car: i.car.clone(),
+            source_root: Some(i.source_root.clone()), files: i.files.iter().map(|f| RawFile { rel: Some(f.rel.clone()), size: Some(f.size as f64) }).collect(),
+        }).collect();
+        let safe = sanitize_install_items(&raw);
+        let backups = tmp.path().join("backups");
+        let out = execute_install(src.to_str().unwrap(), &safe, game.to_str().unwrap(), &backups, None, &|_| {}, &|| false);
+        assert!(out.success, "{out:?}");
+        assert_eq!(fs::read_to_string(game.join("content/cars/w_car/data.acd")).unwrap(), "ACD");
+        assert!(game.join("content/cars/w_car/ui/ui_car.json").exists());
     }
 
     #[test]

@@ -209,7 +209,7 @@
     let result;
     try {
       if (prev) {
-        await window.uhm.runUninstall({ files: (prev.files || []).map((f) => ({ dest: f.dest, backupPath: f.backupPath })) });
+        await window.uhm.runUninstall({ files: (prev.files || []).map((f) => ({ dest: f.dest, backupPath: f.backupPath, stopAt: (window.appState.settings && window.appState.settings.gamePath) || (window.appState.manifest && window.appState.manifest.gamePath) || null })) });
       }
       const tier = (window.appState.manifest && window.appState.manifest.systemTier) || null;
       result = await window.uhm.runInstall({
@@ -250,7 +250,7 @@
     renderGrid();
     let failed = false;
     try {
-      const res = await window.uhm.runUninstall({ files: (prev.files || []).map((f) => ({ dest: f.dest, backupPath: f.backupPath })) });
+      const res = await window.uhm.runUninstall({ files: (prev.files || []).map((f) => ({ dest: f.dest, backupPath: f.backupPath, stopAt: (window.appState.settings && window.appState.settings.gamePath) || (window.appState.manifest && window.appState.manifest.gamePath) || null })) });
       failed = (res || []).some((r) => r.status === 'error');
     } catch (e) {
       failed = true;

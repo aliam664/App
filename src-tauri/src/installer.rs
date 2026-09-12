@@ -398,6 +398,11 @@ pub struct UninstallFile {
     pub dest: Option<String>,
     #[serde(default)]
     pub backup_path: Option<String>,
+    /// Directory that must never be removed by empty-dir pruning (the game
+    /// root). Pruning stops *below* it; when absent, only the file's own
+    /// parent chain up to 3 levels is considered.
+    #[serde(default)]
+    pub stop_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -413,9 +418,11 @@ pub struct UninstallResult {
 /// delete the file we created. Empty directories left behind are pruned.
 pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
     let mut out = Vec::new();
-    let mut touched_dirs: Vec<PathBuf> = Vec::new();
+    // (dir to prune, boundary that must survive)
+    let mut touched_dirs: Vec<(PathBuf, Option<PathBuf>)> = Vec::new();
     for f in files {
         let Some(dest) = f.dest.as_deref().filter(|d| !d.is_empty()) else { continue };
+        let stop_at = f.stop_at.as_deref().filter(|s| !s.is_empty()).map(PathBuf::from);
         let dest_p = Path::new(dest);
         let backup = f.backup_path.as_deref().map(Path::new).filter(|b| b.exists());
         let r: std::io::Result<&str> = (|| {
@@ -429,7 +436,7 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
             } else if dest_p.exists() {
                 fs::remove_file(dest_p)?;
                 if let Some(p) = dest_p.parent() {
-                    touched_dirs.push(p.to_path_buf());
+                    touched_dirs.push((p.to_path_buf(), stop_at.clone()));
                 }
                 Ok("deleted")
             } else {
@@ -442,12 +449,23 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
         }
     }
     // Prune now-empty directories (deepest first) so uninstalling an add-on
-    // does not leave an empty `apps/python/<x>/` skeleton behind.
-    touched_dirs.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+    // does not leave an empty `apps/python/<x>/` skeleton behind. Pruning
+    // never removes `stop_at` (the game root) or anything above it; without
+    // a boundary it climbs at most 3 levels, so a stray record can never
+    // delete a user's top-level folder.
+    touched_dirs.sort_by_key(|(p, _)| std::cmp::Reverse(p.components().count()));
     touched_dirs.dedup();
-    for d in touched_dirs {
+    for (d, stop_at) in touched_dirs {
         let mut cur = Some(d);
+        let mut hops = 0;
         while let Some(p) = cur {
+            if let Some(stop) = &stop_at {
+                if !is_within(stop, &p) || crate::util::lexical_normalize(&p) == crate::util::lexical_normalize(stop) {
+                    break;
+                }
+            } else if hops >= 3 {
+                break;
+            }
             // Pattern-guard bindings are immutable, so check emptiness first.
             let is_empty = match fs::read_dir(&p) {
                 Ok(mut it) => it.next().is_none(),
@@ -456,6 +474,7 @@ pub fn uninstall_files(files: &[UninstallFile]) -> Vec<UninstallResult> {
             if !is_empty || fs::remove_dir(&p).is_err() {
                 break;
             }
+            hops += 1;
             cur = p.parent().map(Path::to_path_buf);
         }
     }
@@ -542,7 +561,7 @@ mod tests {
         assert_eq!(fs::read_to_string(v.backup_path.as_ref().unwrap()).unwrap(), "user-original");
 
         // Uninstall restores the user's original and deletes the new file.
-        let files: Vec<UninstallFile> = out2.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone() }).collect();
+        let files: Vec<UninstallFile> = out2.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone(), stop_at: Some(e.game.to_string_lossy().to_string()) }).collect();
         let res = uninstall_files(&files);
         assert!(res.iter().any(|r| r.status == "restored"));
         assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "user-original");
@@ -598,7 +617,7 @@ mod tests {
         assert!(!e.game.join("preview.png").exists());
         assert!(e.game.join("apps/python/GasHUD/GasHUD.py").exists());
 
-        let files: Vec<UninstallFile> = out.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone() }).collect();
+        let files: Vec<UninstallFile> = out.mods[0].installed_files.iter().map(|f| UninstallFile { dest: Some(f.dest.clone()), backup_path: f.backup_path.clone(), stop_at: Some(e.game.to_string_lossy().to_string()) }).collect();
         let res = uninstall_files(&files);
         assert!(res.iter().all(|r| r.status == "deleted"));
         assert!(!e.game.join("apps").exists(), "empty dirs must be pruned");
