@@ -12,6 +12,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-show",
+    "core:window:allow-set-focus",
     "core:event:default",
     "dialog:allow-open",
     "opener:allow-open-url",

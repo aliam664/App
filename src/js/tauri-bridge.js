@@ -111,6 +111,16 @@
     runtime: 'tauri'
   };
 
+  // Reveal the window only after the first paint (Electron's ready-to-show).
+  function revealWindow() {
+    try {
+      const w = tauri.window && tauri.window.getCurrentWindow ? tauri.window.getCurrentWindow() : null;
+      if (w) requestAnimationFrame(() => { w.show().catch(() => {}); w.setFocus && w.setFocus().catch(() => {}); });
+    } catch (e) { /* ignore */ }
+  }
+  if (document.readyState === 'complete') revealWindow();
+  else window.addEventListener('load', revealWindow, { once: true });
+
   // Flush a drop that happened before app.js defined navigate().
   document.addEventListener('DOMContentLoaded', () => {
     if (droppedPaths.pending && typeof window.navigate === 'function') {

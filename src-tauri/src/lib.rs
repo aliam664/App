@@ -107,9 +107,10 @@ fn has_ac_exe(dir: &Path) -> bool { dir.join("acs.exe").exists() || dir.join("as
 
 #[tauri::command]
 async fn game_browse_path(app: AppHandle) -> Option<String> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog().file().set_title("پوشه‌ی نصب Assetto Corsa را انتخاب کنید").pick_folder(move |p| { let _ = tx.send(p); });
-    rx.recv().ok().flatten().and_then(|p| p.into_path().ok()).map(|p| p.to_string_lossy().to_string())
+    let mut dlg = app.dialog().file().set_title("پوشه‌ی نصب Assetto Corsa را انتخاب کنید");
+    if let Some(w) = app.get_webview_window("main") { dlg = dlg.set_parent(&w); }
+    tauri::async_runtime::spawn_blocking(move || dlg.blocking_pick_folder()).await.ok().flatten()
+        .and_then(|p| p.into_path().ok()).map(|p| p.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -279,13 +280,12 @@ fn mods_cancel(state: State<AppState>) -> bool { state.mod_install_cancelled.sto
 
 #[tauri::command]
 async fn mods_pick_file(app: AppHandle) -> Option<Vec<String>> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog().file()
+    let mut dlg = app.dialog().file()
         .set_title("انتخاب فایل مود (ZIP / RAR)")
         .add_filter("Mod archives", &["zip", "rar", "7z", "cbr"])
-        .add_filter("All files", &["*"])
-        .pick_files(move |p| { let _ = tx.send(p); });
-    let files = rx.recv().ok().flatten()?;
+        .add_filter("All files", &["*"]);
+    if let Some(w) = app.get_webview_window("main") { dlg = dlg.set_parent(&w); }
+    let files = tauri::async_runtime::spawn_blocking(move || dlg.blocking_pick_files()).await.ok().flatten()?;
     let out: Vec<String> = files.into_iter().filter_map(|f| f.into_path().ok()).map(|p| p.to_string_lossy().to_string()).collect();
     if out.is_empty() { None } else { Some(out) }
 }
@@ -434,7 +434,15 @@ pub fn run() {
             };
             ensure_user_data_files(&state, app.package_info().version.to_string().as_str());
             app.manage(state);
-            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); }
+            // Like Electron's `ready-to-show`: the frontend reveals the window
+            // once it has rendered (tauri-bridge.js). This is only a safety net
+            // so the app never stays invisible if that script fails.
+            if let Some(w) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(2500));
+                    if !w.is_visible().unwrap_or(true) { let _ = w.show(); }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
