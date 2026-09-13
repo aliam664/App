@@ -1,6 +1,6 @@
 # RAR test fixtures
 
-Small RAR archives used by `test/modInstaller.test.js` to exercise the
+Small RAR archives used by the Rust archive and installer tests (`src-tauri/src/archive.rs`, `mod_installer.rs`) to exercise the
 drag-and-drop installer's RAR support, including password handling.
 
 All files are taken from the MIT-licensed

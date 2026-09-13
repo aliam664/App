@@ -1,452 +1,99 @@
 <div align="center">
 
-# 🏁 UHM Pack Installer
+<img src="src-tauri/icons/128x128@2x.png" width="96" alt="UHM Pack Installer" />
 
-### نصب‌کننده‌ی خودکار و حرفه‌ای مودهای گرافیکی UHM برای Assetto Corsa
+# UHM Pack Installer
 
-ساخته‌شده با **Tauri 2 + Rust** · **JavaScript خالص** · **فونت وزیرمتن** · **دوزبانه فارسی/انگلیسی**
+**The official graphics-pack and content installer for Assetto Corsa.**
 
-![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-stable-DEA584?style=flat-square&logo=rust&logoColor=white)
-![Size](https://img.shields.io/badge/Installer-~6%20MB-2ea44f?style=flat-square)
-![Node](https://img.shields.io/badge/Node.js-18%2B-3C873A?style=flat-square&logo=node.js&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)
-![i18n](https://img.shields.io/badge/i18n-FA%2FEN-1E90FF?style=flat-square)
-![License](https://img.shields.io/badge/License-Unlicensed-9B9B9B?style=flat-square)
+[![Build & Test](https://github.com/aliam664/App/actions/workflows/build.yml/badge.svg)](https://github.com/aliam664/App/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/aliam664/App?label=release&color=006EFB)](https://github.com/aliam664/App/releases/latest)
+[![Installer size](https://img.shields.io/github/downloads/aliam664/App/latest/total?label=downloads&color=0087FD)](https://github.com/aliam664/App/releases/latest)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey)
+![Stack](https://img.shields.io/badge/built%20with-Tauri%202%20%C2%B7%20Rust-black)
 
-<img src="src/assets/images/logo.webp" alt="UHM" width="180" />
+[**Download**](https://github.com/aliam664/App/releases/latest) · [Administrator guide](ADMIN-GUIDE.md) · [Design system](docs/DESIGN.md) · [Report an issue](https://github.com/aliam664/App/issues)
 
 </div>
 
 ---
 
-### 🖼 پیش‌نمایش رابط کاربری
+## Overview
 
-<p align="center">
-  <img src="src/assets/images/showcase/02.webp" alt="نمای اولیه‌ی برنامه" width="700" />
-</p>
+UHM Pack Installer delivers a curated, five-tier graphics package (CSP, Pure, PP filters, HUD and camera presets) to Assetto Corsa in a single guided flow. It detects the player's hardware, recommends a tier, backs up every file it touches, and can revert the installation completely. A drag-and-drop installer for third-party content (cars, tracks, skins, apps, PP filters — ZIP and encrypted RAR) and a content library round out the tool.
 
----
+The application is a native Windows executable of approximately **4 MB**, built with Tauri 2 and a Rust core. It has no runtime dependencies beyond Microsoft Edge WebView2, which is installed silently when absent.
 
-## 📖 این ابزار چه کاری انجام می‌دهد؟
+## Features
 
-**UHM Pack Installer** یک برنامه‌ی دسکتاپ برای ویندوز است که فرایند نصب مودهای گرافیکی **UHM** روی بازی **Assetto Corsa** را به‌صورت کاملاً خودکار و مرحله‌به‌مرحله انجام می‌دهد:
-
-- مسیر نصب بازی را تشخیص می‌دهد (دستی یا خودکار از Steam).
-- فایل‌های پایه‌ی **CSP** و **PURE** را بررسی می‌کند.
-- سطح سیستم (کم / متوسط / بالا / خیلی بالا / اولترا) را از کاربر می‌گیرد.
-- مودها را با **پشتیبان‌گیری خودکار (Backup)** نصب می‌کند.
-- امکان **حذف/بازگردانی** مودها را از یک صفحه‌ی مدیریت ساده فراهم می‌کند.
-- رابط کاربری فارسی و انگلیسی با پشتیبانی کامل RTL/LTR دارد.
-
-> ⚠️ **نکته‌ی مهم:** برنامه «قاب نصب» و «موتور نصب» را کامل پیاده‌سازی کرده، اما **فایل‌های واقعی مودها** (فایل‌های CSP، PURE، فیلترها و …) باید توسط شما داخل پوشه‌ی `mods/` قرار بگیرد (پک ۵ سطحی در `mods/graphics/<سطح>/` و افزونه‌ها در `mods/addons/`؛ راهنمای کامل: [MODS-GUIDE.md](MODS-GUIDE.md)). تا وقتی فایلی وجود نداشته باشد، نصب به‌صورت امن با وضعیت **«⚠️ فایل مود موجود نیست»** متوقف می‌شود و برنامه از کار نمی‌افتد.
-
----
-
-## ✨ امکانات
-
-### 🎨 رابط کاربری و طراحی
-- ✅ پنجره‌ی فریم‌لس (Frameless)، گردگوشه و قابل تغییر اندازه
-- ✅ تم **شب / روز** با ذخیره‌ی خودکار
-- ✅ فونت **Vazirmatn** به‌صورت آفلاین (بدون نیاز به اینترنت)
-- ✅ صفحه‌ی Showcase با اسلایدشو و نقطه‌های تعاملی
-- ✅ انیمیشن‌های نرم ورود صفحات، Hover و اسلایدشو
-- ✅ Toast و Modal سفارشی برای پیام‌ها و تأییدها
-- ✅ پشتیبانی کامل RTL (فارسی) و LTR (انگلیسی)
-
-### ⚙️ عملکردی
-- ✅ تشخیص خودکار مسیر Steam روی **همه‌ی درایوها** + خواندن `libraryfolders.vdf`
-- ✅ اعتبارسنجی مسیر (`acs.exe` یا `assettocorsa.exe` + پوشه‌ی `content`)
-- ✅ بررسی وجود **CSP** و **PURE** و تصمیم برای بازنویسی
-- ✅ انتخاب ۵ سطح سیستم (Low / Medium / High / VeryHigh / Ultra)
-- ✅ نصب خودکار با نوار پیشرفت، گزارش زنده و دکمه‌ی انصراف
-- ✅ موتور نصب **ZIP / RAR / CBR** و کپی پوشه‌ی تودرتو
-- ✅ بکاپ‌گیری از فایل‌های موجود قبل از بازنویسی
-- ✅ مدیریت و حذف مودها با بازگردانی بکاپ
-- ✅ مانیفست نصب (`manifest.json`) برای پیگیری وضعیت مودها
-
-### 🔒 امنیت (Tauri)
-- ✅ فرانت‌اند هیچ دسترسی مستقیمی به فایل‌سیستم/شبکه ندارد؛ فقط از طریق دستورات `#[tauri::command]` در Rust
-- ✅ دسترسی‌ها با **Capabilities** (`src-tauri/capabilities/default.json`) به حداقل محدود شده
-- ✅ پل `window.uhm` در `src/js/tauri-bridge.js` (فقط توابع whitelist‌شده)
-- ✅ محدودسازی مسیر مقصد داخل پوشه‌ی بازی (`isWithin`)
-- ✅ باز کردن لینک خارجی فقط با پروتکل `http/https`
-- ✅ افزودن `Content-Security-Policy`
-
----
-
-## 🛠 پیش‌نیازها
-
-| مورد | نسخه | توضیح |
-|---|---|---|
-| **Windows** | 10 یا 11 | هدف اصلی نرم‌افزار |
-| **Node.js** | 18 یا بالاتر | فقط برای توسعه/بیلد |
-| **Rust + VS Build Tools** | stable | فقط برای توسعه/بیلد ([rustup.rs](https://rustup.rs)) |
-| **WebView2** | — | روی Win10/11 از قبل نصب است؛ در غیر این صورت نصب‌کننده خودش دانلود می‌کند |
-| **Assetto Corsa** | نسخه‌ی Steam | برای نصب مودها |
-| **فایل‌های مود UHM** | — | داخل `mods/` (ریشه‌ی پروژه) — راهنمای دقیق: [MODS-GUIDE.md](MODS-GUIDE.md) |
-
-> نکته: اگر فقط می‌خواهید UI را ببینید، می‌توانید بدون نصب Rust از حالت **Browser Preview** استفاده کنید (پایین‌تر توضیح داده شده).
-
----
-
-## 🚀 نصب و اجرا
-
-### ۱. دریافت پروژه
-
-```bash
-git clone https://github.com/aliam664/App.git
-cd App
-```
-
-> اگر از GitHub استفاده نمی‌کنید، می‌توانید فایل‌های پروژه را دانلود و در یک پوشه استخراج کنید.
-
-### ۲. نصب وابستگی‌ها
-
-```bash
-npm install
-```
-
-فقط دو بسته‌ی توسعه نصب می‌شود:
-
-- `@tauri-apps/cli` — اجرای dev و ساخت نصب‌کننده
-- `linkedom` — فقط برای تست‌های فرانت‌اند
-
-وابستگی‌های هسته (Rust) را Cargo هنگام اولین بیلد می‌گیرد: `zip`, `unrar`, `sysinfo`, `image`, `walkdir`, `serde` و پلاگین‌های Tauri.
-
-### ۳. اجرای برنامه در حالت توسعه
-
-```bash
-npm run dev
-```
-
-پنجره‌ی UHM Pack Installer با بک‌اند Rust باز می‌شود (اولین اجرا چند دقیقه کامپایل می‌کند).
-
-#### ساخت فایل نصبی:
-
-```bash
-npm run build
-```
-
-خروجی: `src-tauri/target/release/bundle/nsis/UHM Pack Installer_2.0.0_x64-setup.exe` (حدود ۵–۸ مگابایت). جزئیات در [RELEASE-GUIDE.md](RELEASE-GUIDE.md).
-
-### ۴. پیش‌نمایش رابط کاربری در مرورگر
-
-اگر Rust نصب ندارید یا فقط می‌خواهید ظاهر برنامه را ببینید:
-
-```bash
-npm run serve
-```
-
-سپس در مرورگر باز کنید:
-
-```
-http://localhost:4173
-```
-
-این حالت از یک **شبیه‌ساز (Mock)** برای `window.uhm` استفاده می‌کند، پس می‌توانید همه‌ی مراحل ویزارد را بدون نصب واقعی مودها تجربه کنید.
-
----
-
-## 📦 ساخت فایل نصبی (EXE)
-
-```bash
-npm run dist
-```
-
-خروجی در پوشه‌ی `dist/` ساخته می‌شود:
-
-```
-dist/UHM Pack Installer-1.0.0-x64.exe
-```
-
-ویژگی‌های بیلد:
-
-- تارگت: **NSIS** (نصب‌کننده‌ی استاندارد ویندوز)
-- امکان انتخاب پوشه‌ی نصب
-- ایجاد میان‌بر روی دسکتاپ و منوی استارت
-- آیکون برنامه: `src/assets/images/icon.ico`
-- فونت‌ها به‌صورت آفلاین همراه app بسته‌بندی می‌شوند
-- فایل‌های مود از `asar` خارج می‌شوند (`asarUnpack`)
-
----
-
-## 🧭 استفاده از برنامه (مراحل ویزارد)
-
-نرم‌افزار به‌صورت یک ویزارد ۵ مرحله‌ای کار می‌کند:
-
-```
-شروع (Showcase)
-   │
-   ▼
-① انتخاب مسیر بازی
-   │  (مرور دستی / جستجوی خودکار Steam)
-   ▼
-② بررسی فایل‌های پایه
-   │  (CSP / PURE + تصمیم بازنویسی)
-   ▼
-③ انتخاب سطح سیستم
-   │  (کم / متوسط / بالا / خیلی بالا / اولترا)
-   ▼
-④ نصب خودکار مودها
-   │  (نوار پیشرفت + گزارش + انصراف + بکاپ)
-   ▼
-⑤ صفحه‌ی پایان
-   │
-   └──> مدیریت مودها (حذف / بازگردانی)
-```
-
-### جزئیات هر مرحله
-
-| مرحله | توضیح |
+| Area | Capability |
 |---|---|
-| **شروع** | اسلایدشوی تصاویر مودها + دکمه‌ی «شروع نصب» و در صورت وجود مود نصب‌شده، دکمه‌ی «مدیریت مودها» |
-| **انتخاب مسیر** | انتخاب دستی پوشه‌ی بازی یا جستجوی خودکار در همه‌ی درایوها و کتابخانه‌های Steam |
-| **بررسی پایه** | تشخیص نصب قبلی CSP و PURE؛ اگر موجود باشند، از کاربر می‌پرسد بازنویسی شود یا حفظ شود |
-| **انتخاب سطح** | ۵ کارت با آیکون و توضیح (Low → Ultra)؛ انتخاب با کلیک |
-| **نصب** | کپی/اکسترکت هر مود + بکاپ‌گیری از فایل‌های موجود + گزارش زنده |
-| **پایان** | نمایش تعداد مود نصب‌شده، سطح و تعداد مودهای بدون فایل |
-| **مدیریت** | لیست مودها با تاریخ، سطح، تعداد فایل و دکمه‌ی حذف/بازگردانی |
+| **Graphics pack** | Five quality tiers (`low` → `ultra`); automatic hardware detection (GPU, VRAM, RAM, CPU) with a recommended tier; optional preservation of a user's existing CSP / Pure installation |
+| **Safety** | First-write backups of every overwritten file; one-click uninstall that restores originals; strict path containment — nothing is ever written outside the game folder |
+| **Add-ons** | Optional apps and extensions with preview, description and per-item install / remove |
+| **Content installer** | Drag-and-drop ZIP / RAR (including password-protected RAR); detects cars, tracks, skins, apps, PP filters, fonts, weather; handles wrapper folders |
+| **Library** | Browse installed cars and tracks with search, filters, previews and a recycle bin |
+| **Interface** | Persian (RTL) and English; night and day themes; motorsport-inspired design system; respects `prefers-reduced-motion` |
 
----
+## Requirements
 
-## 📂 محل قرار دادن فایل‌های مودها
+- Windows 10 or Windows 11, 64-bit
+- Assetto Corsa (Steam)
+- Microsoft Edge WebView2 Runtime — installed automatically if missing
 
-پک گرافیکی هر سطح داخل `mods/graphics/<low|medium|high|veryhigh|ultra>/` و افزونه‌ها داخل `mods/addons/<id>/files/` قرار می‌گیرند. هر پوشه **آینه‌ی پوشه‌ی بازی** است و عیناً روی ریشه‌ی بازی کپی می‌شود (با بکاپ). راهنمای کامل: [MODS-GUIDE.md](MODS-GUIDE.md).
+## Installation
+
+1. Download `UHM.Pack.Installer_<version>_x64-setup.exe` from the [latest release](https://github.com/aliam664/App/releases/latest).
+2. Run the installer. If Windows SmartScreen appears, choose **More info → Run anyway** (the binary is not code-signed).
+3. Launch **UHM Pack Installer**, confirm the detected game folder, and follow the on-screen steps.
+
+> [!NOTE]
+> Application data (settings, install manifest, backups, recycle bin) is stored in `%APPDATA%\com.uhm.packinstaller`. Removing this folder does **not** affect your game.
+
+> [!IMPORTANT]
+> Uninstalling the graphics pack from within the application restores your original files. Uninstalling the *program* via Windows does not touch the game folder.
+
+## Repository layout
 
 ```text
-mods/
-├── graphics/
-│   ├── common/                       ← اختیاری: برای همه‌ی سطح‌ها
-│   └── ultra/                        ← (و low / medium / high / veryhigh)
-│       ├── dwrite.dll                → <AC>\dwrite.dll
-│       ├── extension/config/…        → <AC>\extension\config\…
-│       ├── extension/config-ext/pure → <AC>\extension\config-ext\pure
-│       ├── system/cfg/video.ini      → <AC>\system\cfg\video.ini
-│       └── apps/python/UHM_HUD/…     → <AC>\apps\python\UHM_HUD\…
-└── addons/
-    └── hud-gas/
-        ├── mod.json                  ← نام/توضیح/نسخه (اختیاری)
-        ├── preview.png               ← عکس کارت در برنامه
-        └── files/apps/python/GasHUD/ → <AC>\apps\python\GasHUD\
+.
+├── src/            Front-end (HTML · CSS · JavaScript) bundled into the app
+├── src-tauri/      Rust core: installer, archive handling, hardware detection, Tauri shell
+├── mods/           Content shipped inside the installer  →  see ADMIN-GUIDE.md
+├── view/           Generated mirror of src/ — open view/index.html in a browser
+├── docs/           Design system and CI workflow template
+├── scripts/        Checks, view sync, CI reporter, local static server
+├── test/           Front-end tests and RAR fixtures
+└── .github/        Build & release workflow
 ```
 
-- پک گرافیکی به‌عنوان **یک واحد** نصب می‌شود؛ پوشه‌ی سطح انتخابی روی `common/` می‌نشیند.
-- افزونه‌ها از صفحه‌ی **«مودهای جانبی»** جداگانه نصب/حذف می‌شوند (کارت عکس‌دار از `preview.png`).
-- آرشیو ZIP/RAR داخل `mods/` پشتیبانی نمی‌شود — همیشه اکسترکت‌شده بریزید.
+## Building from source
 
----
-
-## 🗺 ساختار پروژه
-
-```
-App/
-├── src-tauri/                  ← هسته‌ی Rust (Tauri 2)
-│   ├── tauri.conf.json         ← پنجره، CSP، باندل NSIS، resources
-│   ├── Cargo.toml
-│   ├── capabilities/default.json
-│   └── src/
-│       ├── main.rs / lib.rs    ← ثبت دستورات IPC و راه‌اندازی
-│       ├── installer.rs        ← موتور نصب (پک ۵ سطحی + افزونه‌ها)، بکاپ
-│       ├── catalog.rs          ← خواندن افزونه‌ها (mod.json, preview.png)
-│       ├── archive.rs          ← ZIP + RAR (با رمز) از طریق crate‌های zip/unrar
-│       ├── library.rs          ← تشخیص Steam/AC، libraryfolders.vdf
-│       ├── hardware.rs         ← تشخیص CPU/RAM/GPU و پیشنهاد سطح
-│       └── preview.rs          ← پیش‌نمایش تصاویر
-├── mods/                       ← محتوا (resource): graphics/<tier>/ + addons/<id>/
-├── docs/build.yml.example      ← ورک‌فلو GitHub Actions (کپی به .github/workflows/)
-├── RELEASE-GUIDE.md            ← راهنمای ساخت exe
-├── MODS-GUIDE.md          ← راهنمای دقیق جای‌گذاری مودها (۵ سطح) و ساخت exe
-├── package.json                ← اسکریپت‌ها (dev/build/check)
-├── package-lock.json           ← وابستگی‌های قفل‌شده
-├── README.md
-├── ANALYSIS.md                 ← تحلیل فنی + وضعیت نهایی
-├── scripts/
-│   ├── check.js                ← بررسی سلامت + اجرای تست‌ها
-│   └── serve.js                ← سرور پیش‌نمایش مرورگر
-├── src/
-│   ├── index.html              ← نقطه‌ی شروع رابط کاربری
-│   ├── css/
-│   │   ├── base.css            ← تم، فونت، دکمه، Toast، Modal، انیمیشن
-│   │   └── pages.css           ← استایل صفحات
-│   ├── js/
-│   │   ├── tauri-bridge.js     ← پل window.uhm → دستورات Rust (invoke/listen)
-│   │   ├── browser-preview.js  ← شبیه‌ساز window.uhm برای مرورگر
-│   │   ├── i18n.js             ← ترجمه‌ی متمرکز فارسی/انگلیسی
-│   │   ├── utils.js            ← توابع کمکی (escape، Toast، Confirm، تاریخ)
-│   │   ├── modConfig.js        ← تعریف ۷ مود + سطوح سیستم
-│   │   └── app.js              ← appState، ناوبری با Stack، Bootstrap
-│   ├── pages/
-│   │   ├── showcase.js         ← صفحه‌ی اصلی + اسلایدشو
-│   │   ├── settings.js         ← تنظیمات
-│   │   ├── about.js            ← درباره ما
-│   │   ├── gamePath.js         ← مرحله ۱: مسیر بازی
-│   │   ├── baseModsCheck.js    ← مرحله ۲: بررسی CSP/PURE
-│   │   ├── tierSelect.js       ← مرحله ۳: انتخاب سطح
-│   │   ├── install.js          ← مرحله ۴: نصب خودکار
-│   │   ├── done.js             ← مرحله ۵: پایان
-│   │   ├── manageMods.js       ← مدیریت/حذف مودها
-│   │   └── addons.js           ← افزونه‌های جانبی (کارت‌های عکس‌دار، نصب/حذف)
-│   └── assets/
-│       ├── fonts/              ← Vazirmatn (Regular/Medium/Bold/ExtraBold/Black)
-│       └── images/             ← لوگو، پس‌زمینه، اسکرین‌شات‌ها، سطوح (همه WebP)
-├── test/
-│   └── renderer.test.js …      ← اسموک تست رندر صفحات، i18n، داده‌ی کتابخانه
-└── .gitignore
+```powershell
+winget install OpenJS.NodeJS.LTS Rustlang.Rustup Microsoft.VisualStudio.2022.BuildTools
+git clone https://github.com/aliam664/App.git && cd App
+npm ci
+npm run check        # front-end tests + view/ integrity
+npm run test:rust    # Rust core tests
+npm run dev          # run against a copy of your game folder
+npm run build        # → src-tauri/target/release/bundle/nsis/*.exe
 ```
 
----
+Continuous integration builds and tests every push; pushing a tag of the form `v*` publishes a GitHub Release with the signed checksum file.
 
-## 🧪 تست‌ها و بررسی سلامت
+## Security
 
-```bash
-npm run check
-```
+- All destination paths are resolved and verified to remain inside the game directory before any write.
+- Archive entries containing traversal segments are rejected.
+- Directory pruning after uninstall never ascends past the game root.
+- The web view runs with a restrictive Content-Security-Policy; no remote code is loaded.
 
-این دستور چهار کار انجام می‌دهد:
+To report a vulnerability, open a private security advisory or contact the maintainer directly rather than filing a public issue.
 
-1. **بررسی سینتکس** همه‌ی فایل‌های JavaScript
-2. **بررسی وجود فایل‌های ضروری** (فونت‌ها، آیکون‌ها)
-3. **تست واحد موتور نصب** (`test/installer.test.js`)
-   - کپی پوشه‌ی تودرتو
-   - بکاپ‌گیری و بازگردانی
-   - اکسترکت ZIP
-   - مود بدون فایل (Missing)
-   - محدودسازی مسیر (Path Traversal)
-4. **اسموک تست فرانت‌اند** (`test/renderer.test.js`)
-   - بارگذاری اسکریپت‌ها بدون خطا
-   - رندر همه‌ی صفحات
-   - شبیه‌سازی Mock مرورگر برای `npm run serve`
+## Contributing
 
-خروجی مورد انتظار:
+Issues and pull requests are welcome. Please run `npm run check` and `npm run test:rust` before submitting. Visual changes must follow [`docs/DESIGN.md`](docs/DESIGN.md); the `view/` folder is generated — edit `src/` and run `npm run view`.
 
-```
-✔ Syntax & assets OK
-ALL TESTS PASSED
-RENDERER TESTS PASSED
-```
+## License
 
----
-
-## 💾 داده‌ها و تنظیمات ذخیره‌شده
-
-برنامه داده‌های زیر را در پوشه‌ی داده‌ی برنامه ذخیره می‌کند:
-
-```
-%APPDATA%\com.uhm.packinstaller\
-├── settings.json      ← زبان، تم، مسیر بازی
-├── manifest.json      ← وضعیت نصب، سطح، تاریخ، لیست فایل‌های هر مود
-└── backups\           ← بکاپ فایل‌های قبلی پیش از بازنویسی
-```
-
----
-
-## 🎨 فونت و مراجع
-
-### فونت
-این پروژه از فونت **وزیرمتن (Vazirmatn)** استفاده می‌کند که از ریپازیتوری رسمی گیت‌هاب آن دانلود و به‌صورت آفلاین در `src/assets/fonts` باندل شده است.
-
-- **مخزن اصلی:** [github.com/rastikerdar/vazirmatn](https://github.com/rastikerdar/vazirmatn)
-- **مجوز:** SIL Open Font License 1.1
-- فایل‌های استفاده‌شده:
-  - `Vazirmatn-Regular.woff2` (وزن 400)
-  - `Vazirmatn-Medium.woff2` (وزن 500)
-  - `Vazirmatn-Bold.woff2` (وزن 700)
-  - `Vazirmatn-ExtraBold.woff2` (وزن 800)
-  - `Vazirmatn-Black.woff2` (وزن 900)
-
-### کتابخانه‌های مرجع
-
-| کتابخانه | نسخه | مخزن / نقش |
-|---|---|---|
-| [Tauri](https://github.com/tauri-apps/tauri) | 2 | ساخت اپ دسکتاپ (WebView2) |
-| [zip](https://crates.io/crates/zip) | 2 | اکسترکت ZIP (با پشتیبانی رمز) |
-| [unrar](https://crates.io/crates/unrar) | 0.5 | اکسترکت RAR/CBR (با پشتیبانی رمز) |
-| [sysinfo](https://crates.io/crates/sysinfo) | 0.33 | تشخیص سخت‌افزار |
-| [Vazirmatn](https://github.com/rastikerdar/vazirmatn) | v33+ | فونت فارسی |
-
----
-
-## 🛠 عیب‌یابی (Troubleshooting)
-
-### ۱. `npm run dev` خطای `link.exe not found` یا خطای `unrar_sys` می‌دهد
-Visual Studio Build Tools با workload «Desktop development with C++» لازم است. بعد از نصب، ترمینال را دوباره باز کنید.
-
-### ۲. برنامه می‌گوید «فایل مود موجود نیست»
-فایل‌های مود را در `mods/graphics/<سطح>/` قرار دهید. ببینید جدول بالا.
-
-### ۳. مسیر دستی را می‌گیرد ولی خطای «acs.exe پیدا نشد» می‌دهد
-پوشه‌ی **ریشه‌ی نصب Assetto Corsa** را انتخاب کنید (جایی که `acs.exe` یا `assettocorsa.exe` در آن است)، نه پوشه‌ی `steamapps` یا پوشه‌ی `content`.
-
-### ۴. پنجره‌ی برنامه سفید/خالی است
-WebView2 Runtime نصب نیست: https://go.microsoft.com/fwlink/p/?LinkId=2124703
-
-### ۵. نصب RAR کار نمی‌کند
-مطمئن شوید آرشیو واقعاً RAR است. آرشیوهای رمزدار پشتیبانی می‌شوند (رمز پرسیده می‌شود)؛ آرشیوهای چندبخشی (Volume) باید همه‌ی بخش‌ها کنار هم باشند.
-
----
-
-## 🧩 تغییرات اعمال‌شده در این نسخه (Changelog)
-
-- ✅ رفع نشت `setInterval` در اسلایدشو
-- ✅ متمرکزسازی ترجمه‌ها در `i18n.js`
-- ✅ جایگزینی `alert()` با Toast و Modal
-- ✅ تشخیص خودکار مسیر استیم روی همه‌ی درایوها + `libraryfolders.vdf`
-- ✅ پذیرش `acs.exe` یا `assettocorsa.exe`
-- ✅ محدودسازی URL خارجی به `http/https`
-- ✅ ناوبری Stack دار با `goBack`
-- ✅ افزودن فونت Vazirmatn به‌صورت آفلاین
-- ✅ آیکون‌های برنامه در `src-tauri/icons/`
-- ✅ افزودن `.gitignore` و `package-lock.json`
-- ✅ افزودن CSP و محدودسازی Capabilities
-- ✅ صفحات TierSelect / Install / Done / ManageMods
-- ✅ موتور نصب ZIP/RAR + بکاپ/بازگردانی
-- ✅ اسکریپت‌های `serve` و `check`
-- ✅ تست واحد + تست رندر
-- ✅ **v2.0.0:** مهاجرت کامل از Electron به Tauri 2 — حجم نصب‌کننده از ~۸۰ مگ به ~۶ مگ؛ تصاویر به WebP (۱۰ مگ → ۲ مگ)
-
----
-
-## 🤝 مشارکت (Contributing)
-
-برای مشارکت:
-
-1. یک Fork از مخزن بگیرید.
-2. یک برنچ جدید بسازید.
-3. کد را تغییر دهید (ترجیحاً با تمام‌کردن تست‌ها):
-   ```bash
-   npm run check
-   ```
-4. یک Pull Request باز کنید.
-5. در توضیحات، دقیقاً بنویسید چه چیزی تغییر کرده و چرا.
-
----
-
-## 🗺 نقشه‌ی راه آینده
-
-- [ ] افزودن فایل‌های واقعی پک به `mods/graphics/<سطح>/`
-- [ ] انتخاب نسخه‌ی PURE و گزینه‌های پیشرفته‌ی کاربر
-- [ ] صفحه‌ی تاریخچه‌ی نصب و پشتیبان‌های چند نسخه‌ای
-- [ ] امضای کد (Code Signing) برای توزیع Windows
-- [ ] به‌روزرسانی خودکار با `tauri-plugin-updater`
-- [ ] افزودن صفحه‌ی انتخاب مودها (انتخابی نصب شود یا خیر)
-
----
-
-## 📜 مجوز
-
-```
-LICENSE: UNLICENSED
-```
-
-این پروژه برای استفاده‌ی شخصی / تیم UHM ساخته شده است. فایل‌های مود شخص ثالثی که کاربر اضافه می‌کند، تحت مجوزهای خودشان باقی می‌مانند.
-
----
-
-<div align="center">
-
-**ساخته‌شده با 💙 برای جامعه‌ی Assetto Corsa**
-
-[Telegram](https://t.me/Uhm_009) · [کانال](https://t.me/Uhm_009YTC) · [YouTube](https://youtube.com/@uhm_009)
-
-</div>
+Application source © UHM. Bundled third-party content remains the property of its respective authors and is distributed under their terms. Fonts: Vazirmatn, Estedad (SIL OFL), Chakra Petch (SIL OFL), JetBrains Mono (SIL OFL).

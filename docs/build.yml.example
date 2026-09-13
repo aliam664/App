@@ -1,6 +1,6 @@
 # NOTE: This file is documentation because the Arena GitHub App token does not
 # have `workflows` permission. To activate CI, copy it to
-# `.github/workflows/build.yml` (see RELEASE-GUIDE.md, step 1).
+# `.github/workflows/build.yml` (see ADMIN-GUIDE.md §5).
 name: Build & Test
 
 on:
