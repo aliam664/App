@@ -166,19 +166,19 @@ mods/graphics/ultra/
 ### ۵.۲ — تعیین شمارهٔ نسخه
 شمارهٔ نسخه در **سه فایل** باید یکسان باشد:
 `package.json` · `src-tauri/tauri.conf.json` · `src-tauri/Cargo.toml` (فیلد `version`).
-مثلاً `2.0.0` ← `2.1.0`.
+مثلاً `1.0.0` ← `1.1.0`.
 
 ### ۵.۳ — انتشار
 1. **Releases ← Draft a new release**
-2. **Choose a tag** ← بنویسید `v2.1.0` (حتماً با `v` کوچک و هم‌نام با نسخهٔ بالا) ← **Create new tag on publish**
+2. **Choose a tag** ← بنویسید `v1.1.0` (حتماً با `v` کوچک و هم‌نام با نسخهٔ بالا) ← **Create new tag on publish**
 3. **Target:** برنچ اصلی
-4. عنوان: `UHM Pack Installer 2.1.0`؛ توضیحات: تغییرات این نسخه
+4. عنوان: `UHM Pack Installer 1.1.0`؛ توضیحات: تغییرات این نسخه
 5. **Publish release**
 
 با انتشار تگ، Actions به‌طور خودکار:
 - تست‌ها را اجرا می‌کند،
 - EXE ویندوز را می‌سازد،
-- فایل `UHM.Pack.Installer_2.1.0_x64-setup.exe` و `SHA256SUMS.txt` را به همان Release می‌چسباند.
+- فایل `UHM.Pack.Installer_1.1.0_x64-setup.exe` و `SHA256SUMS.txt` را به همان Release می‌چسباند.
 
 ~۱۵ دقیقه بعد صفحهٔ Release را رفرش کنید؛ فایل در بخش **Assets** است.
 

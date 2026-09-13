@@ -1,6 +1,6 @@
 {
   "name": "uhm-pack-installer",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "نصب‌کننده خودکار مودهای گرافیکی UHM برای Assetto Corsa (Tauri)",
   "author": "UHM",
   "license": "UNLICENSED",
