@@ -1,0 +1,28 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+release/
+out/
+*.exe
+
+# Runtime / local
+.DS_Store
+Thumbs.db
+*.log
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Caches
+.cache/
+.tmp/
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/schemas/

@@ -1,0 +1,603 @@
+/* ================================================================= */
+/*  UHM Pack Installer — Theme layer                                  */
+/*                                                                    */
+/*  Loaded last. Re-skins every component against the "pit lane at    */
+/*  night" tokens defined in base.css: tonal surfaces instead of      */
+/*  bordered cards, one accent, squared display type, mono numerals,  */
+/*  and a small, deliberate motion vocabulary.                        */
+/*                                                                    */
+/*  Sections                                                          */
+/*    1. Surfaces & typography                                        */
+/*    2. Shared UI kit (ui.js)                                        */
+/*    3. Home                                                         */
+/*    4. Wizard: game path, base check, tier select                   */
+/*    5. Install & done                                               */
+/*    6. Manage, add-ons, library, mod install                        */
+/*    7. Settings, about, donate                                      */
+/*    8. Motion moments                                               */
+/* ================================================================= */
+
+/* ------------------------------------------------------------------ */
+/*  1. Surfaces & typography                                          */
+/* ------------------------------------------------------------------ */
+
+/* Every "card" becomes a tonal slab: no border, softer radius. Where a
+   border used to carry meaning (state), a 2px inline-start rail is used. */
+.card, .card-sec, .ui-stat, .ui-info-row, .home-tier-card, .home-mod-card,
+.home-ref, .tier-card, .install-item, .content-card, .addon-card,
+.manage-card, .settings-row, .about-faq, .contact-list, .validation-row,
+.gamepath-action, .basecheck-row, .mi-item, .mi-status-row {
+  border-color: transparent;
+  box-shadow: none;
+}
+.card, .card-sec { background: var(--color-surface); border-radius: var(--radius-card); padding: 18px 20px; }
+.card-sec-title { font-family: var(--font-display); font-size: 14.5px; font-weight: 800; }
+
+.ui-section { margin-bottom: 26px; animation: none; }
+.ui-section-head { align-items: flex-end; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--color-hairline); }
+.ui-section-icon { display: none; }
+.ui-section-kicker, .home-section-kicker, .home-kicker {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-accent);
+}
+.ui-section-title, .home-section-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.ui-section-sub, .home-section-sub { font-size: 12.5px; color: var(--color-text-dim); }
+.home-section-head { text-align: start; align-items: flex-start; margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid var(--color-hairline); }
+.home-section-sub { margin: 0; }
+
+/* Mono for paths and numbers everywhere. */
+.home-mod-path-list code, .home-ref code, .path-value, .gamepath-input,
+.install-current-file, .addon-progress-text, .mi-item-meta, .install-log,
+.ui-info-value, .stat-value, .ui-stat-value, .install-percent, .install-progress-text,
+.addon-meta, .content-card-meta, .history-version {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.home-mod-path-list code, .home-ref code {
+  font-size: 10.5px;
+  background: var(--color-surface-2);
+  border: none;
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+body[data-theme='night'] .home-mod-path-list code,
+body[data-theme='night'] .home-ref code { background: rgba(0, 0, 0, 0.28); }
+
+/* ------------------------------------------------------------------ */
+/*  2. Shared UI kit                                                  */
+/* ------------------------------------------------------------------ */
+.ui-stat {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  padding: 16px 18px 14px;
+  border-inline-start: 2px solid var(--color-hairline);
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+.ui-stat:hover { transform: translateY(-2px); border-color: var(--color-text-faint); }
+.ui-stat-value { font-family: var(--font-display-latin); font-size: 26px; font-weight: 700; letter-spacing: 0; animation: uhmCountIn var(--dur-slow) var(--ease-out) both; }
+.ui-stat-label { font-size: 11px; font-weight: 600; color: var(--color-text-dim); letter-spacing: 0.02em; }
+.ui-stat-success { border-inline-start-color: var(--color-success); }
+.ui-stat-warn { border-inline-start-color: var(--color-flag); }
+.ui-stat-danger { border-inline-start-color: var(--color-error); }
+.ui-stat-accent { border-inline-start-color: var(--color-accent); }
+
+.ui-badge, .badge, .mi-badge {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 4px;
+  border: none; background: var(--color-surface-2); color: var(--color-text-dim);
+}
+.ui-badge-ok, .badge-ok, .mi-badge-new { color: var(--color-success); background: var(--color-success-soft); }
+.ui-badge-warn, .badge-warn, .mi-badge-update, .badge-mod { color: var(--color-flag); background: var(--color-flag-soft); }
+.ui-badge-danger { color: var(--color-error); background: var(--color-error-soft); }
+.ui-badge-accent, .badge-kunos { color: var(--color-accent); background: var(--color-accent-soft); }
+.ui-badge-muted, .mi-badge-same { color: var(--color-text-dim); background: var(--color-surface-2); }
+body[data-theme='day'] .ui-badge-warn, body[data-theme='day'] .badge-warn, body[data-theme='day'] .mi-badge-update { color: #8a5a00; }
+
+.ui-chip, .home-chip, .mi-chip {
+  font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 4px;
+  background: var(--color-surface-2); border: none; color: var(--color-text);
+}
+.ui-chip-accent { color: var(--color-accent); background: var(--color-accent-soft); }
+.ui-chip-success { color: var(--color-success); background: var(--color-success-soft); }
+.ui-chip-warn { color: var(--color-flag); background: var(--color-flag-soft); }
+body[data-theme='day'] .ui-chip-warn { color: #8a5a00; }
+
+.ui-info-row { background: var(--color-surface); border-radius: var(--radius-sm); padding: 11px 14px; }
+.ui-info-row + .ui-info-row { margin-top: 0; }
+.stack-gap > .ui-info-row { background: transparent; border-bottom: 1px solid var(--color-hairline); border-radius: 0; padding: 10px 4px; }
+.stack-gap > .ui-info-row:last-child { border-bottom: none; }
+.ui-info-value { font-size: 13px; font-weight: 600; }
+
+.ui-progress-track, .install-progress-track { height: 6px; border-radius: 3px; background: var(--color-surface-3); border: none; overflow: hidden; }
+.ui-progress-bar, .install-progress-bar {
+  height: 100%; border-radius: 3px;
+  background-color: var(--color-accent);
+  background-image: repeating-linear-gradient(-55deg, transparent 0 8px, rgba(255, 255, 255, 0.18) 8px 14px);
+  background-size: 28px 100%;
+  box-shadow: none;
+  transition: width var(--dur-slow) var(--ease-out);
+  animation: uhmStripes 0.9s linear infinite;
+}
+.ui-progress-text { font-family: var(--font-mono); font-size: 11px; }
+
+.ui-empty { padding: 44px 20px; gap: 10px; }
+.ui-empty-title { font-family: var(--font-display); font-size: 16px; font-weight: 800; }
+
+/* Inputs */
+.gamepath-input, .library-search, .mi-password-input {
+  background: var(--color-surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.gamepath-input:focus, .library-search:focus, .mi-password-input:focus {
+  background: var(--color-surface);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.field-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+
+/* Segmented controls */
+.toggle-group, .library-tabs { background: var(--color-surface-2); border: none; border-radius: var(--radius-sm); padding: 3px; }
+.toggle-group button, .library-tab { border-radius: 4px; font-weight: 600; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.toggle-group button.active, .library-tab.active { background: var(--color-accent); color: #fff; box-shadow: none; }
+
+/* ------------------------------------------------------------------ */
+/*  3. Home                                                           */
+/* ------------------------------------------------------------------ */
+.home { gap: 34px; animation: none; }
+.home-brand img { border-radius: 6px; box-shadow: none; width: 44px; height: 44px; }
+.home-brand-title { font-family: var(--font-display); font-size: 19px; font-weight: 900; }
+.home-brand-tagline { font-size: 12px; }
+.home-settings-btn { background: var(--color-surface-2); border: none; border-radius: var(--radius-card); box-shadow: none; }
+.home-settings-btn:hover { transform: translateY(-1px); background: var(--color-surface-3); box-shadow: none; }
+
+.home-slider { border-radius: 10px; clip-path: inset(0 round 10px); border: none; box-shadow: var(--shadow); }
+.home-slider::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(10, 10, 12, 0.55), transparent 45%);
+  pointer-events: none;
+}
+.home-slider-brand {
+  font-family: var(--font-display-latin);
+  font-style: normal; font-weight: 700; letter-spacing: 0.22em; font-size: 12px;
+  text-shadow: none; opacity: .9;
+  padding: 4px 10px; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 3px;
+}
+.home-slider-badge {
+  background: transparent; border: none; padding: 0;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent);
+}
+.home-slider-badge::before { content: ''; width: 18px; height: 2px; background: var(--color-accent); }
+.home-slider-title { font-family: var(--font-display); font-size: 30px; line-height: 1.3; font-weight: 900; }
+.home-slider-sub { font-size: 13px; line-height: 1.9; }
+.home-dots { justify-content: flex-start; gap: 6px; }
+.home-dot { width: 22px; height: 3px; border-radius: 2px; background: var(--color-surface-3); transition: background var(--dur-base) var(--ease-out), width var(--dur-base) var(--ease-out); }
+.home-dot.active { width: 36px; background: var(--color-accent); transform: none; box-shadow: none; }
+
+.home-status-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; }
+.home-status-card { background: var(--color-surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.home-status-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-faint); }
+.home-status-value { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: start; }
+.home-status-tag { font-family: var(--font-display-latin); font-size: 11px; color: var(--color-accent); font-weight: 700; letter-spacing: 0.06em; }
+
+/* Tier cards on home: image-led, name in display type, chips underneath. */
+.home-tiers { gap: 12px; }
+.home-tier-card {
+  background: var(--color-surface); border-radius: var(--radius-card); padding: 0; gap: 0;
+  overflow: hidden; animation: none;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.home-tier-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.home-tier-img { width: 100%; height: 96px; border-radius: 0; border: none; object-fit: cover; filter: saturate(1.05); transition: transform var(--dur-page) var(--ease-out); }
+.home-tier-card:hover .home-tier-img { transform: scale(1.04); }
+.home-tier-badge {
+  margin: 12px 14px 0; padding: 0; border: none; background: transparent;
+  font-family: var(--font-display); font-size: 15px; font-weight: 800;
+}
+.home-tier-badge::before { content: ''; display: inline-block; width: 8px; height: 8px; background: var(--color-accent); border-radius: 2px; margin-inline-end: 8px; transform: rotate(45deg); }
+.home-tier-best, .home-tier-mods { padding: 8px 14px 0; }
+.home-tier-mods { padding-bottom: 14px; }
+.home-tier-best-text { font-size: 12px; }
+
+.home-mods { max-width: none; gap: 1px; background: var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; }
+.home-mod-card { background: var(--color-surface); border-radius: 0; padding: 16px 20px; transition: background var(--dur-fast) var(--ease-out); }
+.home-mod-card:hover { transform: none; background: var(--color-surface-2); }
+.home-mod-name { font-family: var(--font-display); font-size: 14.5px; }
+.home-mod-note { color: var(--color-flag); background: var(--color-flag-soft); border: none; border-radius: 4px; }
+body[data-theme='day'] .home-mod-note { color: #8a5a00; }
+.home-mod-requires { color: var(--color-text-dim); }
+.home-mod-requires .home-kicker { color: var(--color-accent-2); }
+
+.home-refs { max-width: none; gap: 10px; }
+.home-ref { background: var(--color-surface); border-radius: var(--radius-sm); }
+.home-ref:hover { transform: none; background: var(--color-surface-2); }
+
+/* ------------------------------------------------------------------ */
+/*  4. Wizard pages                                                   */
+/* ------------------------------------------------------------------ */
+.gamepath-wrap, .basecheck-wrap, .tier-wrap, .install-wrap, .done-wrap, .settings-list, .manage-list, .library-grid { animation: none; }
+.gamepath-icon { animation: none; filter: none; }
+.gamepath-action { background: var(--color-surface); border-radius: var(--radius-card); transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.gamepath-action:hover { background: var(--color-surface-2); transform: translateY(-2px); }
+.gamepath-action-icon { border-radius: var(--radius-sm); background: var(--color-accent-soft); color: var(--color-accent); }
+.validation-row { background: var(--color-surface-2); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 11.5px; }
+.validation-row.ok { color: var(--color-success); }
+.validation-row.bad { color: var(--color-error); }
+.gamepath-status.valid { color: var(--color-success); }
+.gamepath-status.invalid { color: var(--color-error); }
+
+.basecheck-row { background: var(--color-surface); border-radius: var(--radius-card); border-inline-start: 2px solid var(--color-hairline); }
+.basecheck-row.found { border-inline-start-color: var(--color-success); }
+.basecheck-row.missing { border-inline-start-color: var(--color-flag); }
+.overwrite-box { background: var(--color-surface-2); border: none; border-radius: var(--radius-sm); }
+.overwrite-btn.selected { border-color: transparent; color: #fff; background: var(--color-accent); box-shadow: none; }
+.tier-reason { color: var(--color-text); background: var(--color-flag-soft); border: none; border-inline-start: 2px solid var(--color-flag); border-radius: 4px; }
+
+/* Tier select: the moment of choice. Selected card gets a red rail and the
+   five "start lights" underneath light up to the tier's weight. */
+.tier-grid { max-width: 760px; }
+.tier-card {
+  background: var(--color-surface); border-radius: var(--radius-card); padding: 0; gap: 0; overflow: hidden;
+  border-inline-start: 3px solid transparent;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+.tier-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: transparent; }
+.tier-card.selected { border-inline-start-color: var(--color-accent); box-shadow: var(--shadow), inset 0 0 0 1px var(--color-accent-ring); background: var(--color-surface-2); }
+.tier-card.recommended { border-inline-start-color: var(--color-accent-2); }
+.tier-card.recommended.selected { border-inline-start-color: var(--color-accent); }
+.tier-img { width: 100%; height: 84px; border-radius: 0; border: none; box-shadow: none; margin: 0; object-fit: cover; }
+.tier-name { font-family: var(--font-display); font-size: 15px; padding: 12px 14px 0; }
+.tier-desc { padding: 0 14px; }
+.tier-mods { padding: 8px 14px 10px; display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
+.tier-check { top: auto; bottom: 10px; inset-inline-end: 12px; width: 18px; height: 18px; border-radius: 3px; }
+.tier-rec { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent-2); padding: 0 14px 10px; }
+/* Start lights: rendered by tierSelect.js as .tier-lights > i×5 */
+.tier-lights { display: flex; gap: 4px; justify-content: center; padding: 10px 14px 0; }
+.tier-lights i { width: 10px; height: 10px; border-radius: 2px; background: var(--color-surface-3); transition: background var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out); }
+.tier-lights i.on { background: var(--color-accent); box-shadow: 0 0 8px var(--color-accent-ring); }
+.tier-card.selected .tier-lights i.on { animation: uhmLight 1.6s var(--ease-in-out) infinite; }
+.tier-card.selected .tier-lights i.on:nth-child(2) { animation-delay: .12s; }
+.tier-card.selected .tier-lights i.on:nth-child(3) { animation-delay: .24s; }
+.tier-card.selected .tier-lights i.on:nth-child(4) { animation-delay: .36s; }
+.tier-card.selected .tier-lights i.on:nth-child(5) { animation-delay: .48s; }
+
+.tier-auto-title { color: var(--color-success); font-family: var(--font-display); }
+
+/* ------------------------------------------------------------------ */
+/*  5. Install & done                                                 */
+/* ------------------------------------------------------------------ */
+.install-wrap { max-width: 640px; }
+.install-status-head { align-items: baseline; }
+.install-spinner { width: 12px; height: 12px; border-width: 2px; align-self: center; }
+.install-status-title { font-family: var(--font-display); font-size: 15px; }
+.install-percent { font-family: var(--font-display-latin); font-size: 30px; font-weight: 700; color: var(--color-accent); margin-inline-start: auto; line-height: 1; }
+.install-progress-text { font-size: 11px; color: var(--color-text-faint); }
+.install-current-file { color: var(--color-text-dim); }
+.install-list { gap: 1px; background: var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; }
+.install-item {
+  background: var(--color-surface); border-radius: 0; padding: 12px 16px;
+  border-inline-start: 2px solid transparent;
+  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+.install-item[data-state='running'] { border-inline-start-color: var(--color-accent); transform: none; background: var(--color-surface-2); }
+.install-item[data-state='installed'] { border-inline-start-color: var(--color-success); background: var(--color-surface); }
+.install-item[data-state='error'] { border-inline-start-color: var(--color-error); }
+.install-item[data-state='missing'], .install-item[data-state='skipped'] { border-inline-start-color: var(--color-flag); }
+.install-item-status { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; }
+.install-item[data-state='installed'] .install-item-status { color: var(--color-success); }
+.install-item[data-state='error'] .install-item-status { color: var(--color-error); }
+.install-log-card { background: #0e1013; border-radius: var(--radius-card); padding: 14px 16px; }
+body[data-theme='day'] .install-log-card { background: #1c1f25; }
+.install-log { font-family: var(--font-mono); font-size: 11px; color: #9aa0a8; line-height: 1.8; max-height: 160px; overflow-y: auto; }
+.install-log-line { display: flex; gap: 12px; align-items: baseline; animation: uhmRise var(--dur-base) var(--ease-out) both; }
+.install-log-line .log-time { color: #5c636c; }
+.install-log-line strong { color: #f2efe9; font-weight: 600; }
+.install-log-line .log-status { color: var(--color-accent-2); margin-inline-start: auto; }
+
+/* Done: big number, one line, subdued stats. */
+.done-wrap { gap: 16px; }
+.done-icon { font-size: 0; width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--color-success-soft); filter: none; animation: uhmPop var(--dur-page) var(--ease-spring) both; position: relative; }
+.done-icon::after { content: ''; width: 26px; height: 14px; border-left: 4px solid var(--color-success); border-bottom: 4px solid var(--color-success); transform: rotate(-45deg) translate(2px, -3px); }
+.done-icon.done-partial { background: var(--color-flag-soft); }
+.done-icon.done-partial::after { border-color: var(--color-flag); width: 4px; height: 26px; border-left: none; border-bottom: none; background: var(--color-flag); transform: none; border-radius: 2px; }
+.done-icon.done-error, .done-icon.done-cancelled { background: var(--color-error-soft); }
+.done-icon.done-error::after, .done-icon.done-cancelled::after { border: none; width: 26px; height: 4px; background: var(--color-error); transform: rotate(45deg); box-shadow: 0 0 0 0 transparent; }
+.done-icon.done-error::before, .done-icon.done-cancelled::before { content: ''; position: absolute; width: 26px; height: 4px; background: var(--color-error); transform: rotate(-45deg); }
+.done-icon.done-cancelled { background: var(--color-surface-2); }
+.done-icon.done-cancelled::before, .done-icon.done-cancelled::after { background: var(--color-text-dim); }
+.done-title { font-family: var(--font-display); font-size: 24px; }
+.badge-success, .badge-partial, .badge-cancelled, .badge-error { border: none; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; border-radius: 4px; }
+.badge-success { color: var(--color-success); background: var(--color-success-soft); }
+.badge-partial { color: var(--color-flag); background: var(--color-flag-soft); }
+.badge-error { color: var(--color-error); background: var(--color-error-soft); }
+.stat-card { background: var(--color-surface); border-radius: var(--radius-card); border: none; box-shadow: none; }
+.stat-value { font-family: var(--font-display-latin); font-size: 26px; font-weight: 700; color: var(--color-text); }
+
+/* ------------------------------------------------------------------ */
+/*  6. Manage, add-ons, library, mod install                          */
+/* ------------------------------------------------------------------ */
+.manage-card { background: var(--color-surface); border-radius: var(--radius-card); border-inline-start: 2px solid var(--color-hairline); }
+.manage-name strong { font-family: var(--font-display); font-size: 14.5px; }
+.history-row { font-family: var(--font-mono); font-size: 11px; }
+
+.addon-card { background: var(--color-surface); border-radius: var(--radius-card); box-shadow: none; }
+.addon-card:hover { box-shadow: var(--shadow); border-color: transparent; }
+.addon-card.is-installed { box-shadow: inset 0 0 0 1px rgba(55, 214, 122, 0.35); }
+.addon-media { background: var(--color-surface-2); }
+.addon-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10, 10, 12, 0.45), transparent 50%); pointer-events: none; }
+.addon-img-placeholder { font-family: var(--font-display-latin); color: var(--color-accent); background: var(--color-surface-2); font-size: 38px; }
+.addon-badge { z-index: 1; }
+.addon-name { font-family: var(--font-display); font-size: 15px; }
+.addons-nopath { background: var(--color-flag-soft); border: none; border-inline-start: 2px solid var(--color-flag); border-radius: var(--radius-sm); }
+.btn-danger-soft { color: var(--color-error); background: var(--color-error-soft); }
+.btn-danger-soft:hover { background: rgba(255, 59, 59, 0.22); }
+
+.content-card { background: var(--color-surface); border-radius: var(--radius-card); box-shadow: none; }
+.content-card:hover { box-shadow: var(--shadow); border-color: transparent; }
+.content-card-title { font-family: var(--font-display); }
+.content-card-preview { background: var(--color-surface-2); }
+.content-card-preview img { background: transparent; animation: none; }
+.library-search { border-radius: var(--radius-sm); }
+
+.mi-dropzone { border: 1.5px dashed var(--color-text-faint); border-radius: var(--radius-card); background: transparent; }
+.mi-dropzone:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.mi-dropzone-title { font-family: var(--font-display); }
+.mi-item { background: var(--color-surface); border-radius: var(--radius-card); }
+.mi-preview { border-radius: var(--radius-sm); border: none; background: var(--color-surface-2); }
+.mi-item-name { font-family: var(--font-display); }
+.mi-conflict, .mi-banner-warn { color: var(--color-text); background: var(--color-flag-soft); border: none; border-inline-start: 2px solid var(--color-flag); border-radius: 4px; }
+.mi-status-row { background: var(--color-surface); border-radius: var(--radius-sm); }
+.mi-password-icon { filter: none; }
+.drop-overlay { background: rgba(14, 16, 19, 0.86); border: 2px dashed var(--color-accent); }
+.drop-overlay-title { font-family: var(--font-display); }
+
+/* ------------------------------------------------------------------ */
+/*  7. Settings, about, donate                                        */
+/* ------------------------------------------------------------------ */
+.settings-row { background: var(--color-surface); border-radius: var(--radius-card); }
+.settings-row.clickable:hover { background: var(--color-surface-2); transform: none; }
+.settings-row .label { font-family: var(--font-display); font-size: 14px; }
+.settings-arrow { color: var(--color-text-faint); }
+
+.about-header img { border-radius: 8px; border: none; box-shadow: none; }
+.about-header .app-name { font-family: var(--font-display); }
+.version-chip { font-family: var(--font-mono); background: var(--color-surface-2); color: var(--color-text-dim); border: none; border-radius: 4px; letter-spacing: 0.06em; }
+.about-feature-icon { border-radius: var(--radius-sm); border: none; background: var(--color-surface-2); }
+.about-feature-accent { border-inline-start: none; }
+.about-feature-success { border-inline-start: none; }
+.about-feature-accent .about-feature-icon { background: var(--color-accent-soft); color: var(--color-accent); }
+.about-feature-success .about-feature-icon { background: var(--color-success-soft); color: var(--color-success); }
+.about-mod-icon { border-radius: var(--radius-sm); background: var(--color-surface-2); }
+.about-mod-row { border-bottom-color: var(--color-hairline); }
+.about-mod-name { font-family: var(--font-display); }
+.about-faq { background: var(--color-surface); border-radius: var(--radius-card); }
+.about-faq summary { font-family: var(--font-display); list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.about-faq summary::-webkit-details-marker { display: none; }
+.about-faq summary::after { content: '+'; font-family: var(--font-mono); font-size: 16px; color: var(--color-text-faint); transition: transform var(--dur-base) var(--ease-out); }
+.about-faq[open] summary::after { transform: rotate(45deg); color: var(--color-accent); }
+.about-faq[open] summary { border-bottom-color: var(--color-hairline); }
+.about-faq-a { animation: uhmRise var(--dur-base) var(--ease-out) both; }
+.contact-list { border: none; gap: 1px; background: var(--color-hairline); }
+.contact-row { background: var(--color-surface); }
+.contact-row:hover { background: var(--color-surface-2); transform: none; }
+.contact-row .info .handle { font-family: var(--font-mono); font-size: 13px; }
+
+/* ------------------------------------------------------------------ */
+/*  8. Motion moments                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Selected tier card breathes once when chosen. */
+.tier-card.just-selected { animation: uhmPulseRing var(--dur-page) var(--ease-out) 1; }
+
+/* Progress bar stops striping when complete. */
+.install-progress-bar.is-done, .ui-progress-bar.is-done { animation: none; background-image: none; background-color: var(--color-success); }
+
+/* Hover lift contract: transform + shadow move together on every card. */
+.home-tier-card, .tier-card, .addon-card, .content-card, .ui-stat, .gamepath-action { will-change: transform; }
+
+/* Focus rings for keyboard users — fast, visible, no drama. */
+button:focus-visible, [tabindex]:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  transition: outline-offset var(--dur-fast) var(--ease-out);
+}
+
+/* Day theme: paper surfaces need a whisper of shadow to separate. */
+body[data-theme='day'] .card, body[data-theme='day'] .card-sec, body[data-theme='day'] .home-tier-card,
+body[data-theme='day'] .tier-card, body[data-theme='day'] .addon-card, body[data-theme='day'] .content-card,
+body[data-theme='day'] .settings-row, body[data-theme='day'] .manage-card, body[data-theme='day'] .ui-stat {
+  box-shadow: 0 1px 2px rgba(23, 25, 29, 0.06), 0 4px 14px rgba(23, 25, 29, 0.05);
+}
+
+/* ------------------------------------------------------------------ */
+/*  9. Library (list/grid/details)                                    */
+/* ------------------------------------------------------------------ */
+.stat-card::after { display: none; }
+.stat-card:hover { border-color: transparent; }
+.library-stats .stat-card { border-inline-start: 2px solid var(--color-hairline); }
+.lib-view-btn { border-radius: 4px; }
+.lib-view-btn.active { background: var(--color-accent); color: #fff; }
+.facet-chip { border: none; background: var(--color-surface-2); border-radius: 4px; padding: 6px 12px; }
+.facet-chip:hover { background: var(--color-surface-3); transform: none; }
+.facet-chip.active { background: var(--color-accent); color: #fff; box-shadow: none; }
+.library-select { background: var(--color-surface-2); border: 1px solid transparent; border-radius: var(--radius-sm); }
+.library-select:focus { border-color: var(--color-accent); }
+.content-row { background: var(--color-surface); border: none; border-radius: var(--radius-sm); box-shadow: none; }
+.content-row:hover { background: var(--color-surface-2); transform: none; box-shadow: none; border-color: transparent; }
+.content-row-preview, .detail-preview { background: var(--color-surface-2); border-radius: 4px; }
+.detail-section-title { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); border-bottom-color: var(--color-hairline); }
+.detail-key { background: var(--color-surface-2); border: none; border-radius: var(--radius-sm); }
+.detail-key-value { font-family: var(--font-mono); font-weight: 600; }
+.feature-chip, .skin-chip, .layout-row { background: var(--color-surface-2); border: none; border-radius: 4px; }
+.skeleton, .skeleton-line { background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-3) 40%, var(--color-surface) 60%); background-size: 200% 100%; }
+
+/* ------------------------------------------------------------------ */
+/* 10. Donate — a matte carbon card, one accent, no confetti          */
+/* ------------------------------------------------------------------ */
+.donate-hero { background: var(--color-surface); border: none; animation: none; padding: 32px 22px 26px; }
+.donate-hearts { display: none; }
+.donate-hero-icon { background: var(--color-accent-soft); color: var(--color-accent); box-shadow: none; animation: none; }
+.donate-hero-icon::before, .donate-hero-icon::after { background: var(--color-accent); box-shadow: none; }
+.donate-hero-kicker { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-accent); background: transparent; border: none; padding: 0; }
+.donate-hero-title { font-family: var(--font-display); font-size: 22px; }
+.donate-card-glow { display: none; }
+.donate-card {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 6px),
+    linear-gradient(160deg, #23262c 0%, #15171b 100%);
+  border: none;
+  box-shadow: var(--shadow);
+  animation: none;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.donate-card::before {
+  content: '';
+  position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 6px;
+  background: var(--color-accent);
+}
+.donate-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.donate-card-sheen { animation: none; opacity: 0; }
+.donate-card-brand { font-family: var(--font-display-latin); letter-spacing: 0.2em; font-weight: 700; }
+.donate-card-badge { background: rgba(255, 255, 255, 0.08); border: none; font-family: var(--font-mono); letter-spacing: 0.08em; font-size: 10px; border-radius: 3px; }
+.donate-card-chip { background: linear-gradient(135deg, #d9c48f, #b0924d); border-radius: 4px; }
+.donate-card-number { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.08em; }
+.donate-card-label { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; opacity: .55; }
+.donate-card-holder-name { font-family: var(--font-display); }
+.donate-copy-btn { background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-sm); box-shadow: none; }
+.donate-copy-btn:hover { background: var(--color-accent-2); transform: translateY(-1px); }
+.donate-copy-btn.copied { background: var(--color-success); }
+.donate-step { background: var(--color-surface); border: none; box-shadow: none; border-radius: var(--radius-card); animation: none; }
+.donate-step:hover { transform: translateY(-2px); border-color: transparent; box-shadow: var(--shadow); }
+.donate-step-num { background: var(--color-accent); color: #fff; border-radius: 3px; font-family: var(--font-mono); }
+.donate-step-title { font-family: var(--font-display); }
+.donate-thanks { background: var(--color-success-soft); border: none; border-inline-start: 2px solid var(--color-success); border-radius: var(--radius-sm); animation: none; }
+.donate-thanks-icon { background: transparent; box-shadow: none; animation: none; }
+.donate-thanks-title { font-family: var(--font-display); }
+.about-donate { background: var(--color-surface); border: none; }
+.about-donate:hover { background: var(--color-surface-2); box-shadow: none; border-color: transparent; }
+
+/* ================================================================== */
+/*  PASS 2 — after studying the F1 livery / telemetry design language */
+/*  Principles applied: one saturated hue on a deep ground, hard color */
+/*  boundaries (no soft tints where a block will do), speed-line as a  */
+/*  divider not a texture, thin rule lines instead of card outlines,   */
+/*  mono numerals as "drama", recommended tier in full team color.     */
+/* ================================================================== */
+
+/* --- Persian type tuning: Estedad needs a touch more leading and no  */
+/*     negative tracking (Arabic script has no x-height to compress).  */
+body[dir='rtl'] h1, body[dir='rtl'] h2, body[dir='rtl'] h3,
+body[dir='rtl'] .home-slider-title, body[dir='rtl'] .ui-section-title,
+body[dir='rtl'] .home-section-title, body[dir='rtl'] .done-title { letter-spacing: 0; line-height: 1.45; }
+body[dir='rtl'] { word-spacing: 0.02em; }
+body[dir='rtl'] .text-dim, body[dir='rtl'] .home-slider-sub, body[dir='rtl'] .ui-section-sub { line-height: 1.95; }
+/* Latin numerals inside Persian text should not fall back to Vazirmatn digits */
+.num, .install-percent, .stat-value, .ui-stat-value { font-feature-settings: 'tnum', 'zero'; }
+
+/* --- Hero as a poster: the color moves through the frame. ---------- */
+.home-hero-main { position: relative; padding: 22px; border-radius: var(--radius-card); overflow: hidden; background: var(--color-surface); isolation: isolate; }
+.home-hero-main::before {
+  /* the diagonal team-color block, sitting behind the copy column */
+  content: '';
+  position: absolute; inset: -20% -10% -20% auto; width: 46%;
+  background: var(--color-accent);
+  transform: skewX(-12deg);
+  z-index: -1;
+  opacity: .95;
+}
+.home-hero-main::after {
+  /* one speed line, as a divider — not a texture */
+  content: '';
+  position: absolute; top: 0; bottom: 0; right: 46%; width: 2px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-12deg);
+  z-index: -1;
+}
+.home-hero-copy { padding: 6px 4px 6px 12px; color: #fff; }
+body[dir='ltr'] .home-hero-copy { padding: 6px 12px 6px 4px; }
+.home-hero-copy .home-slider-badge { color: #fff; }
+.home-hero-copy .home-slider-badge::before { background: #fff; }
+.home-hero-copy .home-slider-title { color: #fff; text-wrap: balance; }
+.home-hero-copy .home-slider-sub { color: rgba(255, 255, 255, 0.82); }
+.home-hero-copy .btn-primary { background: #ffffff; color: var(--color-accent); }
+.home-hero-copy .btn-primary:hover { background: #f2f6ff; color: var(--color-accent-deep); }
+.home-hero-copy .btn-secondary { background: rgba(255, 255, 255, 0.14); color: #fff; border: none; }
+.home-hero-copy .btn-secondary:hover { background: rgba(255, 255, 255, 0.24); }
+.home-slider { box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45); }
+body[data-theme='day'] .home-hero-main::before { opacity: 1; }
+
+/* --- Status strip → telemetry readout ------------------------------ */
+.home-status { gap: 0; }
+.home-status-grid { gap: 0; background: transparent; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline); }
+.home-status-card { background: transparent; border-radius: 0; padding: 14px 18px; position: relative; }
+.home-status-card + .home-status-card { border-inline-start: 1px solid var(--color-hairline); }
+.home-status-card::before {
+  /* blinking indicator state, like a pit-wall panel */
+  content: ''; position: absolute; top: 18px; inset-inline-end: 16px;
+  width: 6px; height: 6px; border-radius: 1px; background: var(--color-text-faint);
+}
+.home-status-card.is-ok::before { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+.home-status-card.is-warn::before { background: var(--color-flag); animation: uhmPulse 1.6s infinite; }
+.home-status-label { margin-bottom: 4px; }
+.home-status-value { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; margin-top: 0; }
+.home-status-tag { display: inline-flex; margin-top: 6px; padding: 0; background: transparent; border: none; border-radius: 0; }
+.home-next { background: var(--color-accent-2); color: #fff; border: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 12px 18px; }
+.home-next-text { color: #fff; font-weight: 600; }
+.home-next .btn-secondary { background: #fff; color: var(--color-accent); border: none; }
+
+/* --- Home tier cards: recommended tier in full team color ---------- */
+.home-tier-card.is-recommended { background: var(--color-accent); color: #fff; }
+.home-tier-card.is-recommended .home-tier-badge::before { background: #fff; }
+.home-tier-card.is-recommended .home-tier-best-text,
+.home-tier-card.is-recommended .home-kicker { color: rgba(255, 255, 255, 0.85); }
+.home-tier-card.is-recommended .home-chip { background: rgba(0, 0, 0, 0.22); color: #fff; }
+.home-tier-card.is-recommended::after {
+  content: attr(data-rec-label);
+  position: absolute; top: 10px; inset-inline-end: 10px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  background: #ffffff; color: var(--color-accent); padding: 3px 7px; border-radius: 2px;
+}
+.home-tier-card { position: relative; }
+/* Ordinal on each card, like a grid position */
+.home-tier-card .home-tier-badge { justify-content: space-between; }
+.home-tier-card .home-tier-ord { font-family: var(--font-display-latin); font-size: 13px; color: var(--color-text-faint); font-weight: 700; }
+.home-tier-card.is-recommended .home-tier-ord { color: rgba(255, 255, 255, 0.7); }
+
+/* --- Tier select: same "pricing" logic, hard boundaries ------------ */
+.tier-card.selected { background: var(--color-surface-2); }
+.tier-card.selected .tier-name { color: var(--color-accent); }
+.tier-card .tier-check { background: var(--color-accent); }
+
+/* --- Section heads: kicker + hairline rule extends to the edge ----- */
+.ui-section-head, .home-section-head { position: relative; }
+.ui-section-head::after, .home-section-head::after {
+  content: ''; position: absolute; bottom: -1px; inset-inline-start: 0;
+  width: 42px; height: 2px; background: var(--color-accent);
+}
+
+/* --- Install: the number is the hero; add a lap-timer readout ------ */
+.install-status-head { padding-bottom: 12px; border-bottom: 1px solid var(--color-hairline); margin-bottom: 12px; }
+.install-percent { font-size: 40px; letter-spacing: -0.02em; }
+.install-percent::after { content: '%'; font-size: 16px; margin-inline-start: 2px; color: var(--color-text-dim); }
+.install-progress-text { display: flex; gap: 14px; }
+.install-progress-text::before { content: 'MODS'; color: var(--color-text-faint); letter-spacing: 0.1em; }
+.install-timer { font-family: var(--font-mono); font-size: 11px; color: var(--color-text-faint); letter-spacing: 0.08em; }
+
+/* --- Buttons: hard edges, no sheen on secondary ------------------- */
+.btn-secondary, .btn-ghost { border-radius: var(--radius-xs, 6px); }
+.btn-primary { border-radius: var(--radius-xs, 6px); font-weight: 700; letter-spacing: 0.01em; }
+
+/* --- Modal: top rail becomes a full-width accent block ------------ */
+.modal-title { font-family: var(--font-display); }
+
+/* --- Day theme: the accent block must stay legible on paper ------- */
+body[data-theme='day'] .home-hero-main { background: #ffffff; }
+body[data-theme='day'] .home-status-card.is-ok::before { box-shadow: none; }

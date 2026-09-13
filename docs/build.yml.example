@@ -1,0 +1,117 @@
+# NOTE: This file is documentation because the Arena GitHub App token does not
+# have `workflows` permission. To activate CI, copy it to
+# `.github/workflows/build.yml` (see ADMIN-GUIDE.md §5).
+name: Build & Test
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------
+  # Fast checks on Linux: frontend smoke tests + Rust unit tests.
+  # ---------------------------------------------------------------
+  test:
+    name: Test (frontend + rust core)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write      # ci-report.js posts failure logs to the "CI build log" issue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install Tauri Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential
+      - run: npm ci
+      - name: Frontend checks
+        run: npm run check
+      # Each Rust step runs through scripts/ci-report.js, which mirrors the
+      # failing part of the log into the job summary AND a pinned issue, so
+      # failures can be read through the REST API without downloading logs.
+      - name: Rust build (lib + tests, no run)
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo build" cargo build --manifest-path src-tauri/Cargo.toml --all-targets
+      - name: Rust tests
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo test" cargo test --manifest-path src-tauri/Cargo.toml --all-targets -- --nocapture
+      - name: Rust lint (advisory)
+        continue-on-error: true
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "cargo clippy" cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+
+  # ---------------------------------------------------------------
+  # Windows installer (the deliverable). Reports the exact EXE size.
+  # ---------------------------------------------------------------
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    needs: test
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: node scripts/ci-report.js "tauri build (windows)" npm run build -- --target x86_64-pc-windows-msvc
+      - name: Report sizes
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/*.exe" | Select-Object -First 1
+          $nsis = Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe" | Select-Object -First 1
+          "### Build sizes" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| Artifact | Size |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "|---|---|" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| App binary (`$($exe.Name)`) | $([math]::Round($exe.Length/1MB,2)) MB |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "| NSIS installer (`$($nsis.Name)`) | $([math]::Round($nsis.Length/1MB,2)) MB |" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UHM-Pack-Installer-Windows
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $dir = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          Get-ChildItem "$dir/*.exe" | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Out-File "$dir/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "$dir/SHA256SUMS.txt"
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
+          # Notes are written by hand before tagging; only append the auto-list.
+          generate_release_notes: true
+          append_body: true

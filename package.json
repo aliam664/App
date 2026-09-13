@@ -1,34 +1,22 @@
 {
   "name": "uhm-pack-installer",
   "version": "1.0.0",
-  "description": "نصب‌کننده خودکار مودهای گرافیکی UHM برای Assetto Corsa",
-  "main": "main.js",
+  "description": "نصب‌کننده خودکار مودهای گرافیکی UHM برای Assetto Corsa (Tauri)",
   "author": "UHM",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder"
+    "start": "tauri dev",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "serve": "node scripts/serve.js",
+    "check": "node scripts/check.js && node scripts/sync-view.js --check",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "tauri": "tauri",
+    "view": "node scripts/sync-view.js"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
-  },
-  "dependencies": {
-    "adm-zip": "^0.5.10",
-    "node-unrar-js": "^2.0.0"
-  },
-  "build": {
-    "appId": "com.uhm.packinstaller",
-    "productName": "UHM Pack Installer",
-    "win": {
-      "target": "nsis",
-      "icon": "src/assets/images/icon.ico"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "src/**/*",
-      "assets/**/*"
-    ]
+    "@tauri-apps/cli": "^2.11.4",
+    "linkedom": "^0.18.13"
   }
 }
