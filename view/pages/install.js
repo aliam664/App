@@ -220,6 +220,23 @@
     // before the `active` check on purpose: pressing Back mid-install
     // destroys the page, but the partial copy must still be recorded.
     await updateManifest(plan, result);
+    // Profile layer: only after a successful (non-cancelled) pack install.
+    // The outcome's files are recorded in the manifest so the manage page
+    // can revert them like any other installed mod.
+    if (!cancelled && result && result.success && plan.profile
+        && (plan.profile.applyVideo || plan.profile.applyCsp)
+        && window.uhm.applyProfile) {
+      try {
+        const profileOutcome = await window.uhm.applyProfile({
+          tier: plan.tier,
+          applyVideo: Boolean(plan.profile.applyVideo),
+          applyCsp: Boolean(plan.profile.applyCsp)
+        });
+        if (profileOutcome && (profileOutcome.files || []).length) {
+          await recordProfileSettings(plan, profileOutcome);
+        }
+      } catch (e) { /* profile layer is best-effort; pack install stands */ }
+    }
     if (!active) return;
     if (cancelled || (result && result.cancelled)) {
       handleFinalState(true);
@@ -252,10 +269,31 @@
       };
       manifest.mods[id] = [newEntry, ...existingMods].slice(0, 3);
     }
-    manifest.appVersion = manifest.appVersion || '1.1.0';
+    manifest.appVersion = manifest.appVersion || '1.2.0';
     manifest.gamePath = plan.gamePath;
     manifest.systemTier = plan.tier || null;
     manifest.lastInstallDate = new Date().toISOString();
+    window.appState.manifest = manifest;
+    await window.uhm.saveManifest(manifest);
+  }
+
+  async function recordProfileSettings(plan, profileOutcome) {
+    const manifest = window.appState.manifest || {};
+    if (!manifest.mods) manifest.mods = {};
+    const id = 'profile-settings';
+    const existing = Array.isArray(manifest.mods[id]) ? manifest.mods[id] : [];
+    const entry = {
+      status: 'installed',
+      tier: plan.tier || null,
+      installedAt: new Date().toISOString(),
+      files: (profileOutcome.files || []).map((f) => ({
+        file: f.dest || '',
+        dest: f.dest || '',
+        existed: Boolean(f.existed),
+        backupPath: f.backupPath || null
+      }))
+    };
+    manifest.mods[id] = [entry, ...existing].slice(0, 3);
     window.appState.manifest = manifest;
     await window.uhm.saveManifest(manifest);
   }

@@ -173,7 +173,7 @@
         <div class="card-sec settings-row clickable" id="row-about">
           <div class="settings-row-body">
             <div class="card-sec-title">${t('appName')}</div>
-            <div class="card-sec-sub">${t('common.version')} ${window.appState.manifest.appVersion || '1.1.0'}</div>
+            <div class="card-sec-sub">${t('common.version')} ${window.appState.manifest.appVersion || '1.2.0'}</div>
           </div>
           <span class="settings-arrow">${lang === 'fa' ? '‹' : '›'}</span>
         </div>

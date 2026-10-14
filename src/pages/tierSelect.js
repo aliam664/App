@@ -198,7 +198,15 @@
     if (keep.video === false) preserve.push('video');
     if (keep.cspsettings === false) preserve.push('cspsettings');
     const mods = [{ id: window.GRAPHICS_PACK_ID, tier, dest: '', overwrite: true, exclude, preserve }];
-    return { tier, gamePath: window.appState.settings.gamePath, mods };
+    // Profile layer (Documents\Assetto Corsa\cfg): decided in step 2,
+    // applied by install.js after the pack itself lands. Defaults apply:
+    // the pack's settings are the point of the pack, video is merged
+    // non-destructively and CSP files are backed up.
+    const profile = {
+      applyVideo: keep.profilevideo !== false,
+      applyCsp: keep.profilecsp !== false
+    };
+    return { tier, gamePath: window.appState.settings.gamePath, mods, profile };
   }
 
   window.pages.tierSelect = { render };

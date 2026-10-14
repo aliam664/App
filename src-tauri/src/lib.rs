@@ -11,6 +11,7 @@ mod installer;
 mod library;
 mod mod_installer;
 mod preview;
+mod profile;
 mod util;
 
 use serde::Deserialize;
@@ -212,6 +213,21 @@ fn game_check_base_mods(game_path: Option<String>) -> Value {
     csp_setting_markers.sort();
     csp_setting_markers.truncate(12);
     result["cspsettings"] = json!({ "found": !csp_setting_markers.is_empty(), "markers": csp_setting_markers });
+    // User-profile settings (Documents\Assetto Corsa\cfg) — the files the
+    // game actually reads. Detected only; writing happens in profile_apply.
+    result["profilevideo"] = json!({ "found": false, "markers": [] });
+    result["profilecsp"] = json!({ "found": false, "markers": [] });
+    if let Some(cfg) = profile::profile_cfg_dir() {
+        let v = cfg.join("video.ini");
+        if v.exists() {
+            result["profilevideo"] = json!({ "found": true, "markers": [v.to_string_lossy().to_string()] });
+        }
+        let mut profile_markers: Vec<String> = Vec::new();
+        collect_ini_markers(&cfg.join("extension"), &mut profile_markers);
+        profile_markers.sort();
+        profile_markers.truncate(12);
+        result["profilecsp"] = json!({ "found": !profile_markers.is_empty(), "markers": profile_markers });
+    }
     result
 }
 
@@ -274,6 +290,33 @@ async fn install_run(app: AppHandle, state: State<'_, AppState>, payload: Option
 
 #[tauri::command]
 fn install_cancel(state: State<AppState>) -> bool { state.install_cancelled.store(true, Ordering::SeqCst); true }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfilePayload {
+    #[serde(default)]
+    tier: Option<String>,
+    #[serde(default)]
+    apply_video: bool,
+    #[serde(default)]
+    apply_csp: bool,
+}
+
+/// Apply the pack's profile-layer settings (Documents\Assetto Corsa\cfg):
+/// merged video.ini + CSP/Pure setting overrides, with first-wins backups.
+/// Recorded by the caller in the manifest so uninstall can revert them.
+#[tauri::command]
+async fn profile_apply(state: State<'_, AppState>, payload: Option<ProfilePayload>) -> Result<profile::ProfileOutcome, String> {
+    let payload = payload.unwrap_or(ProfilePayload { tier: None, apply_video: false, apply_csp: false });
+    let _guard = OperationGuard::acquire(&state.operation_busy)
+        .ok_or_else(|| "BUSY".to_string())?;
+    let mods_dir = state.mods_dir();
+    let backups = state.backups_dir();
+    let tier = payload.tier.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || {
+        profile::apply_profile(&mods_dir, &backups, &tier, payload.apply_video, payload.apply_csp)
+    }).await.map_err(|e| e.to_string())
+}
 
 #[derive(Deserialize)]
 struct UninstallPayload { #[serde(default)] files: Vec<installer::UninstallFile> }
@@ -539,7 +582,7 @@ pub fn run() {
             window_minimize, window_toggle_maximize, window_close, window_start_drag,
             settings_get, settings_set, manifest_get, manifest_save,
             game_browse_path, game_validate_path, game_auto_detect, game_check_base_mods,
-            install_run, install_cancel, uninstall_run, graphics_info, addons_list,
+            install_run, install_cancel, profile_apply, uninstall_run, graphics_info, addons_list,
             mods_analyze, mods_install, mods_cancel, mods_pick_file,
             library_scan, library_get_preview, library_reveal, library_delete, library_restore,
             library_purge, library_empty_trash, library_trash, library_preview_candidates,

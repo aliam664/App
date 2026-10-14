@@ -48,11 +48,11 @@
           <img src="assets/images/logo.webp" alt="UHM" />
           <div>
             <div class="app-name">${t('appName')}</div>
-            <div class="text-dim app-version">${t('common.version')} ${window.appState.manifest.appVersion || '1.1.0'}</div>
+            <div class="text-dim app-version">${t('common.version')} ${window.appState.manifest.appVersion || '1.2.0'}</div>
             <div class="about-tagline">${s('tagline')}</div>
           </div>
           <div class="about-badges">
-            ${window.ui.statusBadge('v' + (window.appState.manifest.appVersion || '1.1.0'), 'accent')}
+            ${window.ui.statusBadge('v' + (window.appState.manifest.appVersion || '1.2.0'), 'accent')}
             ${window.ui.statusBadge('AC', 'ok')}
             ${window.ui.statusBadge('CSP / PURE', 'ok')}
           </div>

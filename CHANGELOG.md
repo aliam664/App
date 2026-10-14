@@ -4,6 +4,36 @@ All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [SemVer](https://semver.org/).
 
+## [1.2.0] — 2026-10-14
+
+### Added
+- **Profile layer for video & CSP settings (the "second layer").** The
+  game reads effective settings from `<Documents>\Assetto Corsa\cfg\`
+  (`video.ini` and `extension\*.ini` CSP overrides), which win over
+  anything in the game folder — so pack settings shipped the old way
+  never took effect for most players. The installer now bundles profile
+  settings under `mods/settings/{common,<tier>}/` (`video.ini` +
+  `csp/*.ini`, see `mods/settings/README.md`) and, with the player's
+  consent in step 2, applies them onto the profile:
+  - **Video is merged, not overwritten** — the player's `WIDTH`,
+    `HEIGHT`, `REFRESH`, `FULLSCREEN` and `VSYNC` always survive; the
+    pack's quality keys are applied (`profile::merge_video_ini`).
+  - **CSP/Pure settings are copied with first-wins backups** to
+    `%APPDATA%\com.uhm.packinstaller\backups\profile\` and recorded
+    in the manifest as "Profile Settings", so Manage Mods reverts them
+    like any other mod.
+  - Step 2 gained two independent opt-ins (both default to apply, both
+    fully reversible) in all four languages; detection of existing
+    profile files is included.
+  - New Rust module `profile.rs` with unit tests (merge semantics,
+    source collection, tier override).
+
+### Notes
+- The profile layer only ever writes to the two whitelisted profile
+  locations (`cfg/video.ini`, `cfg/extension/**.ini`); everything else
+  still never leaves the game folder. This is called out in the wizard
+  and in ADMIN-GUIDE.md.
+
 ## [1.1.0] — 2026-10-14
 
 A stability and data-safety release: every critical bug from the October

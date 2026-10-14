@@ -39,6 +39,7 @@ const MOD_DEFINITIONS = [
 // their own mod.json, so only the pack + legacy ids live here.
 const MOD_LABEL = {
   graphics: 'Graphics Pack',
+  'profile-settings': 'Profile Settings (Video / CSP)',
   csp: 'CSP',
   pure: 'PURE',
   ppfilter: 'PP Filter',

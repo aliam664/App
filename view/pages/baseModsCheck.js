@@ -56,7 +56,12 @@
       // and was the old behaviour; keeping them is the safe default and the
       // 'no' button below is rendered pre-selected for these two groups.
       video: false,
-      cspsettings: false
+      cspsettings: false,
+      // Profile layer (Documents): applying is the recommended default —
+      // video is merged (resolution preserved) and CSP files are backed
+      // up, so opting in is safe and reversible.
+      profilevideo: true,
+      profilecsp: true
     };
 
     const wrap = document.getElementById('basecheck-wrap');
@@ -72,6 +77,8 @@
       ${modCheckRow('pure', result.pure, s)}
       ${modCheckRow('video', result.video, s, true)}
       ${modCheckRow('cspsettings', result.cspsettings, s, true)}
+      ${modCheckRow('profilevideo', result.profilevideo, s, false, true)}
+      ${modCheckRow('profilecsp', result.profilecsp, s, false, true)}
       ${renderSummary(result, s)}
     `;
 
@@ -79,14 +86,17 @@
     updateContinueState(result);
   }
 
-  function modCheckRow(key, data, s, defaultKeep) {
+  function modCheckRow(key, data, s, defaultKeep, defaultApply) {
     const found = data && data.found;
     const markers = (data && data.markers) || [];
     const badge = found
       ? window.ui.statusBadge(s('found'), 'ok')
       : window.ui.statusBadge(s('notFound'), 'warn');
     const action = found ? s('willOverwrite') : s('willInstall');
-    const hint = key === 'video' ? s('videoHint') : key === 'cspsettings' ? s('cspSettingsHint') : '';
+    const hint = key === 'video' ? s('videoHint')
+      : key === 'cspsettings' ? s('cspSettingsHint')
+      : key === 'profilevideo' ? s('profilevideoHint')
+      : key === 'profilecsp' ? s('profilecspHint') : '';
     return `
       <div class="card-sec basecheck-row ${found ? 'found' : 'missing'}">
         <div class="basecheck-head">
@@ -100,15 +110,28 @@
             <div class="field-label">${s('foundMarkers')}:</div>
             <div class="home-mod-path-list">${markers.map((m) => `<code>${uhmEsc(m)}</code>`).join('')}</div>
           </div>` : ''}
-        ${found ? renderOverwritePrompt(key, s, defaultKeep) : ''}
+        ${found ? renderOverwritePrompt(key, s, defaultKeep, defaultApply) : ''}
       </div>
     `;
   }
 
-  function renderOverwritePrompt(modKey, s, defaultKeep) {
+  function renderOverwritePrompt(modKey, s, defaultKeep, defaultApply) {
     // Settings groups (defaultKeep) render with «خیر، حفظ کن» pre-selected:
     // the safe default is already decided, the user may still opt in to
-    // overwriting. CSP/Pure keep the original undecided behaviour.
+    // overwriting. Profile groups (defaultApply) render with «بله، اعمال کن»
+    // pre-selected and apply wording. CSP/Pure keep the original
+    // undecided behaviour.
+    if (defaultApply) {
+      return `
+      <div class="overwrite-box">
+        <div class="text-dim">${s('applyQuestion')}</div>
+        <div class="overwrite-actions">
+          <button class="btn-secondary overwrite-btn selected" data-mod="${modKey}" data-choice="yes">${s('applyYes')}</button>
+          <button class="btn-secondary overwrite-btn" data-mod="${modKey}" data-choice="no">${s('applyNo')}</button>
+        </div>
+      </div>
+    `;
+    }
     return `
       <div class="overwrite-box">
         <div class="text-dim">${s('overwriteQuestion')}</div>

@@ -88,6 +88,7 @@
 
     // tier-pack install / uninstall
     runInstall: (payload) => invoke('install_run', { payload }),
+    applyProfile: (payload) => invoke('profile_apply', { payload }),
     cancelInstall: () => invoke('install_cancel'),
     runUninstall: (payload) => invoke('uninstall_run', { payload }),
     getGraphicsInfo: () => invoke('graphics_info'),
