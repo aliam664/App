@@ -519,6 +519,7 @@ pub fn run() {
                 resource_root,
                 install_cancelled: Arc::new(AtomicBool::new(false)),
                 mod_install_cancelled: Arc::new(AtomicBool::new(false)),
+                operation_busy: Arc::new(AtomicBool::new(false)),
                 cached_specs: std::sync::Mutex::new(None),
             };
             ensure_user_data_files(&state, app.package_info().version.to_string().as_str());
