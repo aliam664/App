@@ -47,6 +47,12 @@ pub fn thumbnail_data_url(buf: &[u8], fallback_mime: &str) -> String {
 
 /// Read an on-disk preview and return a thumbnail data URL (or `None`).
 pub fn file_to_data_url(path: &Path) -> Option<String> {
+    // A "preview" is a small image; never pull an unbounded file into memory
+    // (and potentially back out as a raw base64 payload) for a thumbnail.
+    const MAX_PREVIEW_BYTES: u64 = 16 * 1024 * 1024;
+    if std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) > MAX_PREVIEW_BYTES {
+        return None;
+    }
     let buf = std::fs::read(path).ok()?;
     if buf.is_empty() {
         return None;

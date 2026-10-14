@@ -7,7 +7,7 @@
   const DEMO_GAME_PATH = '/demo/AssettoCorsa';
   let state = {
     settings: { language: 'fa', theme: 'night', gamePath: DEMO_GAME_PATH },
-    manifest: { appVersion: '1.0.0', systemTier: null, lastInstallDate: null, mods: {} }
+    manifest: { appVersion: '1.1.0', systemTier: null, lastInstallDate: null, mods: {} }
   };
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -71,7 +71,7 @@
     async browseGamePath() { return '/program/Steam/steamapps/common/assettocorsa'; },
     async validateGamePath(p) { return { valid: true }; },
     async autoDetectGamePath() { return '/program/Steam/steamapps/common/assettocorsa'; },
-    async checkBaseMods() { return { csp: { found: true, markers: [] }, pure: { found: false, markers: [] } }; },
+    async checkBaseMods() { return { csp: { found: true, markers: [] }, pure: { found: false, markers: [] }, video: { found: true, markers: [] }, cspsettings: { found: true, markers: [] } }; },
     async copyWithBackup() { return { success: true }; },
     async restoreOrDelete() { return { status: 'deleted' }; },
     async scanLibrary() {

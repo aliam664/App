@@ -50,7 +50,13 @@
 
     window.appState.overwriteDecisions = {
       csp: !result.csp.found,
-      pure: !result.pure.found
+      pure: !result.pure.found,
+      // Settings groups default to KEEP (overwrite = false): overwriting a
+      // player's video.ini or tuned CSP settings by default is destructive
+      // and was the old behaviour; keeping them is the safe default and the
+      // 'no' button below is rendered pre-selected for these two groups.
+      video: false,
+      cspsettings: false
     };
 
     const wrap = document.getElementById('basecheck-wrap');
@@ -64,6 +70,8 @@
       </div>
       ${modCheckRow('csp', result.csp, s)}
       ${modCheckRow('pure', result.pure, s)}
+      ${modCheckRow('video', result.video, s, true)}
+      ${modCheckRow('cspsettings', result.cspsettings, s, true)}
       ${renderSummary(result, s)}
     `;
 
@@ -71,13 +79,14 @@
     updateContinueState(result);
   }
 
-  function modCheckRow(key, data, s) {
+  function modCheckRow(key, data, s, defaultKeep) {
     const found = data && data.found;
     const markers = (data && data.markers) || [];
     const badge = found
       ? window.ui.statusBadge(s('found'), 'ok')
       : window.ui.statusBadge(s('notFound'), 'warn');
     const action = found ? s('willOverwrite') : s('willInstall');
+    const hint = key === 'video' ? s('videoHint') : key === 'cspsettings' ? s('cspSettingsHint') : '';
     return `
       <div class="card-sec basecheck-row ${found ? 'found' : 'missing'}">
         <div class="basecheck-head">
@@ -85,30 +94,36 @@
           ${badge}
         </div>
         <div class="basecheck-action">${action}</div>
+        ${hint ? `<div class="text-dim">${hint}</div>` : ''}
         ${markers.length ? `
           <div class="basecheck-markers">
             <div class="field-label">${s('foundMarkers')}:</div>
             <div class="home-mod-path-list">${markers.map((m) => `<code>${uhmEsc(m)}</code>`).join('')}</div>
           </div>` : ''}
-        ${found ? renderOverwritePrompt(key, s) : ''}
+        ${found ? renderOverwritePrompt(key, s, defaultKeep) : ''}
       </div>
     `;
   }
 
-  function renderOverwritePrompt(modKey, s) {
+  function renderOverwritePrompt(modKey, s, defaultKeep) {
+    // Settings groups (defaultKeep) render with «خیر، حفظ کن» pre-selected:
+    // the safe default is already decided, the user may still opt in to
+    // overwriting. CSP/Pure keep the original undecided behaviour.
     return `
       <div class="overwrite-box">
         <div class="text-dim">${s('overwriteQuestion')}</div>
         <div class="overwrite-actions">
           <button class="btn-secondary overwrite-btn" data-mod="${modKey}" data-choice="yes">${s('yes')}</button>
-          <button class="btn-secondary overwrite-btn" data-mod="${modKey}" data-choice="no">${s('no')}</button>
+          <button class="btn-secondary overwrite-btn ${defaultKeep ? 'selected' : ''}" data-mod="${modKey}" data-choice="no">${s('no')}</button>
         </div>
       </div>
     `;
   }
 
   function renderSummary(result, s) {
-    const foundCount = (result.csp.found ? 1 : 0) + (result.pure.found ? 1 : 0);
+    const foundCount = (result.csp.found ? 1 : 0) + (result.pure.found ? 1 : 0)
+      + (result.video && result.video.found ? 1 : 0)
+      + (result.cspsettings && result.cspsettings.found ? 1 : 0);
     return `
       <div class="basecheck-summary">
         ${window.ui.statCard('', s('summaryTitle'), s('summaryValue').replace('{n}', foundCount), foundCount ? 'accent' : '')}

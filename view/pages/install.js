@@ -211,14 +211,19 @@
       result = { success: false, cancelled: false, error: e.message || 'UNKNOWN', mods: plan.mods.map((m) => ({ ...m, status: 'error', installedFiles: [] })) };
     }
     if (timerId) { clearInterval(timerId); timerId = null; }
-    if (!active) return;
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     window.appState.lastInstallResult = result;
+    // ALWAYS record the outcome — including a cancelled install. The Rust
+    // core keeps whatever was copied before the cancel so it can be
+    // reverted; if the manifest skipped cancelled runs, those files would
+    // be orphaned on the game folder with no way to remove them. This runs
+    // before the `active` check on purpose: pressing Back mid-install
+    // destroys the page, but the partial copy must still be recorded.
+    await updateManifest(plan, result);
+    if (!active) return;
     if (cancelled || (result && result.cancelled)) {
       handleFinalState(true);
     } else {
-      await updateManifest(plan, result);
-      if (!active) return;
       handleFinalState(Boolean(result && result.success));
     }
   }
@@ -229,17 +234,25 @@
     const installedModules = (result && result.mods) || [];
     for (const mod of installedModules) {
       const id = mod.id;
-      if (mod.status === 'skipped' || mod.status === 'pending') continue;
+      // Only record runs that actually placed files. An error/missing entry
+      // with an empty file list used to land on top of the history, and the
+      // manage page (which uninstalls the latest entry) would then delete
+      // the manifest record while the previous install's files stayed on
+      // disk — orphaned and unrecoverable.
+      if (mod.status !== 'installed' && !(mod.installedFiles && mod.installedFiles.length)) continue;
       const existingMods = Array.isArray(manifest.mods[id]) ? manifest.mods[id] : [];
       const newEntry = {
-        status: mod.status,
+        // A cancelled run reports 'error' but keeps its copied files; those
+        // files ARE on disk, so the entry must count as installed for the
+        // manage page to offer (and correctly perform) its removal.
+        status: (mod.installedFiles && mod.installedFiles.length) ? 'installed' : mod.status,
         tier: plan.tier || null,
         installedAt: new Date().toISOString(),
         files: (mod.installedFiles || []).map((f) => f)
       };
       manifest.mods[id] = [newEntry, ...existingMods].slice(0, 3);
     }
-    manifest.appVersion = manifest.appVersion || '1.0.0';
+    manifest.appVersion = manifest.appVersion || '1.1.0';
     manifest.gamePath = plan.gamePath;
     manifest.systemTier = plan.tier || null;
     manifest.lastInstallDate = new Date().toISOString();

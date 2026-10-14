@@ -436,12 +436,14 @@ pub fn move_to_trash(game_path: &str, kind: &str, folder: &str, trash_path: &Pat
     let stamp = trash_timestamp();
     let id = format!("{stamp}_{}", safe_leaf(folder));
     let trash_root = trash_dir.join(&id);
-    let moved: std::io::Result<()> = (|| {
+    // Copy first, register the trash entry, and only then remove the
+    // original. The old order (delete original -> save entry) meant a
+    // failed save left the content deleted from the game AND missing from
+    // the trash list - unrecoverable and invisible.
+    if let Err(e) = (|| {
         fs::create_dir_all(trash_dir)?;
-        copy_dir_all(&source, &trash_root)?;
-        fs::remove_dir_all(&source)
-    })();
-    if let Err(e) = moved {
+        copy_dir_all(&source, &trash_root)
+    })() {
         return err(e.to_string());
     }
     let cls = classify_content(folder);
@@ -459,6 +461,12 @@ pub fn move_to_trash(game_path: &str, kind: &str, folder: &str, trash_path: &Pat
         origin: Some(cls.origin.into()),
     });
     if let Err(e) = save_trash(trash_path, &trash) {
+        let _ = fs::remove_dir_all(&trash_root); // roll back the copy
+        return err(e.to_string());
+    }
+    if let Err(e) = fs::remove_dir_all(&source) {
+        // The entry is saved and the copy is safe in the trash; report the
+        // failure, but the content remains recoverable from the trash.
         return err(e.to_string());
     }
     OpResult { success: true, trash_id: Some(id), trash_path: Some(trash_root.to_string_lossy().to_string()), ..Default::default() }
@@ -514,18 +522,23 @@ pub fn empty_trash(trash_path: &Path) -> OpResult {
     let trash = load_trash(trash_path);
     let mut deleted = Vec::new();
     let mut error = None;
+    // Entries whose files could not be deleted stay in the list — wiping the
+    // whole list anyway would orphan their files in the trash folder with no
+    // way left to restore or even see them.
+    let mut remaining: Vec<TrashEntry> = Vec::new();
     for e in &trash {
         let p = Path::new(&e.trash_path);
         if !e.trash_path.is_empty() && p.exists() {
             if let Err(er) = fs::remove_dir_all(p) {
                 error = Some(er.to_string());
+                remaining.push(e.clone());
                 continue;
             }
         }
         deleted.push(e.folder.clone());
     }
-    let _ = save_trash(trash_path, &[]);
-    OpResult { success: true, deleted: Some(deleted), error, ..Default::default() }
+    let _ = save_trash(trash_path, &remaining);
+    OpResult { success: error.is_none(), deleted: Some(deleted), error, ..Default::default() }
 }
 
 pub fn list_trash(trash_path: &Path) -> Vec<Value> {

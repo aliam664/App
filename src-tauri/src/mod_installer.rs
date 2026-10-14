@@ -696,11 +696,20 @@ fn copy_with_backup(src: &Path, dest: &Path, game: &Path, backups_dir: &Path, id
     let mut backup = None;
     if existed {
         let rel = crate::util::rel_from(game, dest).unwrap_or_else(|| dest.to_string_lossy().to_string());
-        let b = backups_dir.join(id).join("backup").join(format!("{rel}.bak"));
+        // `id` looks like "car:my_car" — a ':' is illegal in Windows paths
+        // (it would address an NTFS alternate data stream and fail), so the
+        // backup folder must use a sanitised form of the id.
+        let safe_id = crate::util::safe_leaf(id);
+        let b = backups_dir.join(&safe_id).join("backup").join(format!("{rel}.bak"));
         if let Some(p) = b.parent() {
             fs::create_dir_all(p)?;
         }
-        fs::copy(dest, &b)?;
+        // First backup wins: it holds the user's original file. Re-installing
+        // the same mod must never replace it with the mod's own copy, or the
+        // original could no longer be restored (same rule as installer.rs).
+        if !b.exists() {
+            fs::copy(dest, &b)?;
+        }
         backup = Some(b.to_string_lossy().to_string());
     }
     if let Some(p) = dest.parent() {

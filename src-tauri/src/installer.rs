@@ -63,6 +63,12 @@ pub struct ModSpec {
     /// user's own CSP: `["extension", "dwrite.dll"]`).
     #[serde(default)]
     pub exclude: Vec<String>,
+    /// User-settings groups whose EXISTING files must be preserved (never
+    /// overwritten) during this install: `"video"` (system/cfg/video.ini)
+    /// and/or `"cspsettings"` (CSP/Pure `*.ini` setting files). Files that do
+    /// not exist yet are still installed. See `settings_group_of`.
+    #[serde(default)]
+    pub preserve: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -231,13 +237,42 @@ fn is_ignored_file(rel: &str) -> bool {
     matches!(leaf, ".gitkeep" | ".DS_Store" | "Thumbs.db" | "desktop.ini")
 }
 
+/// Which user-settings group a game-relative path belongs to, if any.
+///
+/// * `system/cfg/video.ini` → `"video"` — the player's display settings
+///   (resolution, refresh rate, fullscreen) live here; silently replacing
+///   them is the single most annoying thing a graphics pack can do.
+/// * `extension/config/**.ini` and `extension/config-ext/**.ini` →
+///   `"cspsettings"` — CSP / Pure setting files the player may have tuned.
+///   Structural files are excluded: `data_manifest.ini` describes the CSP
+///   build itself and must always follow the installed CSP version.
+pub fn settings_group_of(rel: &str) -> Option<&'static str> {
+    let rel_l = rel.to_ascii_lowercase();
+    if rel_l == "system/cfg/video.ini" {
+        return Some("video");
+    }
+    let leaf = rel_l.rsplit('/').next().unwrap_or("");
+    if leaf.ends_with(".ini")
+        && leaf != "data_manifest.ini"
+        && (rel_l.starts_with("extension/config/") || rel_l.starts_with("extension/config-ext/"))
+    {
+        return Some("cspsettings");
+    }
+    None
+}
+
 /// Copy every file of `sources` onto `dest_root`, reporting per-file progress.
+///
+/// Files whose settings group is listed in `preserve` are skipped when (and
+/// only when) the user already has that file — their tuned settings win;
+/// missing files are still installed so a fresh setup is complete.
 #[allow(clippy::too_many_arguments)]
 fn copy_sources(
     sources: &[PathBuf],
     dest_root: &Path,
     mod_id: &str,
     exclude: &[String],
+    preserve: &[String],
     backups_dir: &Path,
     records: &mut Vec<InstalledFile>,
     mut on_file: impl FnMut(usize, usize, &str),
@@ -252,6 +287,11 @@ fn copy_sources(
         let dest = dest_root.join(rel);
         if !is_within(dest_root, &dest) {
             continue;
+        }
+        if dest.exists()
+            && settings_group_of(rel).map(|g| preserve.iter().any(|p| p.as_str() == g)).unwrap_or(false)
+        {
+            continue; // keep the user's own settings file untouched
         }
         on_file(i + 1, total, rel);
         copy_with_backup(src, &dest, rel, mod_id, backups_dir, records).map_err(|e| format!("{rel}: {e}"))?;
@@ -342,7 +382,7 @@ pub fn install_mods(opts: InstallOptions<'_>) -> InstallOutcome {
         let outcome = fs::create_dir_all(&dest_root).map_err(|e| e.to_string()).and_then(|_| {
             let progress_res = res.clone();
             copy_sources(
-                &sources, &dest_root, &mod_id, &m.exclude, opts.backups_dir, &mut res.installed_files,
+                &sources, &dest_root, &mod_id, &m.exclude, &m.preserve, opts.backups_dir, &mut res.installed_files,
                 |fd, ft, rel| {
                     (opts.on_progress)(InstallProgress {
                         done, total, mod_result: progress_res.clone(), stage: "file".into(), message: None,
@@ -495,7 +535,7 @@ mod tests {
     }
 
     fn spec(id: &str) -> ModSpec {
-        ModSpec { id: Some(id.into()), tier: None, dest: None, overwrite: None, exclude: vec![] }
+        ModSpec { id: Some(id.into()), tier: None, dest: None, overwrite: None, exclude: vec![], preserve: vec![] }
     }
 
     struct Env {
@@ -585,6 +625,49 @@ mod tests {
         assert_eq!(fs::read_to_string(e.game.join("dwrite.dll")).unwrap(), "user-csp");
         assert_eq!(fs::read_to_string(e.game.join("extension/config/general.ini")).unwrap(), "user-csp-cfg");
         assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "pack");
+    }
+
+    #[test]
+    fn preserve_keeps_user_video_and_csp_settings() {
+        let e = env();
+        // The user's tuned files already exist in the game folder.
+        write(&e.game.join("system/cfg/video.ini"), "user-video");
+        write(&e.game.join("extension/config/general.ini"), "user-csp-settings");
+        write(&e.game.join("extension/config/data_manifest.ini"), "old-manifest");
+        // The pack ships its own copies plus a brand-new settings file.
+        write(&e.mods.join("graphics/high/system/cfg/video.ini"), "pack-video");
+        write(&e.mods.join("graphics/high/extension/config/general.ini"), "pack-csp-settings");
+        write(&e.mods.join("graphics/high/extension/config/data_manifest.ini"), "new-manifest");
+        write(&e.mods.join("graphics/high/extension/config/newmodule.ini"), "pack-new-settings");
+        write(&e.mods.join("graphics/high/dwrite.dll"), "pack-csp");
+
+        let mut s = spec("graphics");
+        s.preserve = vec!["video".into(), "cspsettings".into()];
+        let log = std::cell::RefCell::new(vec![]);
+        let out = run(&e, &[s], Some("high"), &log);
+        assert!(out.success, "{out:?}");
+        // Existing settings files are untouched…
+        assert_eq!(fs::read_to_string(e.game.join("system/cfg/video.ini")).unwrap(), "user-video");
+        assert_eq!(fs::read_to_string(e.game.join("extension/config/general.ini")).unwrap(), "user-csp-settings");
+        // …but structural files and new files still land.
+        assert_eq!(fs::read_to_string(e.game.join("extension/config/data_manifest.ini")).unwrap(), "new-manifest");
+        assert_eq!(fs::read_to_string(e.game.join("extension/config/newmodule.ini")).unwrap(), "pack-new-settings");
+        assert_eq!(fs::read_to_string(e.game.join("dwrite.dll")).unwrap(), "pack-csp");
+        // Preserved files are not recorded, so uninstall never deletes them.
+        let recs: Vec<&str> = out.mods[0].installed_files.iter().map(|f| f.file.as_str()).collect();
+        assert!(!recs.contains(&"system/cfg/video.ini"), "{recs:?}");
+        assert!(!recs.contains(&"extension/config/general.ini"), "{recs:?}");
+    }
+
+    #[test]
+    fn settings_group_classification() {
+        assert_eq!(settings_group_of("system/cfg/video.ini"), Some("video"));
+        assert_eq!(settings_group_of("extension/config/general.ini"), Some("cspsettings"));
+        assert_eq!(settings_group_of("extension/config-ext/pure/Pure.ini"), Some("cspsettings"));
+        assert_eq!(settings_group_of("extension/config/data_manifest.ini"), None);
+        assert_eq!(settings_group_of("extension/config/data_manifest2.ini"), Some("cspsettings"));
+        assert_eq!(settings_group_of("dwrite.dll"), None);
+        assert_eq!(settings_group_of("system/cfg/ppfilters/UHM.ini"), None);
     }
 
     #[test]

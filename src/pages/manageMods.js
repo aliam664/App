@@ -14,7 +14,10 @@
     const manifest = window.appState.manifest;
     const mods = (manifest && manifest.mods) || {};
     const ids = Object.keys(mods).filter((id) => Array.isArray(mods[id]) && mods[id].length > 0);
-    const hasAny = ids.length > 0;
+    // Drag-and-drop content installs are recorded by the Rust core under
+    // manifest.installs; they get their own removable section below.
+    const contentInstalls = (manifest && Array.isArray(manifest.installs)) ? manifest.installs : [];
+    const hasAny = ids.length > 0 || contentInstalls.length > 0;
     busy = false;
 
     container.innerHTML = `
@@ -28,18 +31,27 @@
 
       <div class="page-stack">
         ${hasAny ? renderSummary(ids, mods) : ''}
-        ${hasAny ? `
+        ${ids.length ? `
           <section class="ui-section">
             ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.installed'), title: s('modsTitle'), subtitle: s('modsSub') })}
             <div class="manage-list">
               ${ids.map((id) => renderModCard(id, mods[id])).join('')}
             </div>
           </section>
-        ` : `
+        ` : ''}
+        ${contentInstalls.length ? `
+          <section class="ui-section">
+            ${window.ui.sectionHeader({ icon: '', kicker: t('kicker.installed'), title: s('contentTitle'), subtitle: s('contentSub') })}
+            <div class="manage-list">
+              ${contentInstalls.map((entry, i) => renderContentCard(entry, i)).join('')}
+            </div>
+          </section>
+        ` : ''}
+        ${!hasAny ? `
           <section class="ui-section">
             ${window.ui.empty('', s('empty'), '', `<button class="btn-primary" id="btn-start">${t('showcase.startInstall')}</button>`)}
           </section>
-        `}
+        ` : ''}
       </div>
     `;
 
@@ -108,6 +120,71 @@
     `;
   }
 
+  function renderContentCard(entry, index) {
+    const name = entry.name || entry.id || '—';
+    const files = Array.isArray(entry.files) ? entry.files : [];
+    return `
+      <div class="card-sec manage-card">
+        <div class="manage-head">
+          <div class="manage-name">
+            <strong>${uhmEsc(name)}</strong>
+            ${window.ui.statusBadge(s('installed'), 'ok')}
+          </div>
+          <div class="manage-actions">
+            <button class="btn-secondary manage-remove-content" data-index="${index}">${s('uninstall')}</button>
+          </div>
+        </div>
+        <div class="manage-meta title-dim">
+          <span>${s('date')}: ${window.uhmFormatDate(entry.installedAt)}</span>
+          <span>${s('files')}: ${files.length}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  async function doRemoveContent(index, btn) {
+    if (busy) return;
+    const manifest = window.appState.manifest;
+    const installs = (manifest && Array.isArray(manifest.installs)) ? manifest.installs : [];
+    const entry = installs[index];
+    if (!entry) return;
+    busy = true;
+    const confirmed = await window.uhmConfirm({
+      title: s('deleteConfirmation'),
+      body: `<div class="text-dim">${s('noBackup')}</div>`,
+      ok: s('confirmDelete'),
+      cancel: s('cancelDelete'),
+      danger: true
+    });
+    if (!confirmed) { busy = false; return; }
+    if (btn) btn.disabled = true;
+    let failed = false;
+    try {
+      const files = (entry.files || []).map((f) => ({
+        dest: f.dest,
+        backupPath: f.backupPath || null,
+        stopAt: (window.appState.settings && window.appState.settings.gamePath) || (manifest && manifest.gamePath) || null
+      }));
+      if (files.length) {
+        const result = await window.uhm.runUninstall({ files });
+        failed = (result || []).some((r) => r.status === 'error');
+      }
+    } catch (e) {
+      failed = true;
+    }
+    if (!failed) {
+      installs.splice(index, 1);
+      manifest.installs = installs;
+      window.appState.manifest = manifest;
+      await window.uhm.saveManifest(manifest);
+      uhmToast(s('done'), 'success');
+      render(document.getElementById('page-content'));
+    } else {
+      uhmToast(t('toast.error'), 'error');
+    }
+    busy = false;
+  }
+
   function statusLabel(status) {
     if (status === 'installed') return s('installed');
     if (status === 'skipped') return s('kept');
@@ -116,13 +193,28 @@
     return status || '—';
   }
 
+  // Every file this mod ever placed, across ALL history entries (newest
+  // entry wins per destination). Removing only the latest entry used to
+  // leave files from older installs (e.g. a previous tier's unique files)
+  // behind on the game folder forever.
+  function collectAllFiles(entries) {
+    const byDest = new Map();
+    // entries are newest-first; walk oldest → newest so the newest record
+    // for a given destination wins.
+    [...entries].reverse().forEach((entry) => {
+      (entry.files || []).forEach((f) => {
+        if (f && f.dest) byDest.set(f.dest, f);
+      });
+    });
+    return [...byDest.values()];
+  }
+
   async function doRemove(modId, btn) {
     if (busy) return;
     busy = true;
     const manifest = window.appState.manifest;
     const entries = manifest.mods[modId] || [];
-    const latest = entries[0] || entries[entries.length - 1] || {};
-    const files = latest.files || [];
+    const files = collectAllFiles(entries);
 
     if (!files.length) {
       try {

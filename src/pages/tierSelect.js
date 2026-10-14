@@ -191,7 +191,13 @@
     Object.keys(window.BASE_MOD_PATHS || {}).forEach((base) => {
       if (keep[base] === false) exclude.push(...window.BASE_MOD_PATHS[base]);
     });
-    const mods = [{ id: window.GRAPHICS_PACK_ID, tier, dest: '', overwrite: true, exclude }];
+    // User-settings preservation (step 2): «حفظ کن» for the video group or
+    // the CSP/Pure settings group → the Rust core skips existing files of
+    // that group (see installer::settings_group_of). Both default to keep.
+    const preserve = [];
+    if (keep.video === false) preserve.push('video');
+    if (keep.cspsettings === false) preserve.push('cspsettings');
+    const mods = [{ id: window.GRAPHICS_PACK_ID, tier, dest: '', overwrite: true, exclude, preserve }];
     return { tier, gamePath: window.appState.settings.gamePath, mods };
   }
 

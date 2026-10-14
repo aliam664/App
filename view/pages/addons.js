@@ -269,6 +269,9 @@
   }
 
   async function writeManifest(id, mod) {
+    // A failed/missing install must not shadow a previous, still-on-disk
+    // install with an empty file list (see install.js updateManifest).
+    if (!mod || (mod.status !== 'installed' && !(mod.installedFiles && mod.installedFiles.length))) return;
     const manifest = window.appState.manifest || {};
     if (!manifest.mods) manifest.mods = {};
     const existing = Array.isArray(manifest.mods[id]) ? manifest.mods[id] : [];

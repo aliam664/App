@@ -103,7 +103,12 @@ pub fn list_zip_entries(file: &Path) -> Result<Vec<Entry>> {
 }
 
 /// Read one file from a ZIP by its normalised relative path.
+///
+/// Only metadata / preview files are ever read through this path, so the
+/// read is capped: a header claiming a huge uncompressed size must not be
+/// able to force a matching allocation (decompression-bomb guard).
 pub fn read_zip_file(file: &Path, rel: &str) -> Option<Vec<u8>> {
+    const MAX_READ: u64 = 16 * 1024 * 1024;
     let want = norm_rel(rel);
     let f = File::open(file).ok()?;
     let mut zip = zip::ZipArchive::new(f).ok()?;
@@ -111,6 +116,9 @@ pub fn read_zip_file(file: &Path, rel: &str) -> Option<Vec<u8>> {
         let mut e = zip.by_index(i).ok()?;
         if e.is_dir() || norm_rel(e.name()) != want {
             continue;
+        }
+        if e.size() > MAX_READ {
+            return None;
         }
         let mut buf = Vec::with_capacity(e.size() as usize);
         e.read_to_end(&mut buf).ok()?;
@@ -121,8 +129,20 @@ pub fn read_zip_file(file: &Path, rel: &str) -> Option<Vec<u8>> {
 
 /// Extract a whole ZIP into `dest`, refusing entries that escape it.
 pub fn extract_zip_to(file: &Path, dest: &Path) -> Result<()> {
+    // Total uncompressed-size ceiling: a small crafted archive must not be
+    // able to fill the disk through the staging folder. Real AC content
+    // (even large track packs) stays far below this.
+    const MAX_TOTAL_UNCOMPRESSED: u64 = 20 * 1024 * 1024 * 1024;
     let f = File::open(file)?;
     let mut zip = zip::ZipArchive::new(f)?;
+    let declared_total: u64 = (0..zip.len())
+        .filter_map(|i| zip.by_index_raw(i).ok().map(|e| e.size()))
+        .sum();
+    if declared_total > MAX_TOTAL_UNCOMPRESSED {
+        return Err(ArchiveError::Zip(format!(
+            "archive too large: {declared_total} bytes uncompressed (limit {MAX_TOTAL_UNCOMPRESSED})"
+        )));
+    }
     fs::create_dir_all(dest)?;
     for i in 0..zip.len() {
         let mut e = zip.by_index(i)?;

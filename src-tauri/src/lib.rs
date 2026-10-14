@@ -31,7 +31,25 @@ pub struct AppState {
     resource_root: PathBuf,
     install_cancelled: Arc<AtomicBool>,
     mod_install_cancelled: Arc<AtomicBool>,
+    /// Set while a pack install or a drag-and-drop install is running. Both
+    /// operations share one cancel flag each, so a second concurrent run
+    /// would reset the first run's flag and interleave its progress events;
+    /// refuse to start instead.
+    operation_busy: Arc<AtomicBool>,
     cached_specs: std::sync::Mutex<Option<Value>>,
+}
+
+/// RAII guard for `operation_busy` — releases the flag on every exit path.
+struct OperationGuard(Arc<AtomicBool>);
+impl OperationGuard {
+    fn acquire(flag: &Arc<AtomicBool>) -> Option<Self> {
+        flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .ok()
+            .map(|_| Self(flag.clone()))
+    }
+}
+impl Drop for OperationGuard {
+    fn drop(&mut self) { self.0.store(false, Ordering::SeqCst); }
 }
 
 impl AppState {
@@ -162,7 +180,12 @@ async fn game_auto_detect() -> Option<String> {
 
 #[tauri::command]
 fn game_check_base_mods(game_path: Option<String>) -> Value {
-    let mut result = json!({ "csp": { "found": false, "markers": [] }, "pure": { "found": false, "markers": [] } });
+    let mut result = json!({
+        "csp": { "found": false, "markers": [] },
+        "pure": { "found": false, "markers": [] },
+        "video": { "found": false, "markers": [] },
+        "cspsettings": { "found": false, "markers": [] }
+    });
     let Some(gp) = game_path.filter(|g| !g.is_empty()) else { return result };
     let g = Path::new(&gp);
     let csp = [g.join("extension/config/data_manifest.ini"), g.join("extension/config/data_manifest"), g.join("extension/dwrite.ini")];
@@ -171,7 +194,49 @@ fn game_check_base_mods(game_path: Option<String>) -> Value {
         let found: Vec<String> = markers.iter().filter(|p| p.exists()).map(|p| p.to_string_lossy().to_string()).collect();
         result[key] = json!({ "found": !found.is_empty(), "markers": found });
     }
+    // Video settings: the game ships system/cfg/video.ini by default, so a
+    // marker here only means "a settings file exists to preserve", which is
+    // exactly what the step-2 prompt asks about.
+    let video = g.join("system/cfg/video.ini");
+    result["video"] = if video.exists() {
+        json!({ "found": true, "markers": [video.to_string_lossy().to_string()] })
+    } else {
+        json!({ "found": false, "markers": [] })
+    };
+    // CSP / Pure settings: any *.ini under extension/config(-ext) other than
+    // the structural data_manifest.ini counts as user-tunable settings.
+    let mut csp_setting_markers: Vec<String> = Vec::new();
+    for sub in ["extension/config", "extension/config-ext"] {
+        collect_ini_markers(&g.join(sub), &mut csp_setting_markers);
+    }
+    csp_setting_markers.sort();
+    csp_setting_markers.truncate(12);
+    result["cspsettings"] = json!({ "found": !csp_setting_markers.is_empty(), "markers": csp_setting_markers });
     result
+}
+
+/// Collect `*.ini` files under `dir` (one level of sub-directories is enough
+/// for CSP's layout), skipping the structural `data_manifest.ini`.
+fn collect_ini_markers(dir: &Path, out: &mut Vec<String>) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for entry in rd.flatten() {
+        let p = entry.path();
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            if let Ok(sub) = std::fs::read_dir(&p) {
+                for e2 in sub.flatten() {
+                    let p2 = e2.path();
+                    if is_settings_ini(&p2) { out.push(p2.to_string_lossy().to_string()); }
+                }
+            }
+        } else if is_settings_ini(&p) {
+            out.push(p.to_string_lossy().to_string());
+        }
+    }
+}
+
+fn is_settings_ini(p: &Path) -> bool {
+    p.extension().map(|e| e.eq_ignore_ascii_case("ini")).unwrap_or(false)
+        && p.file_name().map(|n| !n.eq_ignore_ascii_case("data_manifest.ini")).unwrap_or(false)
 }
 
 /* ------------------------------------------------------------------ */
@@ -189,6 +254,8 @@ struct InstallPayload {
 #[tauri::command]
 async fn install_run(app: AppHandle, state: State<'_, AppState>, payload: Option<InstallPayload>) -> Result<installer::InstallOutcome, String> {
     let payload = payload.unwrap_or(InstallPayload { game_path: String::new(), tier: None, mods: vec![] });
+    let _guard = OperationGuard::acquire(&state.operation_busy)
+        .ok_or_else(|| "BUSY".to_string())?;
     let flag = state.install_cancelled.clone();
     flag.store(false, Ordering::SeqCst);
     let mods_dir = state.mods_dir();
