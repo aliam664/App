@@ -102,14 +102,14 @@ fn extract_zip(source:&Path,destination:&Path)->Result<Vec<PathBuf>,String>{
     let mut zip=zip::ZipArchive::new(fs::File::open(source).map_err(|e|e.to_string())?).map_err(|_|"Corrupt ZIP archive")?;
     if zip.len()>MAX_FILES{return Err("Archive contains too many files".into());}
     let mut expanded=0u64;let mut names=HashSet::new();
-    for i in 0..zip.len(){let f=zip.by_index(i).map_err(|_|"Invalid ZIP entry")?;let name=f.name().trim_end_matches('/');relative_path(name)?;
+    for i in 0..zip.len(){let f=zip.by_index(i).map_err(|_|"Invalid ZIP entry")?;let raw_name=f.name().map_err(|_|"Unsupported ZIP filename encoding")?;let name=raw_name.trim_end_matches('/');relative_path(name)?;
       if !names.insert(name.to_lowercase()){return Err("Archive has case-insensitive duplicate paths".into());}
       if f.unix_mode().map(|m|m&0o170000==0o120000).unwrap_or(false){return Err("Archive symbolic links are forbidden".into());}
       expanded=expanded.checked_add(f.size()).ok_or("Archive size overflow")?;}
     if expanded>MAX_EXPANDED||expanded>fs::metadata(source).map_err(|e|e.to_string())?.len().saturating_mul(200).max(10_000_000){return Err("Archive expansion limit exceeded".into());}
     if fs2::available_space(destination).map_err(|e|e.to_string())?<expanded.saturating_mul(2)+128_000_000{return Err("Insufficient disk space for extraction and backup".into());}
     let mut out=Vec::new();
-    for i in 0..zip.len(){let mut f=zip.by_index(i).map_err(|_|"Invalid ZIP entry")?;let target=safe_target(destination,f.name().trim_end_matches('/'))?;
+    for i in 0..zip.len(){let mut f=zip.by_index(i).map_err(|_|"Invalid ZIP entry")?;let name=f.name().map_err(|_|"Unsupported ZIP filename encoding")?.into_owned();let target=safe_target(destination,name.trim_end_matches('/'))?;
       if f.is_dir(){fs::create_dir_all(&target).map_err(|e|e.to_string())?;continue;}
       fs::create_dir_all(target.parent().ok_or("Invalid ZIP path")?).map_err(|e|e.to_string())?;
       let mut writer=fs::OpenOptions::new().create_new(true).write(true).open(&target).map_err(|e|e.to_string())?;

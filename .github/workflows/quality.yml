@@ -51,11 +51,27 @@ jobs:
       - run: npm run build
       - name: Native security and recovery tests
         working-directory: src-tauri
-        run: cargo test
+        run: |
+          cargo test 2>&1 | Tee-Object -FilePath native-test.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content native-test.log -Tail 100) -join "`n"
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Native test output::$tail"
+            exit $code
+          }
       - uses: taiki-e/install-action@cargo-audit
       - name: Audit native dependencies
         working-directory: src-tauri
-        run: cargo audit
+        run: |
+          cargo audit 2>&1 | Tee-Object -FilePath native-audit.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content native-audit.log -Tail 100) -join "`n"
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Native dependency audit::$tail"
+            exit $code
+          }
       - name: Build unsigned test installer
         run: npm run desktop:build
       - uses: actions/upload-artifact@v4
@@ -68,3 +84,17 @@ jobs:
         with:
           name: native-dependency-lock
           path: src-tauri/Cargo.lock
+
+      - name: Expose initial dependency lock for reproducible bootstrap
+        if: always()
+        shell: pwsh
+        run: |
+          if ((Test-Path src-tauri/Cargo.lock) -and !(git ls-files src-tauri/Cargo.lock)) {
+            $bytes = [IO.File]::ReadAllBytes("$pwd/src-tauri/Cargo.lock")
+            $memory = [IO.MemoryStream]::new()
+            $gzip = [IO.Compression.GZipStream]::new($memory,[IO.Compression.CompressionMode]::Compress,$true)
+            $gzip.Write($bytes,0,$bytes.Length)
+            $gzip.Dispose()
+            $value = [Convert]::ToBase64String($memory.ToArray())
+            Write-Output "::notice title=Native dependency lock::$value"
+          }
