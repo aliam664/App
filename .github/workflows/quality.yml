@@ -1,7 +1,7 @@
 name: Platform checks
 on:
   push:
-    branches: [arena/37af8e92-app]
+    branches: [main, arena/37af8e92-app]
   pull_request:
 permissions:
   contents: read
@@ -49,28 +49,6 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-extractor.ps1
       - run: npm run build
-      - name: Resolve lock on initial bootstrap only
-        working-directory: src-tauri
-        run: |
-          if (!(Test-Path Cargo.lock)) { cargo generate-lockfile; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
-      - name: Expose initial dependency lock for reproducible bootstrap
-        if: always()
-        shell: pwsh
-        run: |
-          if ((Test-Path src-tauri/Cargo.lock) -and !(git ls-files src-tauri/Cargo.lock)) {
-            $bytes = [IO.File]::ReadAllBytes("$pwd/src-tauri/Cargo.lock")
-            $memory = [IO.MemoryStream]::new()
-            $gzip = [IO.Compression.GZipStream]::new($memory,[IO.Compression.CompressionMode]::Compress,$true)
-            $gzip.Write($bytes,0,$bytes.Length)
-            $gzip.Dispose()
-            $value = [Convert]::ToBase64String($memory.ToArray())
-            $part = 0
-            for ($offset = 0; $offset -lt $value.Length; $offset += 4000) {
-              $part++
-              $chunk = $value.Substring($offset,[Math]::Min(4000,$value.Length - $offset))
-              Write-Output ("::notice title=Native dependency lock {0}::{1}" -f $part,$chunk)
-            }
-          }
       - name: Native security and recovery tests
         working-directory: src-tauri
         run: |

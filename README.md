@@ -116,4 +116,6 @@ npm run desktop:build
 
 
 ### نتیجه ساخت Windows در CI
-اجرای [41339882318](https://github.com/aliam664/App/actions/runs/41339882318) در Windows موفق شد: ۱۵ تست Native (شامل DPAPI/امضای P-256، ZIP/RAR/7z واقعی و حالت‌های قطع تراکنش)، `cargo audit` بدون vulnerability مسدودکننده و تولید NSIS آزمایشی unsigned. هشدارهای وابستگی غیرمستقیم `proc-macro-error` و `glib` در audit باقی هستند؛ دومی مربوط به مسیر GTK/Linux است و build هدف این نسخه Windows است. موفقیت CI معادل تست روی نصب واقعی Assetto Corsa یا تأیید امنیت کامل نیست.
+اجرای [41340337412](https://github.com/aliam664/App/actions/runs/41340337412) در Windows موفق شد: ۱۵ تست Native (شامل DPAPI/امضای P-256، ZIP/RAR/7z واقعی و حالت‌های قطع تراکنش)، `cargo audit` بدون vulnerability مسدودکننده و تولید NSIS آزمایشی unsigned. هشدارهای وابستگی غیرمستقیم `proc-macro-error` و `glib` در audit باقی هستند؛ دومی مربوط به مسیر GTK/Linux است و build هدف این نسخه Windows است. موفقیت CI معادل تست روی نصب واقعی Assetto Corsa یا تأیید امنیت کامل نیست.
+
+`src-tauri/Cargo.lock` از همان اجرای موفق ثبت شده است و CI با `cargo test --locked` وابستگی دقیق را بررسی می‌کند.
