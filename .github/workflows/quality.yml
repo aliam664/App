@@ -15,6 +15,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run check
       - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
@@ -51,9 +52,19 @@ jobs:
       - name: Native security and recovery tests
         working-directory: src-tauri
         run: cargo test
+      - uses: taiki-e/install-action@cargo-audit
+      - name: Audit native dependencies
+        working-directory: src-tauri
+        run: cargo audit
       - name: Build unsigned test installer
         run: npm run desktop:build
       - uses: actions/upload-artifact@v4
         with:
           name: uhm-windows-unsigned-test
           path: src-tauri/target/release/bundle/nsis/*.exe
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-dependency-lock
+          path: src-tauri/Cargo.lock

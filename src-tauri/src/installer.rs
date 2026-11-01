@@ -131,6 +131,9 @@ fn run_extractor(exe:&Path,args:&[String],log:&Path)->Result<String,String>{
 }
 fn extract_external(app:&AppHandle,source:&Path,destination:&Path)->Result<Vec<PathBuf>,String>{
     let dir=app.path().resource_dir().map_err(|e|e.to_string())?.join("resources/extractor");
+    extract_external_with_tools(&dir,source,destination)
+}
+fn extract_external_with_tools(dir:&Path,source:&Path,destination:&Path)->Result<Vec<PathBuf>,String>{
     let exe=dir.join("7z.exe");let dll=dir.join("7z.dll");
     let exe_hash=option_env!("UHM_EXTRACTOR_EXE_SHA256").ok_or("This build has no approved RAR/7z extractor")?;
     let dll_hash=option_env!("UHM_EXTRACTOR_DLL_SHA256").ok_or("This build has no approved RAR/7z library")?;
@@ -224,4 +227,35 @@ fn replace_file(source:&Path,target:&Path)->Result<(),String>{
  use super::*;
  #[test]fn rejects_local_download_ips(){for s in ["127.0.0.1","10.1.2.3","192.168.0.1","169.254.169.254","100.64.0.1","::1","0.0.0.0"]{assert!(!public_ip(s.parse().unwrap()));}assert!(public_ip("8.8.8.8".parse().unwrap()));}
  #[test]fn rolls_back_new_and_existing_files(){let temp=tempfile::tempdir().unwrap();let root=temp.path().join("game");let dir=temp.path().join("tx");fs::create_dir_all(&root).unwrap();fs::create_dir_all(dir.join("backups")).unwrap();fs::write(root.join("old.ini"),"changed").unwrap();fs::write(root.join("new.ini"),"new").unwrap();fs::write(dir.join("backups/0"),"original").unwrap();let j=Journal{package_id:"p".into(),state:"applying".into(),entries:vec![Entry{target:"old.ini".into(),backup:"backups/0".into(),existed:true,ready:true},Entry{target:"new.ini".into(),backup:"backups/1".into(),existed:false,ready:true}]};rollback(&root,&dir,&j).unwrap();assert_eq!(fs::read_to_string(root.join("old.ini")).unwrap(),"original");assert!(!root.join("new.ini").exists());}
+}
+
+#[cfg(test)] mod crash_and_archive_tests {
+    use super::*;
+    fn interrupted(state:&str,library_committed:bool)->(tempfile::TempDir,PathBuf,PathBuf){
+        let temp=tempfile::tempdir().unwrap();let root=temp.path().join("game");fs::create_dir(&root).unwrap();
+        let control=regular_control(&root).unwrap();let transaction=uuid::Uuid::new_v4().to_string();let dir=control.join("transactions").join(&transaction);
+        fs::create_dir_all(dir.join("backups")).unwrap();fs::write(root.join("settings.ini"),"new").unwrap();fs::write(dir.join("backups/0"),"original").unwrap();
+        save_journal(&dir,&Journal{package_id:"package".into(),state:state.into(),entries:vec![Entry{target:"settings.ini".into(),backup:"backups/0".into(),existed:true,ready:true}]}).unwrap();
+        if library_committed {let mut value=Library::new();value.insert("package".into(),Installed{version:"1.0.0".into(),installed_at:"0".into(),files:vec!["settings.ini".into()],transaction_id:transaction});atomic_write(&control.join("installed.json"),&serde_json::to_vec(&value).unwrap()).unwrap();}
+        (temp,root,dir)
+    }
+    #[test]fn recovers_interrupted_apply_and_is_idempotent(){let(_temp,root,_)=interrupted("applying",false);assert_eq!(recover(&root).unwrap(),1);assert_eq!(fs::read_to_string(root.join("settings.ini")).unwrap(),"original");assert_eq!(recover(&root).unwrap(),0);}
+    #[test]fn rolls_back_pre_commit_crash(){let(_temp,root,_)=interrupted("committing",false);assert_eq!(recover(&root).unwrap(),1);assert_eq!(fs::read_to_string(root.join("settings.ini")).unwrap(),"original");}
+    #[test]fn retains_post_commit_files_after_crash(){let(_temp,root,dir)=interrupted("committing",true);assert_eq!(recover(&root).unwrap(),0);assert_eq!(fs::read_to_string(root.join("settings.ini")).unwrap(),"new");let j:Journal=serde_json::from_slice(&fs::read(dir.join("journal.json")).unwrap()).unwrap();assert_eq!(j.state,"committed");}
+    #[test]fn rejects_missing_recovery_backup(){let(_temp,root,dir)=interrupted("applying",false);fs::remove_file(dir.join("backups/0")).unwrap();assert!(recover(&root).is_err());assert_eq!(fs::read_to_string(root.join("settings.ini")).unwrap(),"new");}
+    fn zip_fixture(dir:&Path,names:&[&str])->PathBuf{
+        let path=dir.join("fixture.zip");let mut writer=zip::ZipWriter::new(fs::File::create(&path).unwrap());
+        for name in names{writer.start_file(*name,zip::write::SimpleFileOptions::default()).unwrap();writer.write_all(b"test bytes").unwrap();}writer.finish().unwrap();path
+    }
+    #[test]fn extracts_zip_and_verifies_contents(){let dir=tempfile::tempdir().unwrap();let source=zip_fixture(dir.path(),&["content/test.ini"]);let output=dir.path().join("out");fs::create_dir(&output).unwrap();let files=extract_zip(&source,&output).unwrap();assert_eq!(files.len(),1);assert_eq!(fs::read(output.join("content/test.ini")).unwrap(),b"test bytes");}
+    #[test]fn rejects_zip_traversal_before_writing(){let dir=tempfile::tempdir().unwrap();let source=zip_fixture(dir.path(),&["../escaped.ini"]);let output=dir.path().join("out");fs::create_dir(&output).unwrap();assert!(extract_zip(&source,&output).is_err());assert!(!dir.path().join("escaped.ini").exists());}
+    #[test]fn rejects_zip_case_collisions(){let dir=tempfile::tempdir().unwrap();let source=zip_fixture(dir.path(),&["Config.ini","config.ini"]);let output=dir.path().join("out");fs::create_dir(&output).unwrap();assert!(extract_zip(&source,&output).is_err());}
+    #[cfg(windows)]
+    #[test]fn extracts_real_rar_and_seven_zip_with_pinned_tools(){
+        let root=PathBuf::from(env!("CARGO_MANIFEST_DIR"));let tools=root.join("resources/extractor");
+        for fixture in ["sample.rar","sample.7z"]{
+            let dir=tempfile::tempdir().unwrap();let files=extract_external_with_tools(&tools,&root.join("tests/fixtures").join(fixture),dir.path()).unwrap();assert!(!files.is_empty());
+            if fixture=="sample.rar"{assert_eq!(fs::read(dir.path().join("content/test.txt")).unwrap(),b"test text file\r\n");}
+        }
+    }
 }
