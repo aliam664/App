@@ -7,7 +7,12 @@ export type Role = z.infer<typeof Role>;
 export const Version = z.string().regex(/^\d+\.\d+\.\d+$/, 'نسخه باید مانند 1.2.0 باشد');
 export const Id = z.string().uuid();
 export function safeRelativePath(input: string): boolean {
-  if (!input || input.length > 220 || /[\x00-\x1f:<>"|?*]/.test(input) || /^[\\/]/.test(input))
+  if (
+    !input ||
+    input.length > 220 ||
+    /[\x00-\x1f\x7f-\x9f:<>"|?*]/.test(input) ||
+    /^[\\/]/.test(input)
+  )
     return false;
   return input
     .replaceAll('\\', '/')
@@ -19,7 +24,7 @@ export function safeRelativePath(input: string): boolean {
         p !== '.' &&
         p !== '..' &&
         !/[ .]$/.test(p) &&
-        !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p),
+        !/^(con|prn|aux|nul|conin\$|conout\$|clock\$|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(p),
     );
 }
 export const RelativePath = z

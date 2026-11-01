@@ -27,11 +27,17 @@ pub fn relative_path(input: &str) -> Result<PathBuf, String> {
             || part == "."
             || part == ".."
             || part.ends_with([' ', '.'])
-            || ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
-            || (stem.len() == 4
-                && (stem.starts_with("COM") || stem.starts_with("LPT"))
-                && stem.as_bytes()[3].is_ascii_digit()
-                && stem.as_bytes()[3] != b'0')
+            || ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$", "CLOCK$"].contains(&stem.as_str())
+            || stem
+                .strip_prefix("COM")
+                .or_else(|| stem.strip_prefix("LPT"))
+                .map(|s| {
+                    matches!(
+                        s,
+                        "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                    )
+                })
+                .unwrap_or(false)
             || part.eq_ignore_ascii_case(".uhm")
         {
             return Err("Reserved or traversing installation path".into());
@@ -248,6 +254,13 @@ mod tests {
     #[test]
     fn rejects_windows_escapes() {
         for p in [
+            "COM¹.txt",
+            "LPT²",
+            "CONIN$.cfg",
+            "CONOUT$",
+            "CLOCK$",
+            "x\u{7f}y",
+            "x\u{85}y",
             "../evil",
             "/abs",
             "C:\\x",

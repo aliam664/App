@@ -10,6 +10,13 @@ import {
 import { seedPackages } from '../backend/src/seed';
 describe('installation boundary', () => {
   it.each([
+    'COM¹.txt',
+    'LPT²',
+    'CONIN$.cfg',
+    'CONOUT$',
+    'CLOCK$',
+    'x\u007fy',
+    'x\u0085y',
     '../escape',
     'C:\\Windows\\x',
     '/etc/passwd',
