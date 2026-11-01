@@ -63,6 +63,7 @@ let grant = localStorage.getItem('uhm-grant') || '';
 let gamePath = localStorage.getItem('uhm-game-path') || '';
 let installed: Record<string, { version: string; installed_at: string }> = {};
 let tasks: Task[] = [];
+let installing = false;
 let language = localStorage.getItem('uhm-language') || 'fa';
 let compact = localStorage.getItem('uhm-compact') === 'true';
 const launcherNav = [
@@ -273,6 +274,8 @@ function details(p: CatalogItem) {
         return;
       }
       if (!gamePath) throw new Error('ابتدا از تنظیمات، مسیر معتبر بازی را انتخاب کنید.');
+      if (installing) throw new Error('یک نصب دیگر در حال اجراست؛ تا پایان آن صبر کنید.');
+      installing = true;
       d.close();
       const batch: Task[] = plan.packages.map((item: any) => ({
         id: item.id,
@@ -281,7 +284,6 @@ function details(p: CatalogItem) {
         progress: 0,
       }));
       tasks.push(...batch);
-      const task = batch[batch.length - 1];
       page = 'downloads';
       await render();
       try {
@@ -306,9 +308,13 @@ function details(p: CatalogItem) {
           toast('نصب تأیید شد؛ گزارش آنلاین ارسال نشد و نتیجه در دستگاه محفوظ است.');
         }
       } catch (e) {
-        task.phase = 'نیازمند بررسی';
-        task.error = String(e);
+        for (const item of batch.filter((t) => t.progress < 100)) {
+          item.phase = 'عملیات متوقف شد';
+          item.error = String(e);
+        }
         handleError(e);
+      } finally {
+        installing = false;
       }
       await render();
     });
@@ -533,9 +539,12 @@ async function boot() {
       bytes?: number;
       total?: number;
     }>('install-progress', (e) => {
-      const t = tasks.find((t) => t.id === e.payload.package_id);
+      const t = [...tasks]
+        .reverse()
+        .find((t) => t.id === e.payload.package_id && t.progress < 100 && !t.error);
       if (t) {
         Object.assign(t, e.payload);
+        if (e.payload.phase === 'نصب تأیید شد') t.progress = 100;
         if (page === 'downloads' && !adminMode) {
           downloads(document.querySelector('#content')!);
           decorate();

@@ -13,7 +13,14 @@ export class SupabaseRepository implements Repository {
     });
   }
   private check(error: { message: string } | null) {
-    if (error) throw new Error('DATABASE_ERROR');
+    if (error) {
+      const known = ['RELEASE_IMMUTABLE', 'EMPTY_INSTALL_PLAN', 'INVALID_ACTION', 'NOT_FOUND'];
+      const code = known.find((code) => error.message.includes(code));
+      if (code) throw new Error(code);
+      if (error.message.includes('package_releases_pkey')) throw new Error('RELEASE_IMMUTABLE');
+      if (error.message.includes('packages_slug_key')) throw new Error('SLUG_EXISTS');
+      throw new Error('DATABASE_ERROR');
+    }
   }
   async published() {
     const rows: import('../../packages/contracts/src/index.ts').PackageSpec[] = [];

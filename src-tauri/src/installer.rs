@@ -36,7 +36,10 @@ fn rollback(root:&Path,dir:&Path,journal:&Journal)->Result<(),String>{
             let backup=safe_target(dir,&entry.backup)?;
             if !backup.is_file(){return Err("Recovery backup is missing; manual repair required".into());}
             if let Some(parent)=target.parent(){fs::create_dir_all(parent).map_err(|e|e.to_string())?;}
-            fs::copy(backup,&target).map_err(|e|e.to_string())?;
+            let restoring=dir.join(format!("restore-{}",uuid::Uuid::new_v4()));
+            fs::copy(backup,&restoring).map_err(|e|e.to_string())?;
+            fs::File::open(&restoring).and_then(|f|f.sync_all()).map_err(|e|e.to_string())?;
+            replace_file(&restoring,&target)?;
         }else if target.exists(){fs::remove_file(target).map_err(|e|e.to_string())?;}
     }Ok(())
 }
@@ -187,6 +190,14 @@ pub fn install(app:&AppHandle,root:&Path,packages:Vec<Package>)->Result<Value,St
             if target.exists()&&overwrite=="fail"{return Err(format!("File already exists: {relative}"));}
             if library.iter().any(|(id,p)|id!=&package.id&&p.files.iter().any(|f|f.eq_ignore_ascii_case(relative))){return Err("Another package owns an installation target".into());}
           }
+          // Include existing targets in the backup budget; a tiny patch may replace a huge game file.
+          let mut required=128_000_000u64;
+          for (source,relative,_) in &operations {
+            let target=safe_target(root,relative)?;
+            let backup=if target.exists(){let metadata=fs::metadata(&target).map_err(|e|e.to_string())?;if !metadata.is_file(){return Err("Installation target is not a regular file".into());}metadata.len()}else{0};
+            required=required.checked_add(backup).and_then(|v|v.checked_add(fs::metadata(source).ok()?.len())).ok_or("Installation space calculation overflow")?;
+          }
+          if fs2::available_space(root).map_err(|e|e.to_string())?<required{return Err("Insufficient space for original-file backups and atomic replacements".into());}
           let mut ownership=Vec::new();
           for (index,(source,relative,_)) in operations.iter().enumerate(){
             let target=safe_target(root,relative)?;let existed=target.exists();if existed&&!target.is_file(){return Err("Installation target is not a regular file".into());}

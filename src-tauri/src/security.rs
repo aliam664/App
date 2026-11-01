@@ -1,8 +1,7 @@
 use std::{fs, path::{Path, PathBuf}};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use sha2::{Digest, Sha256};
-use p256::{ecdsa::{SigningKey, Signature, signature::Signer}, pkcs8::{DecodePrivateKey, EncodePrivateKey}};
-use rand_core::OsRng;
+use ring::{rand::SystemRandom,signature::{EcdsaKeyPair,KeyPair,ECDSA_P256_SHA256_FIXED_SIGNING}};
 use serde_json::{json, Value};
 
 pub fn relative_path(input: &str) -> Result<PathBuf, String> {
@@ -67,16 +66,17 @@ fn protect(bytes:&[u8], decrypt:bool)->Result<Vec<u8>,String> {
 }
 #[cfg(not(windows))]
 fn protect(_bytes:&[u8],_decrypt:bool)->Result<Vec<u8>,String>{Err("Device identity requires Windows DPAPI".into())}
-fn device_key(dir:&Path)->Result<SigningKey,String>{
+fn device_key(dir:&Path)->Result<EcdsaKeyPair,String>{
     fs::create_dir_all(dir).map_err(|e|e.to_string())?;
     let path=dir.join("device.dpapi");
-    if path.exists(){let der=protect(&fs::read(&path).map_err(|e|e.to_string())?,true)?;return SigningKey::from_pkcs8_der(&der).map_err(|_|"Device key cannot be recovered; contact administrator".into());}
-    let key=SigningKey::random(&mut OsRng); let der=key.to_pkcs8_der().map_err(|e|e.to_string())?;
-    atomic_write(&path,&protect(der.as_bytes(),false)?)?; Ok(key)
+    if path.exists(){let der=protect(&fs::read(&path).map_err(|e|e.to_string())?,true)?;return EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING,&der,&SystemRandom::new()).map_err(|_|"Device key cannot be recovered; contact administrator".into());}
+    let rng=SystemRandom::new();let der=EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING,&rng).map_err(|_|"Could not generate device identity")?;
+    atomic_write(&path,&protect(der.as_ref(),false)?)?; EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING,der.as_ref(),&rng).map_err(|_|"Generated device identity is invalid".into())
 }
 pub fn identity(dir:&Path)->Result<Value,String>{
-    let key=device_key(dir)?;let point=key.verifying_key().to_encoded_point(false);
-    Ok(json!({"kty":"EC","crv":"P-256","x":URL_SAFE_NO_PAD.encode(point.x().ok_or("Missing x")?),"y":URL_SAFE_NO_PAD.encode(point.y().ok_or("Missing y")?)}))
+    let key=device_key(dir)?;let point=key.public_key().as_ref();
+    if point.len()!=65||point[0]!=4{return Err("Unexpected device public key format".into());}
+    Ok(json!({"kty":"EC","crv":"P-256","x":URL_SAFE_NO_PAD.encode(&point[1..33]),"y":URL_SAFE_NO_PAD.encode(&point[33..65])}))
 }
 pub fn device_thumb(dir:&Path)->Result<String,String>{
     let jwk=identity(dir)?;
@@ -86,8 +86,8 @@ pub fn device_thumb(dir:&Path)->Result<String,String>{
 }
 pub fn sign_nonce(dir:&Path,nonce:&str)->Result<String,String>{
     if nonce.len()!=43 || !nonce.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_'){return Err("Invalid challenge".into());}
-    let signature:Signature=device_key(dir)?.sign(format!("UHM:device-proof:v1:{nonce}").as_bytes());
-    Ok(URL_SAFE_NO_PAD.encode(signature.to_bytes()))
+    let signature=device_key(dir)?.sign(&SystemRandom::new(),format!("UHM:device-proof:v1:{nonce}").as_bytes()).map_err(|_|"Device could not sign the challenge")?;
+    Ok(URL_SAFE_NO_PAD.encode(signature.as_ref()))
 }
 pub fn verify(token:&str,kind:&str)->Result<Value,String>{
     use jsonwebtoken::{decode,decode_header,Algorithm,DecodingKey,Validation};
@@ -107,4 +107,14 @@ pub fn verify(token:&str,kind:&str)->Result<Value,String>{
     #[test] fn accepts_game_relative_paths(){for p in ["extension/config/test.ini","content/cars/test/model.kn5","پوشه/فایل.ini"]{assert!(relative_path(p).is_ok(),"{p}");}}
     #[test] fn replaces_state_atomically(){let dir=tempfile::tempdir().unwrap();let path=dir.path().join("state.json");atomic_write(&path,b"first").unwrap();atomic_write(&path,b"second").unwrap();assert_eq!(fs::read(path).unwrap(),b"second");}
     #[test] fn no_unconfigured_trust(){assert!(verify("bad-token","uhm-plan+jwt").is_err());}
+}
+
+#[cfg(all(test,windows))]mod identity_tests{
+  use super::*;
+  #[test]fn dpapi_identity_survives_restart_and_uses_raw_p256_signatures(){
+    let dir=tempfile::tempdir().unwrap();let first=identity(dir.path()).unwrap();let second=identity(dir.path()).unwrap();assert_eq!(first,second);
+    let nonce="a".repeat(43);let signature=URL_SAFE_NO_PAD.decode(sign_nonce(dir.path(),&nonce).unwrap()).unwrap();assert_eq!(signature.len(),64);
+    let mut key=vec![4];key.extend(URL_SAFE_NO_PAD.decode(first["x"].as_str().unwrap()).unwrap());key.extend(URL_SAFE_NO_PAD.decode(first["y"].as_str().unwrap()).unwrap());
+    ring::signature::UnparsedPublicKey::new(&ring::signature::ECDSA_P256_SHA256_FIXED,&key).verify(format!("UHM:device-proof:v1:{nonce}").as_bytes(),&signature).unwrap();
+  }
 }
