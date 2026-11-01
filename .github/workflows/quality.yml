@@ -56,6 +56,7 @@ jobs:
           $code = $LASTEXITCODE
           if ($code -ne 0) {
             $tail = (Get-Content native-test.log -Tail 100) -join "`n"
+            if ($tail.Length -gt 3500) { $tail = $tail.Substring($tail.Length - 3500) }
             $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
             Write-Output "::error title=Native test output::$tail"
             exit $code
@@ -68,6 +69,7 @@ jobs:
           $code = $LASTEXITCODE
           if ($code -ne 0) {
             $tail = (Get-Content native-audit.log -Tail 100) -join "`n"
+            if ($tail.Length -gt 3500) { $tail = $tail.Substring($tail.Length - 3500) }
             $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
             Write-Output "::error title=Native dependency audit::$tail"
             exit $code
@@ -96,5 +98,10 @@ jobs:
             $gzip.Write($bytes,0,$bytes.Length)
             $gzip.Dispose()
             $value = [Convert]::ToBase64String($memory.ToArray())
-            Write-Output "::notice title=Native dependency lock::$value"
+            $part = 0
+            for ($offset = 0; $offset -lt $value.Length; $offset += 3000) {
+              $part++
+              $chunk = $value.Substring($offset,[Math]::Min(3000,$value.Length - $offset))
+              Write-Output ("::notice title=Native dependency lock {0}::{1}" -f $part,$chunk)
+            }
           }

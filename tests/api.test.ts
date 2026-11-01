@@ -115,6 +115,7 @@ describe('API authorization', () => {
     );
     expect(r.status).toBe(201);
     expect(r.data.codes).toHaveLength(2);
+    expect(r.data.codes.every((code: string) => /^UHM-[A-F0-9]{40}$/.test(code))).toBe(true);
     expect(JSON.stringify(repo.state)).not.toContain(r.data.codes[0]);
     expect(repo.state.licenses).toHaveLength(3);
   });

@@ -15,6 +15,7 @@ import {
 import {
   b64,
   codeHash,
+  generateLicenseCode,
   thumbprint,
   verifyProof,
   grant,
@@ -175,7 +176,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         return license;
       }
       if (path === '/demo/license' && request.method === 'POST' && config.mode === 'demo') {
-        const code = `UHM-${b64(crypto.getRandomValues(new Uint8Array(20))).toUpperCase()}`;
+        const code = generateLicenseCode();
         await repo.insert('licenses', [
           {
             id: crypto.randomUUID(),
@@ -314,10 +315,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         const admin = await requireAdmin('license'),
           input = GenerateLicenses.parse(body),
           now = new Date().toISOString();
-        const codes = Array.from(
-          { length: input.count },
-          () => `UHM-${b64(crypto.getRandomValues(new Uint8Array(20))).toUpperCase()}`,
-        );
+        const codes = Array.from({ length: input.count }, () => generateLicenseCode());
         const rows: License[] = await Promise.all(
           codes.map(async (code) => ({
             id: crypto.randomUUID(),

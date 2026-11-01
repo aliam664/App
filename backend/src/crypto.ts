@@ -7,6 +7,15 @@ export const b64 = (bytes: Uint8Array) => {
 };
 export const unb64 = (s: string) =>
   Uint8Array.from(atob(s.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0));
+// Hex keeps all 160 random bits while permitting case-insensitive code entry.
+export function generateLicenseCode() {
+  return (
+    'UHM-' +
+    Array.from(crypto.getRandomValues(new Uint8Array(20)), (b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+  );
+}
 export async function codeHash(code: string, pepper: string) {
   const key = await crypto.subtle.importKey(
     'raw',

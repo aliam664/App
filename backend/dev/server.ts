@@ -6,7 +6,7 @@ import { exportJWK, generateKeyPair } from 'jose';
 import { LocalRepository, emptyState, type State } from './store.ts';
 import { createApi, type ApiConfig } from '../src/api.ts';
 import { seedPackages } from '../src/seed.ts';
-import { codeHash, b64 } from '../src/crypto.ts';
+import { codeHash, b64, generateLicenseCode } from '../src/crypto.ts';
 if (process.env.NODE_ENV === 'production')
   throw new Error('Demo server is disabled in production. Deploy the Supabase function.');
 await mkdir('.local', { recursive: true, mode: 0o700 });
@@ -30,7 +30,7 @@ try {
   state.packages = seedPackages();
 }
 const token = b64(crypto.getRandomValues(new Uint8Array(32)));
-const demoCode = `UHM-${b64(crypto.getRandomValues(new Uint8Array(20))).toUpperCase()}`;
+const demoCode = generateLicenseCode();
 const repo = new LocalRepository(
   state,
   async (state) => {
