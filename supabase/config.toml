@@ -1,0 +1,7 @@
+project_id = "uhm-launcher"
+[api]
+enabled = true
+schemas = ["public", "graphql_public", "uhm"]
+[functions.api]
+verify_jwt = false
+import_map = "./functions/import_map.json"

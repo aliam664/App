@@ -1,0 +1,59 @@
+name: Platform checks
+on:
+  push:
+    branches: [arena/37af8e92-app]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  web-and-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-traces
+          path: test-results/
+  windows-native:
+    runs-on: windows-latest
+    env:
+      VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      UHM_LICENSE_PUBLIC_JWK: ${{ vars.UHM_LICENSE_PUBLIC_JWK }}
+      UHM_LICENSE_ISSUER: ${{ vars.UHM_LICENSE_ISSUER }}
+      UHM_LICENSE_KEY_ID: ${{ vars.UHM_LICENSE_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Prepare integrity-pinned archive tools
+        shell: pwsh
+        run: ./scripts/prepare-extractor.ps1
+      - run: npm run build
+      - name: Native security and recovery tests
+        working-directory: src-tauri
+        run: cargo test
+      - name: Build unsigned test installer
+        run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uhm-windows-unsigned-test
+          path: src-tauri/target/release/bundle/nsis/*.exe

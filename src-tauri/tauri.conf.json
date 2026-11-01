@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UHM Launcher",
+  "version": "0.1.0",
+  "identifier": "com.uhm.launcher",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "UHM Launcher",
+        "width": 1380,
+        "height": 920,
+        "minWidth": 880,
+        "minHeight": 640,
+        "backgroundColor": "#11130f"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost; font-src 'self'; connect-src ipc: http://ipc.localhost 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; frame-src 'none'",
+      "capabilities": [
+        "main"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "resources": [
+      "resources/**/*"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": [
+          "English"
+        ]
+      }
+    },
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ]
+  }
+}
