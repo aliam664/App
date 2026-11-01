@@ -2182,3 +2182,16 @@ fieldset:disabled {
   line-height: 1.9;
   color: var(--muted);
 }
+
+.mobile-menu {
+  display: none;
+}
+.mobile-links {
+  display: grid;
+  gap: 8px;
+}
+@media (max-width: 700px) {
+  .mobile-menu {
+    display: flex;
+  }
+}

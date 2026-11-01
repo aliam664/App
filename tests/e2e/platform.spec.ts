@@ -26,6 +26,9 @@ test('demo activation performs cryptographic device flow', async ({ page }) => {
   await expect(page.locator('.profile')).toContainText('PRO MEMBER');
   await page.locator('.profile').click();
   await expect(page.getByRole('dialog')).toContainText('عضویت PRO');
+  await page.getByRole('button', { name: 'تمدید مجوز آنلاین' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.profile')).toContainText('PRO MEMBER');
 });
 test('admin can generate licenses, search and persist a package draft', async ({ page }) => {
   await page.goto('/');
@@ -61,4 +64,13 @@ test('responsive launcher has no horizontal overflow at phone width', async ({ p
   );
   await page.getByRole('button', { name: 'دانلود و نصب', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'صف دانلود خالی است' })).toBeVisible();
+  await page.getByRole('button', { name: 'منوی بخش‌ها' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'تنظیمات', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'گاراژ، به سلیقهٔ تو.' })).toBeVisible();
+});
+
+test('corrupt cached license cannot prevent launcher startup', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('uhm-license', 'invalid-json'));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'رانندگی، یک تجربهٔ دیگر.' })).toBeVisible();
 });

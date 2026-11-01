@@ -183,7 +183,14 @@ describe('device protocol and license state', () => {
     const d = await device();
     await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
     await repo.mutateLicense(repo.state.licenses[0].id, 'suspend', 'owner');
-    expect((await request('/licenses/refresh', await proof(d, 'refresh'))).status).toBe(403);
+    expect(
+      (
+        await request('/licenses/refresh', {
+          license_id: repo.state.licenses[0].id,
+          ...(await proof(d, 'refresh')),
+        })
+      ).status,
+    ).toBe(403);
   });
   it('cannot resurrect a revoked license through suspension', async () => {
     const id = repo.state.licenses[0].id;
@@ -308,5 +315,40 @@ describe('immutable content publishing', () => {
     const pkg = await publishFixture();
     await request(`/admin/packages/${pkg.id}/archive`, {}, repo.adminToken);
     expect((await request('/catalog')).data.packages.some((p: any) => p.id === pkg.id)).toBe(false);
+  });
+});
+
+describe('explicit license renewal', () => {
+  it('renews the requested license when one device owns multiple licenses', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    const batch = await request(
+      '/admin/licenses',
+      { tier: 'vip', duration_days: 30, count: 1 },
+      repo.adminToken,
+    );
+    const active = await request('/licenses/activate', {
+      code: batch.data.codes[0],
+      ...(await proof(d, 'activate')),
+    });
+    const refreshed = await request('/licenses/refresh', {
+      license_id: active.data.license.id,
+      ...(await proof(d, 'refresh')),
+    });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.data.license.tier).toBe('vip');
+  });
+  it('never renews another device license merely by knowing its ID', async () => {
+    const d = await device(),
+      other = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    expect(
+      (
+        await request('/licenses/refresh', {
+          license_id: repo.state.licenses[0].id,
+          ...(await proof(other, 'refresh')),
+        })
+      ).status,
+    ).toBe(403);
   });
 });

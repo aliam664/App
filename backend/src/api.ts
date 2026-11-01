@@ -234,11 +234,12 @@ export function createApi(repo: Repository, config: ApiConfig) {
         return reply({ grant: await grant(license, config), license: publicLicense(license) });
       }
       if (path === '/licenses/refresh' && request.method === 'POST') {
-        // Refresh accepts an expired offline grant as identification ONLY; proof and live DB checks authorize renewal.
-        const input = Proof.parse(body),
+        // Renewal uses device proof plus the explicit license ID; an expired grant is not authorization.
+        const input = Proof.extend({ license_id: Id }).strict().parse(body),
           thumb = await proof('refresh', input);
         const license = (await repo.list('licenses')).find(
           (l) =>
+            l.id === input.license_id &&
             l.device_thumbprint === thumb &&
             l.status === 'active' &&
             Date.parse(l.expires_at!) > Date.now(),
@@ -249,10 +250,11 @@ export function createApi(repo: Repository, config: ApiConfig) {
       if (path === '/install/plan' && request.method === 'POST') {
         const input = Proof.extend({ package_id: Id }).strict().parse(body);
         const license = await device('plan', input);
-        const packages = resolvePlan(input.package_id, await repo.published(), license.tier);
+        const published = await repo.published();
+        const packages = resolvePlan(input.package_id, published, license.tier);
         if (packages.some((p) => !p.files.length))
           throw new HttpError(409, 'DEMO_FILES_NOT_CONFIGURED');
-        for (const p of packages) validatePublication(p, await repo.published());
+        for (const p of packages) validatePublication(p, published);
         const token = await signPayload(
           {
             schema_version: 1,

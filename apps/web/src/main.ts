@@ -4,7 +4,7 @@ import '@fontsource/vazirmatn/700.css';
 import '@fontsource/barlow-condensed/600.css';
 import '@fontsource/barlow-condensed/700.css';
 import './style.css';
-import { api, supabase } from './api';
+import { api, ApiError, supabase } from './api';
 import { proof, native, invoke } from './device';
 import {
   esc,
@@ -46,7 +46,19 @@ let catalog: CatalogItem[] = [],
   activeCategory = 'all',
   query = '',
   tierFilter = 'all';
-let license: PublicLicense | null = JSON.parse(localStorage.getItem('uhm-license') || 'null');
+let license: PublicLicense | null = null;
+try {
+  const cached = JSON.parse(localStorage.getItem('uhm-license') || 'null');
+  if (
+    cached &&
+    ['normal', 'pro', 'vip'].includes(cached.tier) &&
+    typeof cached.id === 'string' &&
+    typeof cached.expires_at === 'string'
+  )
+    license = cached;
+} catch {
+  localStorage.removeItem('uhm-license');
+}
 let grant = localStorage.getItem('uhm-grant') || '';
 let gamePath = localStorage.getItem('uhm-game-path') || '';
 let installed: Record<string, { version: string; installed_at: string }> = {};
@@ -71,7 +83,7 @@ function shell() {
   document.documentElement.dir = language === 'fa' ? 'rtl' : 'ltr';
   document.body.classList.toggle('compact', compact);
   const nav = adminMode ? adminNav : launcherNav;
-  app.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="/" aria-label="UHM Launcher"><span class="brand-mark">U<span>H</span>M<i></i></span><span class="brand-caption">DRIVE SOMETHING DIFFERENT</span></a><div class="workspace-label">${adminMode ? 'اتاق کنترل' : 'فضای راننده'}<span>01</span></div><nav aria-label="منوی اصلی">${nav.map(([id, i, t]) => `<button class="nav-item ${page === id ? 'active' : ''}" data-nav="${id}">${icon(i)}<span>${t}</span>${id === 'downloads' && tasks.length ? `<b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}</nav>${!adminMode ? `<div class="game-tile"><div class="game-square">AC</div><div><b>Assetto Corsa</b><small>بازی منتخب شما</small></div>${icon('chevrons-up-down')}</div>` : ''}<div class="sidebar-bottom"><button class="nav-item ${page === 'settings' ? 'active' : ''}" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon(adminMode ? 'arrow-up-right' : 'sliders-horizontal')}${adminMode ? 'بازگشت به لانچر' : 'پنل مدیریت'}</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon(adminMode ? 'sliders-horizontal' : 'gamepad-2')}<span>${adminMode ? 'مدیریت سیستم' : 'لانچر'} <i>/</i> ${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</span></div><div class="topbar-actions"><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل' : 'آفلاین'}</span><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile"><span class="avatar">${adminMode ? 'A' : 'U'}</span><span>${adminMode ? 'مدیریت' : license ? 'رانندهٔ UHM' : 'رانندهٔ مهمان'}<small>${adminMode ? 'CONTROL PANEL' : license ? license.tier.toUpperCase() + ' MEMBER' : 'خوش آمدید'}</small></span>${icon('chevron-down')}</button></div></header>${demo ? `<div class="demo-strip">${icon('flask-conical')}محیط پیش‌نمایش · داده‌های محلی و ورود نمایشی · نصب واقعی فقط در نسخهٔ ویندوز <span>DEVELOPMENT</span></div>` : ''}<main id="content" tabindex="-1"></main><footer><span>ساخته‌شده برای لذت رانندگی.</span><span dir="ltr">UHM / ASSETTO CORSA COMMUNITY</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer></div></div><div id="toasts" aria-live="polite"></div>`;
+  app.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="/" aria-label="UHM Launcher"><span class="brand-mark">U<span>H</span>M<i></i></span><span class="brand-caption">DRIVE SOMETHING DIFFERENT</span></a><div class="workspace-label">${adminMode ? 'اتاق کنترل' : 'فضای راننده'}<span>01</span></div><nav aria-label="منوی اصلی">${nav.map(([id, i, t]) => `<button class="nav-item ${page === id ? 'active' : ''}" data-nav="${id}">${icon(i)}<span>${t}</span>${id === 'downloads' && tasks.length ? `<b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}</nav>${!adminMode ? `<div class="game-tile"><div class="game-square">AC</div><div><b>Assetto Corsa</b><small>بازی منتخب شما</small></div>${icon('chevrons-up-down')}</div>` : ''}<div class="sidebar-bottom"><button class="nav-item ${page === 'settings' ? 'active' : ''}" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon(adminMode ? 'arrow-up-right' : 'sliders-horizontal')}${adminMode ? 'بازگشت به لانچر' : 'پنل مدیریت'}</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon(adminMode ? 'sliders-horizontal' : 'gamepad-2')}<span>${adminMode ? 'مدیریت سیستم' : 'لانچر'} <i>/</i> ${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</span></div><div class="topbar-actions"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="منوی بخش‌ها">${icon('menu')}</button><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل' : 'آفلاین'}</span><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile"><span class="avatar">${adminMode ? 'A' : 'U'}</span><span>${adminMode ? 'مدیریت' : license ? 'رانندهٔ UHM' : 'رانندهٔ مهمان'}<small>${adminMode ? 'CONTROL PANEL' : license ? license.tier.toUpperCase() + ' MEMBER' : 'خوش آمدید'}</small></span>${icon('chevron-down')}</button></div></header>${demo ? `<div class="demo-strip">${icon('flask-conical')}محیط پیش‌نمایش · داده‌های محلی و ورود نمایشی · نصب واقعی فقط در نسخهٔ ویندوز <span>DEVELOPMENT</span></div>` : ''}<main id="content" tabindex="-1"></main><footer><span>ساخته‌شده برای لذت رانندگی.</span><span dir="ltr">UHM / ASSETTO CORSA COMMUNITY</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer></div></div><div id="toasts" aria-live="polite"></div>`;
   document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -79,6 +91,24 @@ function shell() {
         void render();
       }),
   );
+  document.querySelector('#mobile-menu')!.addEventListener('click', () => {
+    const d = modal(
+      'بخش‌های برنامه',
+      `<div class="mobile-links">${[...nav, ['settings', 'settings-2', 'تنظیمات']].map(([id, i, t]) => `<button class="nav-item" data-mobile-nav="${id}">${icon(i)}${esc(t)}</button>`).join('')}<button class="nav-item" id="mobile-switch">${icon('sliders-horizontal')}${adminMode ? 'بازگشت به لانچر' : 'پنل مدیریت'}</button></div>`,
+    );
+    d.querySelectorAll<HTMLButtonElement>('[data-mobile-nav]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          page = b.dataset.mobileNav!;
+          d.close();
+          void render();
+        }),
+    );
+    d.querySelector('#mobile-switch')!.addEventListener('click', () => {
+      d.close();
+      document.querySelector<HTMLButtonElement>('#switch-mode')!.click();
+    });
+  });
   document.querySelector('#switch-mode')!.addEventListener('click', () => {
     if (!adminMode && !adminToken) {
       loginDialog(demo, (t) => {
@@ -284,16 +314,55 @@ function details(p: CatalogItem) {
     });
   };
 }
+async function persistLicense(result: { license: PublicLicense; grant: string }) {
+  if (native) await invoke('verify_offline_grant', { grant: result.grant });
+  license = result.license;
+  grant = result.grant;
+  localStorage.setItem('uhm-license', JSON.stringify(license));
+  localStorage.setItem('uhm-grant', grant);
+}
+function grantClaims(): { refresh_after: number; offline_until: number } | null {
+  try {
+    return JSON.parse(atob(grant.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+  } catch {
+    return null;
+  }
+}
+let refreshing = false;
+async function refreshDueLicense() {
+  if (
+    !license ||
+    !grant ||
+    !online ||
+    refreshing ||
+    Number(grantClaims()?.refresh_after) > Date.now()
+  )
+    return;
+  refreshing = true;
+  try {
+    await persistLicense(
+      await api('/licenses/refresh', { license_id: license.id, ...(await proof('refresh')) }),
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.code === 'LICENSE_INVALID') {
+      license = null;
+      grant = '';
+      localStorage.removeItem('uhm-license');
+      localStorage.removeItem('uhm-grant');
+      toast('اشتراک معتبر نیست یا دستگاه توسط مدیر آزاد شده است. دوباره فعال‌سازی کنید.', true);
+    }
+    // A network failure does not discard a still-valid signed offline grant.
+  } finally {
+    refreshing = false;
+  }
+}
 function activateDialog() {
   const d = modal(
     license ? 'اشتراک و مجوز دستگاه' : 'کلید گاراژت را وارد کن',
     `${license ? `<div class="license-card">${badge(license.tier)}<strong>عضویت ${license.tier.toUpperCase()}</strong><p>معتبر تا ${date(license.expires_at)}</p><small>مجوز آفلاین: ${offlineRemaining()}</small></div><button class="button full" id="refresh-license">${icon('refresh-cw')}تمدید مجوز آنلاین</button><div class="divider"></div>` : ''}<form id="activate-form">${field('کد لایسنس', '<input name="code" required minlength="16" maxlength="100" dir="ltr" autocomplete="off" placeholder="UHM-…">')}<button class="button full" type="submit">فعال‌سازی روی این دستگاه ${icon('arrow-left')}</button></form>${demo ? '<button class="text-button demo-activate" id="demo-license">استفاده از لایسنس آزمایشی Pro</button>' : ''}<p class="fine-print">فعال‌سازی اولیه آنلاین است. کد فقط به یک کلید دستگاه متصل می‌شود. تغییر دستگاه از طریق مدیر انجام می‌شود.</p>`,
   );
   async function save(result: any) {
-    license = result.license;
-    grant = result.grant;
-    localStorage.setItem('uhm-license', JSON.stringify(license));
-    localStorage.setItem('uhm-grant', grant);
+    await persistLicense(result);
     d.close();
     toast('مجوز دستگاه با موفقیت ثبت شد.');
     await render();
@@ -315,7 +384,9 @@ function activateDialog() {
   });
   d.querySelector<HTMLButtonElement>('#refresh-license')?.addEventListener('click', function () {
     void busy(this as HTMLButtonElement, async () => {
-      await save(await api('/licenses/refresh', await proof('refresh')));
+      await save(
+        await api('/licenses/refresh', { license_id: license!.id, ...(await proof('refresh')) }),
+      );
     });
   });
 }
@@ -442,12 +513,18 @@ async function boot() {
   }
   if (native) {
     try {
-      if (grant) await invoke('verify_offline_grant', { grant });
       const settings = await invoke<{ game_path: string }>('get_settings');
       gamePath = settings.game_path || '';
       installed = await invoke('installed_packages');
     } catch (e) {
       handleError(e);
+    }
+    if (grant) {
+      try {
+        await invoke('verify_offline_grant', { grant });
+      } catch (e) {
+        handleError(e);
+      }
     }
     await listen<{
       package_id: string;
@@ -466,6 +543,7 @@ async function boot() {
       }
     });
   }
+  await refreshDueLicense();
   if (adminMode) page = 'dashboard';
   await render();
 }
@@ -478,4 +556,15 @@ window.addEventListener('unhandledrejection', (e) => {
   e.preventDefault();
   handleError(e.reason);
 });
+window.addEventListener('online', () => {
+  online = true;
+  void refreshDueLicense().then(render);
+});
+window.addEventListener('offline', () => {
+  online = false;
+  void render();
+});
+setInterval(() => {
+  if (!document.hidden) void refreshDueLicense();
+}, 3600000);
 void boot();

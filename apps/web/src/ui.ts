@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   LockKeyhole,
+  Menu,
   Monitor,
   Package,
   PackageOpen,
@@ -73,6 +74,7 @@ const icons = {
   LayoutDashboard,
   LayoutGrid,
   LockKeyhole,
+  Menu,
   Monitor,
   Package,
   PackageOpen,
@@ -132,7 +134,9 @@ export const handleError = (e: unknown) =>
       ? (messages[e.code] || e.code) + (e.detail ? ` ${e.detail}` : '')
       : e instanceof Error
         ? e.message
-        : 'خطای غیرمنتظره',
+        : typeof e === 'string'
+          ? e
+          : 'خطای غیرمنتظره',
     true,
   );
 export function modal(title: string, content: string, wide = false): HTMLDialogElement {
