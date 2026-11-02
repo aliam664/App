@@ -1,5 +1,5 @@
 {
-  "build_run": "41519684103",
+  "build_run": "41522458902",
   "publish_candidate": true,
-  "request_note": "Validate current GitHub immutable-ID subject format with owner and repository IDs pinned."
+  "request_note": "Green locked build; real cloud OIDC policy probe passed with immutable owner/repository IDs."
 }
