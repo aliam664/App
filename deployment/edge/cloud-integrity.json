@@ -4,8 +4,8 @@
     "bytes": 31249
   },
   "updateKeyBroker": {
-    "sha256": "3394d07fd69e41397b91584ff1474b43761571288320ed6409c5c292c02afe9b",
-    "bytes": 3976
+    "sha256": "5ecb6dec22cf9073e726157e71dcbc18cb0a7a160976b73e2d491ebd9a5882a2",
+    "bytes": 4098
   },
   "npm": {
     "zod": "npm:zod@4.6.7",

@@ -11,6 +11,7 @@ const githubKeys = createRemoteJWKSet(
 export function assertReleaseIdentity(claims: JWTPayload) {
   for (const [key, value] of Object.entries({
     repository_id: '1363261683',
+    repository_owner_id: '259944690',
     repository: 'aliam664/App',
     ref: 'refs/heads/arena/37af8e92-app',
     ref_type: 'branch',
@@ -25,7 +26,10 @@ export function assertReleaseIdentity(claims: JWTPayload) {
     !/^[a-f0-9]{40}$/.test(claims.sha) ||
     typeof claims.run_id !== 'string' ||
     !/^\d{1,20}$/.test(claims.run_id) ||
-    claims.sub !== 'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app' ||
+    ![
+      'repo:aliam664@259944690/App@1363261683:ref:refs/heads/arena/37af8e92-app',
+      'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app',
+    ].includes(claims.sub ?? '') ||
     typeof claims.iat !== 'number' ||
     typeof claims.exp !== 'number' ||
     claims.exp <= claims.iat ||

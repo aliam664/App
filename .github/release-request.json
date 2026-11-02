@@ -1,5 +1,5 @@
 {
   "build_run": "41519684103",
   "publish_candidate": true,
-  "request_note": "Non-issuing OIDC policy probe; build provenance still required before real signing."
+  "request_note": "Validate current GitHub immutable-ID subject format with owner and repository IDs pinned."
 }

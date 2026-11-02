@@ -11,6 +11,7 @@ function claims() {
   const now = Math.floor(Date.now() / 1000);
   return {
     repository_id: '1363261683',
+    repository_owner_id: '259944690',
     repository: 'aliam664/App',
     ref: 'refs/heads/arena/37af8e92-app',
     ref_type: 'branch',
@@ -20,7 +21,7 @@ function claims() {
     sha: 'a'.repeat(40),
     run_id: '123',
     run_attempt: '1',
-    sub: 'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app',
+    sub: 'repo:aliam664@259944690/App@1363261683:ref:refs/heads/arena/37af8e92-app',
     iat: now,
     exp: now + 300,
   };
@@ -35,6 +36,7 @@ function request(body: unknown = { build_run: '1234' }) {
 describe('release signing credential trust boundary', () => {
   for (const field of [
     'repository_id',
+    'repository_owner_id',
     'repository',
     'ref',
     'ref_type',
@@ -49,6 +51,22 @@ describe('release signing credential trust boundary', () => {
       expect(() => assertReleaseIdentity({ ...claims(), [field]: 'untrusted' })).toThrow();
     });
   }
+  it('accepts the exact legacy subject only with pinned numeric repository and owner claims', () => {
+    expect(() =>
+      assertReleaseIdentity({
+        ...claims(),
+        sub: 'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app',
+      }),
+    ).not.toThrow();
+  });
+  it('rejects a modern subject with different immutable IDs even when the name matches', () => {
+    expect(() =>
+      assertReleaseIdentity({
+        ...claims(),
+        sub: 'repo:aliam664@259944690/App@999:ref:refs/heads/arena/37af8e92-app',
+      }),
+    ).toThrow();
+  });
   it('cryptographically verifies issuer/audience/algorithm and token age', async () => {
     const { publicKey, privateKey } = await generateKeyPair('RS256');
     const sign = (audience: string, issuedAt = Math.floor(Date.now() / 1000)) =>

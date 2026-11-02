@@ -37,6 +37,7 @@ const publicMetadata = Object.fromEntries(
     'aud',
     'repository',
     'repository_id',
+    'repository_owner_id',
     'ref',
     'ref_type',
     'workflow_ref',
