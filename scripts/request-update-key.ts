@@ -2,6 +2,18 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import updater from '../config/updater-public.json';
+import { assertReleaseIdentity } from '../backend/src/update-key-broker';
+// Explicit safe annotations are available even when the runner log archive is unavailable.
+process.on('uncaughtException', (error: Error) => {
+  const safe =
+    /^(Hosted release job required|Untrusted OIDC endpoint|GitHub OIDC unavailable|Missing GitHub identity|Release identity rejected|Signing trust mismatch|Signing authorization rejected \(\d{3}\); no key logged)$/.test(
+      error.message,
+    )
+      ? error.message
+      : 'Release authorization failed; request and credential data were not logged';
+  console.error(`::error title=Release authorization::${safe}`);
+  process.exit(1);
+});
 const broker = 'https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/update-key-broker';
 if (process.env.GITHUB_ACTIONS !== 'true' || !process.env.RUNNER_TEMP)
   throw new Error('Hosted release job required');
@@ -18,6 +30,30 @@ if (!identity.ok) throw new Error('GitHub OIDC unavailable');
 const { value } = (await identity.json()) as { value: string };
 if (typeof value !== 'string' || !value) throw new Error('Missing GitHub identity');
 console.log(`::add-mask::${value}`);
+const claims = JSON.parse(Buffer.from(value.split('.')[1], 'base64url').toString('utf8'));
+const publicMetadata = Object.fromEntries(
+  [
+    'iss',
+    'aud',
+    'repository',
+    'repository_id',
+    'ref',
+    'ref_type',
+    'workflow_ref',
+    'runner_environment',
+    'event_name',
+    'sha',
+    'sub',
+    'run_id',
+    'iat',
+    'exp',
+  ].map((name) => [name, claims[name]]),
+);
+console.log(
+  `::notice title=Public OIDC claims only::${JSON.stringify(publicMetadata).replaceAll('%', '%25')}`,
+);
+// This is a policy preflight only; the cloud still independently verifies the RS256 signature.
+assertReleaseIdentity(claims);
 const response = await fetch(broker, {
   method: 'POST',
   headers: { Authorization: `Bearer ${value}`, 'Content-Type': 'application/json' },

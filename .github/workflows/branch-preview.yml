@@ -69,7 +69,7 @@ jobs:
             echo 'Newer dependency manifest exists; its own job will pin the lock.'
             exit 0
           fi
-          cp "$RUNNER_TEMP/native-lock/Cargo.lock" src-tauri/Cargo.lock
+          node -e 'const fs=require("fs"); fs.writeFileSync("src-tauri/Cargo.lock",fs.readFileSync(process.env.RUNNER_TEMP+"/native-lock/Cargo.lock","utf8").replace(/\r\n/g,"\n"))'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src-tauri/Cargo.lock

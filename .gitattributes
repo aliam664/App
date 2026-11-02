@@ -3,3 +3,6 @@ deployment/edge/*.js linguist-generated=true -whitespace
 pages-preview/** linguist-generated=true -whitespace
 # Signed fixture bytes must be identical on Windows and Linux; do not normalize EOL.
 src-tauri/tests/fixtures/updater-payload.txt -text
+
+# Reproducible lock artifacts across Windows and Linux bots.
+src-tauri/Cargo.lock text eol=lf
