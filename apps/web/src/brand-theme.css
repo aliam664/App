@@ -1,0 +1,918 @@
+/* UHM website identity, shared by launcher, native dialogs and admin studio. */
+@font-face {
+  font-family: 'UHM Vazirmatn';
+  src: url('/brand/fonts/vazirmatn-arabic-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'UHM Outfit';
+  src: url('/brand/fonts/outfit-latin-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --bg: #03050a;
+  --surface: #0a0e18;
+  --card: rgba(14, 20, 36, 0.78);
+  --line: rgba(104, 177, 255, 0.18);
+  --blue: #0088ff;
+  --hot: #5ec0ff;
+  --cyan: #00d4ff;
+  --text: #eef3fb;
+  --muted: #8b97ad;
+  --danger: #ff3d55;
+  --ok: #2ee59d;
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+  --r: 18px;
+  --accent: var(--hot);
+  --panel: var(--card);
+  --panel-alt: rgba(18, 27, 45, 0.9);
+  --border: var(--line);
+  color: var(--text);
+  background: var(--bg);
+  font-family: 'UHM Vazirmatn', Tahoma, sans-serif;
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --bg: #edf2fb;
+  --surface: #fff;
+  --card: rgba(255, 255, 255, 0.8);
+  --line: rgba(0, 95, 204, 0.18);
+  --text: #172236;
+  --muted: #607087;
+  --shadow: 0 24px 64px rgba(30, 54, 85, 0.12);
+  --panel-alt: #f2f7ff;
+  --hot: #005fc4;
+  color-scheme: light;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(77, 156, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77, 156, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(#0003, transparent 70%);
+}
+button,
+a {
+  touch-action: manipulation;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+.brand-mark,
+.brand-caption,
+.eyebrow {
+  font-family: 'UHM Outfit', 'UHM Vazirmatn', sans-serif;
+}
+h1,
+h2,
+h3 {
+  color: var(--text);
+  font-variation-settings: 'wght' 800;
+}
+.reference-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+.reference-header .brand,
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  font: 800 1.15rem 'UHM Outfit';
+  color: var(--text);
+  white-space: nowrap;
+}
+.reference-header .brand img,
+.sidebar .brand img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px #0088ff77;
+}
+.reference-header .brand small {
+  font: inherit;
+  font-size: 0.85em;
+}
+.reference-header .nav-links {
+  flex-direction: row;
+  gap: 22px;
+}
+.reference-header .nav-links button {
+  color: var(--muted);
+  padding: 8px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  position: relative;
+  transition: color 0.2s;
+}
+.reference-header .nav-links button::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  width: 0;
+  height: 1px;
+  background: var(--cyan);
+  transition: width 0.25s;
+}
+.reference-header .nav-links button:hover,
+.reference-header .nav-links button.current {
+  color: var(--text);
+}
+.reference-header .nav-links button.current::after,
+.reference-header .nav-links button:hover::after {
+  width: 100%;
+}
+.reference-header .nav {
+  background: transparent;
+}
+.reference-header .profile {
+  margin: 0;
+  flex-direction: row;
+  border-inline-start: 1px solid var(--line);
+}
+.reference-header .language-toggle {
+  border-radius: 12px;
+}
+.reference-header .language-orbit svg {
+  width: 13px;
+  height: 13px;
+}
+.reference-header .notification-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.reference-header .icon {
+  font-size: 20px;
+}
+.reference-header .menu-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.launcher-content {
+  padding: 50px 0 20px;
+  width: min(1180px, calc(100% - 40px));
+  margin-inline: auto;
+  min-height: calc(100vh - 250px);
+}
+.launcher-content.is-discover,
+.compact .launcher-content.is-discover {
+  padding: 0;
+  width: 100%;
+  max-width: none;
+}
+.reference-home .hero.feature {
+  height: auto;
+  min-height: 720px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+.reference-home .hero-lead {
+  font-size: 1.07rem;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.reference-home .hero h1 {
+  font-weight: 800;
+  font-variation-settings: 'wght' 800;
+}
+.reference-home .eyebrow {
+  margin-block: 0;
+}
+.reference-home .hero-copy > .logo-plate {
+  margin-top: 0;
+}
+.reference-home .hero-buttons button {
+  font-family: 'UHM Vazirmatn', sans-serif;
+}
+.reference-home .hero-rail small,
+.reference-home .hero-rail::before {
+  font-family: 'UHM Outfit';
+}
+.reference-home .hero-grid {
+  min-width: 0;
+}
+.reference-home .section-head h2 {
+  margin-bottom: 14px;
+}
+.reference-home .section-head p {
+  font-size: 0.92rem;
+  line-height: 1.8;
+  margin: 0 0 16px;
+}
+.reference-home .catalog-section {
+  margin: 0;
+  padding-top: 20px;
+}
+.reference-home .package-grid {
+  gap: 18px;
+}
+.reference-home .package-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: inset 0 1px 0 #ffffff06;
+}
+.reference-home .package-card:hover {
+  border-color: var(--hot);
+  transform: translateY(-5px);
+  box-shadow: var(--shadow);
+}
+.reference-home .card-image {
+  height: 215px;
+}
+.reference-home .card-content {
+  padding: 22px 22px 0;
+}
+.reference-home .card-content p {
+  font-size: 0.85rem;
+  min-height: 50px;
+  color: var(--muted);
+}
+.reference-home .card-title {
+  font-size: 1.16rem;
+  font-weight: 800;
+}
+.reference-home .card-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.reference-home .card-meta code {
+  font-family: 'UHM Outfit';
+  font-size: 0.72rem;
+  color: var(--hot);
+}
+.reference-home .card-footer {
+  padding: 15px 0;
+}
+.reference-home .card-footer > span,
+.reference-home .card-footer .text-button {
+  font-size: 11px;
+}
+.reference-home .catalog-controls {
+  flex-wrap: wrap;
+  gap: 15px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.tab {
+  border-radius: 99px;
+  padding: 8px 13px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  color: var(--muted);
+}
+.tab.selected {
+  border-color: #00d4ff55;
+  color: var(--cyan);
+  background: #0088ff12;
+}
+.tab:hover {
+  color: var(--hot);
+}
+.search,
+input,
+select,
+textarea,
+.path-box {
+  border-radius: 10px;
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+.search:focus-within {
+  border-color: var(--hot);
+  box-shadow: 0 0 0 3px #0088ff15;
+}
+.search input {
+  color: var(--text);
+}
+.catalog-search select {
+  border-radius: 10px;
+  font-size: 11px;
+  min-height: 40px;
+}
+.search {
+  min-height: 40px;
+}
+.search input {
+  font-size: 11px !important;
+}
+.count {
+  border-radius: 99px;
+  padding: 5px 12px;
+  font-size: 0.7rem;
+  color: var(--hot);
+  background: #0088ff09;
+}
+.reference-home .download p {
+  line-height: 1.8;
+}
+.reference-home .download .eyebrow {
+  margin-bottom: 15px;
+}
+.reference-home .membership-section {
+  padding-top: 70px;
+  padding-bottom: 20px;
+}
+.reference-home .hero-scroll {
+  background: none;
+  padding: 0;
+}
+.demo-strip {
+  padding: 7px 20px;
+  justify-content: center;
+  font-size: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  border-color: var(--line);
+}
+.demo-strip > span {
+  color: var(--hot);
+}
+.site-footer {
+  width: min(1180px, calc(100% - 40px));
+  margin: 40px auto 0;
+  padding: 28px 0 40px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: var(--muted);
+}
+.footer-identity {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.footer-identity img {
+  width: 44px;
+  border-radius: 50%;
+}
+.footer-identity b {
+  display: block;
+  color: var(--text);
+  font: 800 0.9rem 'UHM Outfit';
+}
+.footer-identity span {
+  font-size: 11px;
+  display: block;
+  margin-top: 5px;
+}
+.site-footer > button {
+  font-size: 12px;
+  color: var(--hot);
+}
+.mode-switch-access {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 12px;
+  margin: 0 auto 24px;
+  padding: 9px 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mode-switch-access:hover {
+  border-color: var(--hot);
+  color: var(--text);
+}
+.button {
+  border-radius: 12px;
+  min-height: 46px;
+  background: linear-gradient(120deg, #27a5ff, #0055cc);
+  border: 1px solid transparent;
+  color: white;
+  box-shadow: 0 11px 30px #007cff26;
+  transition:
+    transform 0.22s,
+    box-shadow 0.22s,
+    border-color 0.22s;
+}
+.button:hover {
+  background: linear-gradient(120deg, #41b2ff, #0764e1);
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px #007cff40;
+}
+.button.secondary {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: none;
+}
+.button.secondary:hover {
+  background: var(--panel-alt);
+  border-color: var(--hot);
+}
+.button.danger-button {
+  background: #ff3d5512;
+  border-color: #ff3d5555;
+  color: #ff7184;
+  box-shadow: none;
+}
+.tier {
+  border-radius: 99px;
+  background: #0088ff0f;
+  border-color: #0088ff55;
+  color: var(--hot);
+  padding: 4px 9px;
+  font-family: 'UHM Outfit';
+}
+.tier-pro {
+  color: var(--cyan);
+  background: #00d4ff0c;
+  border-color: #00d4ff55;
+}
+.tier-vip {
+  color: #ffb454;
+  background: #ffb45412;
+  border-color: #ffb45455;
+}
+.text-button {
+  color: var(--hot);
+}
+.text-button:hover {
+  color: var(--cyan);
+}
+.icon-button {
+  border-radius: 12px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.icon-button:hover {
+  color: var(--hot);
+  border-color: var(--hot);
+  background: #0088ff12;
+}
+.sidebar {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.sidebar .brand {
+  padding: 0 12px;
+  margin-bottom: 44px;
+  font-size: 22px;
+}
+.sidebar .brand img {
+  width: 46px;
+  height: 46px;
+}
+.sidebar .brand small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.nav-item {
+  border-radius: 12px;
+  color: var(--muted);
+}
+.nav-item.active,
+.nav-item.active:hover {
+  background: linear-gradient(110deg, #0088ff20, #00d4ff08);
+  color: var(--cyan);
+  border-color: #0088ff44;
+  box-shadow: inset -2px 0 0 var(--cyan);
+}
+.nav-item:hover {
+  background: #0088ff12;
+  color: var(--text);
+}
+.topbar {
+  background: var(--bg);
+  border-color: var(--line);
+}
+.profile {
+  color: var(--text);
+}
+.profile .avatar {
+  border-radius: 50%;
+  background: #0088ff18;
+  border-color: var(--line);
+  color: var(--hot);
+}
+.panel,
+.metric,
+.empty-state,
+.queue-item,
+.license-card,
+.detail-facts,
+.file-row {
+  border-radius: var(--r);
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: inset 0 1px 0 #ffffff06;
+}
+.metric:first-child {
+  background: linear-gradient(130deg, #0088ff20, #07101e);
+  border-color: #168df955;
+}
+.metric > svg {
+  color: var(--hot);
+}
+.panel .section-heading h2 {
+  font-size: 18px;
+}
+progress,
+progress::-webkit-progress-bar {
+  background: #0088ff12;
+  border-radius: 99px;
+}
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  border-radius: 99px;
+}
+progress::-moz-progress-bar {
+  background: var(--blue);
+}
+th {
+  background: #0088ff0a;
+  color: var(--muted);
+}
+td {
+  border-color: var(--line);
+}
+tbody tr:hover {
+  background: #0088ff08;
+}
+.table-product img,
+.detail-image,
+.updates-list img {
+  border-radius: 10px;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+.modal::backdrop {
+  background: #000b;
+  backdrop-filter: blur(7px);
+}
+.modal .modal-head {
+  border-color: var(--line);
+}
+.modal h2 {
+  font-size: 20px;
+}
+.modal h3 {
+  font-size: 16px;
+}
+.notice {
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: #0088ff09;
+  border-radius: 12px;
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid #168df955;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.toast.danger {
+  background: #260d17;
+  border-color: #ff3d5570;
+  color: #ffb0bb;
+}
+.boot .brand-mark {
+  color: var(--hot);
+  font-family: 'UHM Outfit';
+}
+[dir='ltr'] .nav-item.active {
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+/* Theme switching must apply to operational screens as well as the reference homepage. */
+[data-theme='light'] .metric:first-child {
+  background: linear-gradient(130deg, #0088ff12, #fff);
+}
+[data-theme='light'] .tier-bars small,
+[data-theme='light'] .metric > span,
+[data-theme='light'] .field > span,
+[data-theme='light'] .definition dt,
+[data-theme='light'] .definition dd,
+[data-theme='light'] .card-content p,
+[data-theme='light'] .card-meta,
+[data-theme='light'] .breadcrumbs,
+[data-theme='light'] .status {
+  color: var(--muted);
+}
+[data-theme='light'] .tab.selected {
+  color: #005fc4;
+}
+[data-theme='light'] .reference-home .home-proof span {
+  background: #0088ff08;
+  color: #005fc4;
+}
+[data-theme='light'] .reference-home .stat b {
+  color: var(--text);
+}
+[data-theme='light'] .file-row,
+[data-theme='light'] .checks label,
+[data-theme='light'] .path-box,
+[data-theme='light'] .detail-facts > div,
+[data-theme='light'] .license-card {
+  background: var(--panel-alt);
+  color: var(--text);
+  border-color: var(--line);
+}
+@media (max-width: 1050px) {
+  .reference-header .nav-links {
+    gap: 13px;
+  }
+  .reference-header .nav-links button {
+    font-size: 11px;
+  }
+  .reference-header .notification-button {
+    display: none;
+  }
+  .reference-home .catalog-controls {
+    align-items: flex-start;
+  }
+}
+@media (max-width: 780px) {
+  .reference-header .nav-links {
+    display: none;
+  }
+  .reference-header .container {
+    width: calc(100% - 28px);
+  }
+  .reference-header .brand {
+    font-size: 1rem;
+  }
+  .reference-header .brand img {
+    width: 34px;
+    height: 34px;
+  }
+  .reference-header .brand small {
+    font-size: 10px;
+  }
+  .reference-header .language-toggle {
+    min-width: 65px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .reference-header .menu-btn {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .reference-home .hero.feature {
+    min-height: 650px;
+  }
+  .reference-home .hero h1 {
+    font-size: clamp(2.6rem, 10vw, 5rem);
+  }
+  .reference-home .hero-grid {
+    grid-template-columns: 1fr;
+    padding: 40px 0 80px;
+  }
+  .reference-home .hero-copy {
+    min-width: 0;
+  }
+  .reference-home .hero-lead {
+    font-size: 0.94rem;
+  }
+  .reference-home .hero-rail {
+    display: none;
+  }
+  .reference-home .stats {
+    gap: 15px;
+    margin-top: 30px;
+  }
+  .reference-home .stat {
+    padding-left: 15px;
+  }
+  .reference-home .stat b {
+    font-size: 1.2rem;
+  }
+  .reference-home .section-head h2 {
+    font-size: 1.8rem;
+  }
+  .reference-home .package-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .reference-home .card-image {
+    height: 150px;
+  }
+  .reference-home .card-content {
+    padding: 14px 14px 0;
+  }
+  .reference-home .card-title {
+    font-size: 0.95rem;
+  }
+  .reference-home .card-content p {
+    font-size: 12px;
+  }
+  .reference-home .catalog-search,
+  .reference-home .search {
+    flex: 1;
+  }
+  .reference-home .search input {
+    width: 100%;
+  }
+  .reference-home .download {
+    padding: 25px;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .launcher-content {
+    width: calc(100% - 28px);
+    padding-top: 32px;
+  }
+  .site-footer {
+    flex-wrap: wrap;
+    width: calc(100% - 28px);
+    margin-top: 25px;
+    gap: 18px;
+  }
+  .site-footer .footer-identity {
+    flex-basis: 100%;
+  }
+  .site-footer .connection {
+    display: flex;
+  }
+  .demo-strip {
+    padding: 7px 14px;
+    font-size: 9px;
+  }
+  .demo-strip > span {
+    display: none;
+  }
+  .reference-home .video-caption {
+    align-items: flex-start;
+  }
+  .reference-home .video-caption .btn {
+    font-size: 11px;
+    padding: 0 12px;
+    min-height: 40px;
+  }
+  .reference-home .hero-scroll {
+    display: none;
+  }
+  .admin-shell .topbar {
+    padding-inline: 18px;
+  }
+}
+@media (max-width: 430px) {
+  .reference-header .nav-actions {
+    gap: 5px;
+  }
+  .reference-header .language-chevron,
+  .reference-header .brand small {
+    display: none;
+  }
+  .reference-header .icon {
+    min-width: 34px;
+  }
+  .reference-header .menu-btn {
+    padding-inline: 8px;
+  }
+  .reference-home .package-grid {
+    grid-template-columns: 1fr;
+  }
+  .reference-home .card-image {
+    height: 210px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .reference-home .hero-video {
+    display: none;
+  }
+  .reference-home .hero {
+    background: var(--bg);
+  }
+}
+
+.hero-highlight {
+  color: var(--hot);
+}
+.reference-home,
+.reference-header {
+  line-height: 1.8;
+}
+.reference-home .eyebrow {
+  direction: inherit;
+  text-align: start;
+}
+.reference-header .profile > span:not(.language-orbit) {
+  display: inline;
+}
+.reference-header .profile > .language-orbit {
+  display: grid;
+}
+.reference-header .profile svg {
+  display: block;
+}
+.empty,
+.task {
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--muted);
+  border-color: var(--line);
+}
+.empty h3 {
+  color: var(--text);
+}
+.mobile-links .nav-item {
+  font-size: 14px;
+}
+.drawer-dialog {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(360px, 88vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 25px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: 20px 0 80px #0008;
+  animation: drawer-enter 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+.drawer-dialog .modal-head {
+  padding: 0 0 17px;
+}
+.drawer-dialog .modal-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 800 1.15rem 'UHM Outfit';
+}
+.drawer-dialog .modal-head h2 img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px #0088ff77;
+}
+.drawer-dialog .modal-head h2 small {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+}
+.drawer-dialog .modal-body {
+  padding: 18px 0;
+}
+.drawer-dialog::backdrop {
+  background: #0009;
+  backdrop-filter: none;
+}
+@keyframes drawer-enter {
+  from {
+    transform: translateX(-103%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (max-width: 430px) {
+  .reference-header .profile > .language-chevron {
+    display: none;
+  }
+}
+#package-catalog,
+#showcase {
+  scroll-margin-top: 96px;
+}

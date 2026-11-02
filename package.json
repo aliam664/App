@@ -20,8 +20,6 @@
     "format:check": "prettier --check apps backend packages tests scripts/*.ts *.ts *.json supabase/functions"
   },
   "dependencies": {
-    "@fontsource/barlow-condensed": "^5.2.8",
-    "@fontsource/vazirmatn": "^5.2.8",
     "@supabase/supabase-js": "^2.80.0",
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
