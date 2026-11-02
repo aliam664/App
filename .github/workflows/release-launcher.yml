@@ -66,6 +66,7 @@ jobs:
           output="release-assets/UHM-Launcher-${APP_VERSION}-x64-setup.exe"
           if [ "${files[0]}" != "$output" ]; then mv "${files[0]}" "$output"; fi
           npx --no-install tauri signer sign --private-key-path "$RUNNER_TEMP/uhm-updater.key" --password '' --app-version "$APP_VERSION" "$output"
+          npx tsx scripts/verify-update-artifact.ts "$output" "$APP_VERSION"
           node --input-type=module - <<'JS'
           import { readFile, writeFile } from 'node:fs/promises';
           import { createHash } from 'node:crypto';

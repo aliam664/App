@@ -34,3 +34,13 @@ it('keeps executable code local while allowing bounded native thumbnails and pub
   expect(csp).toContain('img-src https: data:');
   expect(csp).toContain("object-src 'none'");
 });
+it('pins a public updater key and version binding without granting webview installer permissions', () => {
+  const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+  const trust = JSON.parse(readFileSync('config/updater-public.json', 'utf8'));
+  const capabilities = JSON.parse(readFileSync('src-tauri/capabilities/main.json', 'utf8'));
+  expect(config.plugins.updater.pubkey).toBe(trust.public_key);
+  expect(config.plugins.updater.requireSignedVersion).toBe(true);
+  expect(config.plugins.updater.allowDowngrades).toBe(false);
+  expect(Buffer.from(trust.public_key, 'base64').toString()).toContain('public key');
+  expect(capabilities.permissions.some((p: string) => p.startsWith('updater:'))).toBe(false);
+});
