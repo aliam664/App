@@ -4,6 +4,7 @@ import { assetUrl, modeUrl, isAdminRoute, staticPreview, buildRevision } from '.
 import { localStore, sessionStore } from './storage';
 import './style.css';
 import { localLibrary, libraryPreferences } from './local-library';
+import { downloadPreferences } from './download-preferences';
 import './reference.css';
 import './brand-theme.css';
 import { api, ApiError, supabase } from './api';
@@ -378,52 +379,67 @@ function details(p: CatalogItem) {
       }
       if (!gamePath) throw new Error('ابتدا از تنظیمات، مسیر معتبر بازی را انتخاب کنید.');
       if (installing) throw new Error('یک نصب دیگر در حال اجراست؛ تا پایان آن صبر کنید.');
-      installing = true;
       d.close();
-      const batch: Task[] = plan.packages.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        phase: 'در انتظار موتور نصب',
-        progress: 0,
-      }));
-      tasks.push(...batch);
-      persistTasks();
-      page = 'downloads';
-      await render();
-      try {
-        await invoke('install_plan', { token: plan.plan, grant });
-        for (const item of batch) {
-          item.phase = 'نصب تکمیل شد';
-          item.progress = 100;
-        }
-        installed = await invoke('installed_packages');
-        try {
-          await api(
-            '/install/report',
-            {
-              ...(await proof('report')),
-              package_id: p.id,
-              version: p.version,
-              status: 'installed',
-            },
-            grant,
-          );
-        } catch {
-          toast('نصب تأیید شد؛ گزارش آنلاین ارسال نشد و نتیجه در دستگاه محفوظ است.');
-        }
-      } catch (e) {
-        for (const item of batch.filter((t) => t.progress < 100)) {
-          item.phase = 'عملیات متوقف شد';
-          item.error = String(e);
-        }
-        handleError(e);
-      } finally {
-        installing = false;
-      }
-      await render();
+      await executeNativePlan(plan, p);
     });
   };
 }
+async function executeNativePlan(
+  plan: { plan: string; packages: { id: string; name: string; version: string }[] },
+  p?: { id: string; version: string },
+) {
+  if (!native || !gamePath)
+    throw new Error('برای نصب، مسیر معتبر بازی را در برنامه ویندوز انتخاب کنید.');
+  if (installing) throw new Error('یک نصب دیگر در حال اجراست.');
+  installing = true;
+  adminMode = false;
+  const batch: Task[] = plan.packages.map((item: any) => ({
+    id: item.id,
+    name: item.name,
+    phase: 'در انتظار موتور نصب',
+    progress: 0,
+  }));
+  tasks.push(...batch);
+  persistTasks();
+  page = 'downloads';
+  await render();
+  try {
+    await invoke('install_plan', { token: plan.plan, grant });
+    for (const item of batch) {
+      item.phase = 'نصب تکمیل شد';
+      item.progress = 100;
+    }
+    installed = await invoke('installed_packages');
+    if (p)
+      try {
+        await api(
+          '/install/report',
+          {
+            ...(await proof('report')),
+            package_id: p.id,
+            version: p.version,
+            status: 'installed',
+          },
+          grant,
+        );
+      } catch {
+        toast('نصب تأیید شد؛ گزارش آنلاین ارسال نشد و نتیجه در دستگاه محفوظ است.');
+      }
+  } catch (e) {
+    for (const item of batch.filter((t) => t.progress < 100)) {
+      item.phase = 'عملیات متوقف شد';
+      item.error = String(e);
+    }
+    handleError(e);
+  } finally {
+    installing = false;
+    persistTasks();
+  }
+  await render();
+}
+window.addEventListener('uhm-test-install', (e) => {
+  void executeNativePlan((e as CustomEvent).detail).catch(handleError);
+});
 async function persistLicense(result: { license: PublicLicense; grant: string }) {
   if (native) await invoke('verify_offline_grant', { grant: result.grant });
   if (license?.id !== result.license.id && sessionStore.getItem('uhm-admin-mode') === 'license') {
@@ -528,7 +544,7 @@ function offlineRemaining() {
   }
 }
 function downloads(el: HTMLElement) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">TRANSFER STATION / 03</p><h1>از دانلود تا خط شروع.</h1><p class="muted">بررسی فایل، نصب مرحله‌ای و ثبت نتیجه؛ بدون موفقیت نمایشی.</p></div></div>${tasks.length ? `<div class="stack">${tasks.map((t) => `<article class="task"><div class="task-head">${icon(t.error ? 'triangle-alert' : t.progress === 100 ? 'circle-check' : 'download')}<div><h3>${esc(t.name)}</h3><p>${esc(t.phase)}</p></div><strong>${fa(Math.floor(t.progress))}٪</strong></div><progress max="100" value="${t.progress}"></progress>${t.bytes ? `<small dir="ltr">${size(t.bytes)} / ${size(t.total || 0)}</small>` : ''}${t.speed ? `<small>${size(t.speed)}/s · ${fa(Math.ceil(t.eta || 0))} ثانیه باقی‌مانده همین فایل</small>` : ''}${t.error ? `<div class="notice error">${esc(t.error)}</div><button class="button secondary" data-task-retry="${t.id}" ${catalog.some((p) => p.id === t.id) ? '' : 'disabled'}>بررسی و تلاش مجدد</button>` : t.progress < 100 ? `<div class="actions"><button class="button secondary" data-task-control="${t.paused ? 'resume' : 'pause'}" data-task-id="${t.id}">${t.paused ? 'ادامه' : 'توقف دانلود'}</button><button class="text-button" data-task-control="cancel" data-task-id="${t.id}">لغو</button></div>` : ''}</article>`).join('')}</div>` : empty('صف دانلود خالی است', 'با شروع نصب، پیشرفت واقعی دانلود و استخراج اینجا نمایش داده می‌شود.', 'download')}<div class="installer-flow">${[
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">TRANSFER STATION / 03</p><h1>از دانلود تا خط شروع.</h1><p class="muted">بررسی فایل، نصب مرحله‌ای و ثبت نتیجه؛ بدون موفقیت نمایشی.</p></div></div>${tasks.length ? `<div class="stack">${tasks.map((t) => `<article class="task"><div class="task-head">${icon(t.error ? 'triangle-alert' : t.progress === 100 ? 'circle-check' : 'download')}<div><h3>${esc(t.name)}</h3><p>${esc(t.phase)}</p></div><strong>${fa(Math.floor(t.progress))}٪</strong></div><progress max="100" value="${t.progress}"></progress>${t.bytes ? `<small dir="ltr">${size(t.bytes)} / ${size(t.total || 0)}</small>` : ''}${t.speed ? `<small>${size(t.speed)}/s · ${fa(Math.ceil(t.eta || 0))} ثانیه باقی‌مانده دانلود</small>` : ''}${t.error ? `<div class="notice error">${esc(t.error)}</div><button class="button secondary" data-task-retry="${t.id}" ${catalog.some((p) => p.id === t.id) ? '' : 'disabled'}>بررسی و تلاش مجدد</button>` : t.progress < 100 ? `<div class="actions"><button class="button secondary" data-task-control="${t.paused ? 'resume' : 'pause'}" data-task-id="${t.id}">${t.paused ? 'ادامه' : 'توقف دانلود'}</button><button class="text-button" data-task-control="cancel" data-task-id="${t.id}">لغو</button></div>` : ''}</article>`).join('')}</div>` : empty('صف دانلود خالی است', 'با شروع نصب، پیشرفت واقعی دانلود و استخراج اینجا نمایش داده می‌شود.', 'download')}<div class="installer-flow">${[
     ['01', 'دریافت فایل'],
     ['02', 'بررسی SHA-256'],
     ['03', 'استخراج و بکاپ'],
@@ -579,6 +595,10 @@ function downloads(el: HTMLElement) {
   );
 }
 function settings(el: HTMLElement) {
+  // Native settings are loaded asynchronously; no browser filesystem simulation.
+  queueMicrotask(() => {
+    void downloadPreferences(el).catch(handleError);
+  });
   el.innerHTML = `<div class="page-title"><div><p class="eyebrow">PREFERENCES / 04</p><h1>گاراژ، به سلیقهٔ تو.</h1><p class="muted">مسیر بازی، نمایش و اطلاعات اتصال را مدیریت کن.</p></div></div><div class="settings-layout"><section class="panel"><div class="section-heading"><h2>محل نصب بازی</h2>${icon('folder-open')}</div><p class="muted">پوشه‌ای را انتخاب کن که فایل acs.exe و پوشه content در آن قرار دارند.</p><div class="path-box"><code dir="ltr" id="game-path">${esc(gamePath || 'هنوز مسیری انتخاب نشده')}</code><button class="button secondary" id="choose-path">${icon('folder')}انتخاب پوشه</button></div><div class="notice">${icon('shield-check')}${native ? 'اعتبار مسیر در لایه Native بررسی می‌شود.' : 'در پیش‌نمایش مرورگر امکان دسترسی به پوشه بازی وجود ندارد.'}</div></section><section class="panel"><div class="section-heading"><h2>نمایش و دسترس‌پذیری</h2>${icon('sliders-horizontal')}</div><label class="setting-row"><div><b>چیدمان فشرده</b><p>فاصله‌های کمتر برای پنجره‌های کوچک‌تر</p></div><input id="compact" type="checkbox" ${compact ? 'checked' : ''}></label><label class="setting-row"><div><b>جهت نمایش</b><p>محتوا در این نسخه فارسی است؛ تغییر جهت برای بررسی چیدمان</p></div><select id="language"><option value="fa" ${language === 'fa' ? 'selected' : ''}>راست به چپ</option><option value="en" ${language === 'en' ? 'selected' : ''}>چپ به راست</option></select></label></section><section class="panel"><div class="section-heading"><h2>وضعیت اتصال</h2>${icon('radio')}</div><dl class="definition"><dt>محیط</dt><dd>${demo ? 'توسعه / داده محلی' : 'API عملیاتی'}</dd><dt>اجرای برنامه</dt><dd>${native ? 'دسکتاپ Tauri' : 'مرورگر / پیش‌نمایش'}</dd><dt>کلید خصوصی</dt><dd>${native ? 'محافظت‌شده توسط ویندوز' : 'WebCrypto آزمایشی در همین مرورگر'}</dd><dt>نسخه</dt><dd><code>0.1.0</code></dd></dl><button class="text-button" id="recover">${icon('folder-check')}بررسی و بازیابی نصب نیمه‌تمام</button><br><button class="text-button" id="check-api">${icon('refresh-cw')}بررسی اتصال</button></section></div>`;
   el.querySelector<HTMLButtonElement>('#choose-path')!.onclick = function () {
     void busy(this as HTMLButtonElement, async () => {
@@ -707,6 +727,14 @@ async function boot() {
       files: { path: string; bytes: number; overwrite: boolean; executable: boolean }[];
     }>('install-preview', (event) => {
       const p = event.payload;
+      const task = [...tasks]
+        .reverse()
+        .find((t) => t.id === p.package_id && !t.error && t.progress < 100);
+      if (task) {
+        task.phase = 'منتظر تأیید فایل‌های نصب';
+        task.progress = 72;
+        persistTasks();
+      }
       const d = modal(
         'تأیید فایل‌های نصب',
         `<h3>${esc(p.name)}</h3><p>استخراج انجام شده، اما هنوز هیچ فایل بازی تغییر نکرده است. ${fa(p.files.length)} مقصد واقعی را بررسی کنید.</p><p>فضای موردنیاز برای اعمال و بکاپ: ${size(p.required)} · آزاد: ${size(p.free)}</p><div class="notice">فایل اجرایی فقط کپی می‌شود؛ هیچ EXE دانلودشده‌ای اجرا نخواهد شد. بستن این پنجره نصب را لغو می‌کند.</div><div class="file-preview-list">${p.files.map((f) => `<div class="setting-row"><code dir="ltr">${esc(f.path)}</code><span>${size(f.bytes)} · ${f.overwrite ? 'بکاپ و جایگزینی' : 'فایل جدید'}${f.executable ? ' · فایل اجرایی' : ''}</span></div>`).join('')}</div><div class="actions"><button class="button" id="approve-install">تأیید و اعمال تغییرات</button><button class="button secondary" id="reject-install">انصراف</button></div>`,

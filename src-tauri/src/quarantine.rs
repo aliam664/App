@@ -4,10 +4,36 @@ use serde::{Deserialize,Serialize};
 use serde_json::{json,Value};
 use std::{fs,path::{Path,PathBuf}};
 #[derive(Clone,Serialize,Deserialize)] struct File {path:String,sha256:String,bytes:u64,external:bool}
-#[derive(Serialize,Deserialize)] struct Manifest {id:String,created_at:u64,state:String,files:Vec<File>}
+#[derive(Serialize,Deserialize)] struct Manifest {id:String,created_at:u64,state:String,#[serde(default)]scope:String,files:Vec<File>}
 fn allowed(path:&str)->bool {
     let p:Vec<_>=path.split('/').collect();
     p.len()>=4 && p[0]=="content" && ["cars","tracks"].contains(&p[1]) && !p[2].is_empty()
+}
+fn scope_allowed(path:&str)->bool {
+    let p:Vec<_>=path.split('/').collect();
+    (p.len()==3 || (p.len()==5 && p[1]=="cars" && p[3]=="skins")) && p[0]=="content" && ["cars","tracks"].contains(&p[1])
+}
+fn prune(root:&Path,path:&str)->Result<(),String>{
+    let dir=safe_target(root,path)?;
+    for e in fs::read_dir(&dir).map_err(|e|e.to_string())? {
+        let e=e.map_err(|e|e.to_string())?;
+        let child=format!("{path}/{}",e.file_name().to_string_lossy());
+        let target=safe_target(root,&child)?;
+        if target.is_dir(){prune(root,&child)?;}
+    }
+    // Nonempty directories (including concurrently added files) are left in place.
+    let _=fs::remove_dir(dir);Ok(())
+}
+fn restore_no_replace(source:&Path,target:&Path)->Result<(),String>{
+    // Unlike rename, hard_link/create_new cannot replace a concurrently created file.
+    if fs::hard_link(source,target).is_ok(){return fs::remove_file(source).map_err(|e|e.to_string());}
+    let mut output=fs::OpenOptions::new().create_new(true).write(true).open(target).map_err(|e|e.to_string())?;
+    let mut input=fs::File::open(source).map_err(|e|e.to_string())?;
+    let result=(||->Result<(),String>{std::io::copy(&mut input,&mut output).map_err(|e|e.to_string())?;output.sync_all().map_err(|e|e.to_string())?;Ok(())})();
+    drop(output);
+    if let Err(e)=result{let _=fs::remove_file(target);return Err(e);}
+    if sha256_file(source)?!=sha256_file(target)?{return Err("Restored file verification failed; quarantine retained".into());}
+    fs::remove_file(source).map_err(|e|e.to_string())
 }
 fn directory(root:&Path,id:&str)->Result<PathBuf,String> {
     uuid::Uuid::parse_str(id).map_err(|_|"Invalid recovery identifier")?;
@@ -19,7 +45,7 @@ fn load(dir:&Path)->Result<Manifest,String> {
     let p=safe_target(dir,"manifest.json")?;
     if fs::metadata(&p).map_err(|e|e.to_string())?.len()>16_000_000 {return Err("Recovery manifest too large".into());}
     let m:Manifest=serde_json::from_slice(&fs::read(p).map_err(|e|e.to_string())?).map_err(|_|"Recovery manifest is damaged")?;
-    if m.files.len()>20_000 || m.files.iter().any(|f|!allowed(&f.path)) {return Err("Unsafe recovery manifest".into());}
+    if (!m.scope.is_empty() && !scope_allowed(&m.scope)) || m.files.len()>20_000 || m.files.iter().any(|f|!allowed(&f.path) || (!m.scope.is_empty() && !f.path.starts_with(&format!("{}/",m.scope)))) {return Err("Unsafe recovery manifest".into());}
     Ok(m)
 }
 pub fn preview(root:&Path,path:&str)->Result<Value,String> {
@@ -28,15 +54,15 @@ pub fn preview(root:&Path,path:&str)->Result<Value,String> {
     let valid=parts.len()==3 || (parts.len()==5 && parts[1]=="cars" && parts[3]=="skins");
     if !valid || !["content/cars/","content/tracks/"].iter().any(|p|path.starts_with(p)) {return Err("Select a car, track or skin directory".into());}
     safe_target(root,path)?;
-    let registry=crate::installer::library(root)?;
+    let registry:std::collections::HashSet<String>=crate::installer::library(root)?.values().flat_map(|p|p.files.iter().map(|f|f.to_lowercase())).collect();
     let mut paths=Vec::new();crate::content::walk(root,path,&mut paths,0)?;
     if paths.len()>20_000 {return Err("More than 20,000 files; split this operation".into());}
     let mut files=Vec::new();
     for path in paths {
         let p=safe_target(root,&path)?;
-        files.push(File {external:!registry.values().any(|p|p.files.iter().any(|f|f.eq_ignore_ascii_case(&path))),sha256:sha256_file(&p)?,bytes:fs::metadata(p).map_err(|e|e.to_string())?.len(),path});
+        files.push(File {external:!registry.contains(&path.to_lowercase()),sha256:sha256_file(&p)?,bytes:fs::metadata(p).map_err(|e|e.to_string())?.len(),path});
     }
-    let m=Manifest{id:uuid::Uuid::new_v4().to_string(),created_at:crate::content::now(),state:"preview".into(),files};
+    let m=Manifest{id:uuid::Uuid::new_v4().to_string(),created_at:crate::content::now(),state:"preview".into(),scope:path.into(),files};
     let dir=directory(root,&m.id)?;fs::create_dir_all(&dir).map_err(|e|e.to_string())?;save(&dir,&m)?;
     serde_json::to_value(m).map_err(|e|e.to_string())
 }
@@ -59,6 +85,7 @@ pub fn apply(root:&Path,id:&str,selected:&[String],acknowledge_external:bool)->R
         if sha256_file(&target)?!=f.sha256 {return Err("Content changed; restore partially moved files before retrying".into());}
         fs::rename(target,safe_target(&storage,&i.to_string())?).map_err(|e|e.to_string())?;
     }
+    if !m.scope.is_empty(){prune(root,&m.scope)?;}
     m.state="quarantined".into();save(&dir,&m)?;
     Ok(json!({"id":id,"files":m.files.len()}))
 }
@@ -92,7 +119,7 @@ pub fn restore(root:&Path,id:&str)->Result<Value,String> {
             let target=safe_target(root,&f.path)?;
             if target.exists(){return Err("Restore conflict; no overwrite allowed".into());}
             if let Some(p)=target.parent(){fs::create_dir_all(p).map_err(|e|e.to_string())?;}
-            fs::rename(source,target).map_err(|e|e.to_string())?;
+            restore_no_replace(&source,&target)?;
         }
     }
     m.state="restored".into();save(&dir,&m)?;Ok(json!({"restored":m.files.len()}))

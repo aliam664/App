@@ -11,20 +11,25 @@ pub struct Item {
     pub source: String, pub warnings: Vec<String>,
 }
 #[derive(Serialize, Deserialize)]
-pub struct Snapshot { pub items: Vec<Item>, pub bytes: u64, pub scanned_at: u64, pub warnings: Vec<String> }
+pub struct Snapshot { pub items: Vec<Item>, pub bytes: u64, pub scanned_at: u64, pub warnings: Vec<String>, pub packages: Vec<Value> }
 pub fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 fn rel(root: &Path, path: &Path) -> Result<String,String> {
     Ok(path.strip_prefix(root).map_err(|_|"Path escaped root")?.to_string_lossy().replace('\\',"/"))
 }
 pub fn walk(root: &Path, relative: &str, out: &mut Vec<String>, depth: usize) -> Result<(),String> {
-    if depth > 40 || out.len() >= MAX_NODES { return Err("Content scan limit exceeded".into()); }
+    let mut nodes=0;
+    walk_inner(root,relative,out,depth,&mut nodes)
+}
+fn walk_inner(root:&Path,relative:&str,out:&mut Vec<String>,depth:usize,nodes:&mut usize)->Result<(),String>{
+    if depth > 40 || *nodes >= MAX_NODES { return Err("Content scan limit exceeded".into()); }
     let dir = safe_target(root,relative)?;
     for entry in fs::read_dir(dir).map_err(|e|e.to_string())? {
+        *nodes+=1;if *nodes>MAX_NODES{return Err("Content scan limit exceeded".into());}
         let p = entry.map_err(|e|e.to_string())?.path();
         let r = rel(root,&p)?;
         let target = safe_target(root,&r)?;
         let m = fs::symlink_metadata(target).map_err(|e|e.to_string())?;
-        if m.is_dir() { walk(root,&r,out,depth+1)?; }
+        if m.is_dir() { walk_inner(root,&r,out,depth+1,nodes)?; }
         else if m.is_file() { out.push(r); if out.len()>MAX_NODES { return Err("Content scan limit exceeded".into()); } }
         else { return Err("Unsupported content file type".into()); }
     }
@@ -63,7 +68,7 @@ fn metadata(root: &Path,path: &str) -> (Value, bool) {
     })();
     match result { Ok(v)=>(v,false), Err(_)=>(json!({}),true) }
 }
-fn item(root: &Path, path: &str, kind: &str, parent: Option<String>, meta: &str, images: &[String], registry: &crate::installer::Library) -> Item {
+fn item(root: &Path, path: &str, kind: &str, parent: Option<String>, meta: &str, images: &[String], registry: &std::collections::HashSet<String>) -> Item {
     let mut warnings=Vec::new(); let mut files=Vec::new();
     if let Err(e)=walk(root,path,&mut files,0) { warnings.push(e); }
     let mut bytes=0u64;
@@ -74,7 +79,7 @@ fn item(root: &Path, path: &str, kind: &str, parent: Option<String>, meta: &str,
     }
     let (metadata,invalid)=metadata(root,meta);
     if invalid { warnings.push("Metadata missing or unreadable".into()); }
-    let owned=files.iter().filter(|f|registry.values().any(|p|p.files.iter().any(|r|r.eq_ignore_ascii_case(f)))).count();
+    let owned=files.iter().filter(|f|registry.contains(&f.to_lowercase())).count();
     let source=if owned==0 {"external"} else if owned==files.len() {"launcher"} else {"mixed"};
     let image=images.iter().find(|r|safe_target(root,r).map(|p|p.is_file()).unwrap_or(false)).cloned();
     Item {id:format!("{kind}:{path}"), kind:kind.into(), parent, path:path.into(), metadata,bytes,files:files.len(),image,source:source.into(),warnings}
@@ -87,12 +92,20 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot,String> {
     let cached=cache.join(format!("library-{key}.json"));
     if !force { if let Ok(data)=fs::read(&cached) { if let Ok(s)=serde_json::from_slice::<Snapshot>(&data) { if now().saturating_sub(s.scanned_at)<60 { return Ok(s); } } } }
     let _lock=crate::installer::content_lock(root)?;
-    let registry=crate::installer::library(root)?;
+    let installed=crate::installer::library(root)?;
+    let mut packages=Vec::new();
+    for (id,p) in &installed {
+        let missing=p.files.iter().filter(|f|!safe_target(root,f).map(|p|p.is_file()).unwrap_or(false)).count();
+        packages.push(json!({"id":id,"version":p.version,"files":p.files.len(),"missing":missing,"integrity":"presence_only"}));
+    }
+    let registry:std::collections::HashSet<String>=installed.values().flat_map(|p|p.files.iter().map(|f|f.to_lowercase())).collect();
     let mut items=Vec::new(); let mut warnings=Vec::new();
     for path in children(root,"content/cars",&mut warnings) {
-        let car=item(root,&path,"car",None,&format!("{path}/ui/ui_car.json"),&[format!("{path}/ui/badge.png")],&registry);
+        let skins=children(root,&format!("{path}/skins"),&mut warnings);
+        let mut images:Vec<String>=skins.iter().flat_map(|s|[format!("{s}/preview.jpg"),format!("{s}/preview.png")]).collect();images.push(format!("{path}/ui/badge.png"));
+        let car=item(root,&path,"car",None,&format!("{path}/ui/ui_car.json"),&images,&registry);
         let parent=car.id.clone(); items.push(car);
-        for skin in children(root,&format!("{path}/skins"),&mut warnings) {
+        for skin in skins {
             items.push(item(root,&skin,"skin",Some(parent.clone()),&format!("{skin}/ui_skin.json"),&[format!("{skin}/preview.jpg"),format!("{skin}/preview.png")],&registry));
         }
     }
@@ -105,7 +118,7 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot,String> {
         }
     }
     let bytes=items.iter().filter(|i|i.parent.is_none()).map(|i|i.bytes).sum();
-    let snapshot=Snapshot{items,bytes,scanned_at:now(),warnings};
+    let snapshot=Snapshot{items,bytes,scanned_at:now(),warnings,packages};
     atomic_write(&cached,&serde_json::to_vec(&snapshot).map_err(|e|e.to_string())?)?;
     Ok(snapshot)
 }

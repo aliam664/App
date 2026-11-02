@@ -294,7 +294,7 @@ function editPackage(existing?: PackageSpec) {
             `<label><input type="checkbox" name="dependencies" value="${q.id}" ${p.dependencies.includes(q.id) ? 'checked' : ''}>${esc(q.name)} ${badge(q.tier)}</label>`,
         )
         .join('') || '<span class="muted">پکیج دیگری وجود ندارد.</span>'
-    }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p><div class="actions"><button class="button" type="submit">ذخیره پیش‌نویس</button>${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="validate-package">اعتبارسنجی سرور</button><button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></fieldset></form>`,
+    }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p><div class="actions"><button class="button" type="submit">ذخیره پیش‌نویس</button>${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="validate-package">اعتبارسنجی سرور</button><button type="button" class="button secondary" id="test-package">نصب تست روی این دستگاه</button><button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></fieldset></form>`,
     true,
   );
   const rows = d.querySelector('#file-rows')!;
@@ -438,6 +438,29 @@ function editPackage(existing?: PackageSpec) {
       await refreshPage();
     });
   };
+  d.querySelector<HTMLButtonElement>('#test-package')?.addEventListener('click', function () {
+    void busy(this, async () => {
+      if (!native)
+        throw new Error(
+          'تست نصب واقعی فقط در برنامه ویندوز و با لایسنس فعال همان دستگاه انجام می‌شود.',
+        );
+      if (
+        !window.confirm(
+          'نسخه ذخیره‌شده روی مسیر واقعی انتخاب‌شده نصب شود؟ بهتر است یک کپی آزمایشی بازی را انتخاب کنید. پیش از اعمال، فهرست فایل‌ها تأیید خواهد شد.',
+        )
+      )
+        return;
+      const grant = localStore.getItem('uhm-grant');
+      if (!grant) throw new Error('ابتدا لایسنس همین دستگاه را فعال کنید.');
+      const plan = await api(
+        `/admin/packages/${p.id}/test-plan`,
+        { grant, ...(await proof('plan')) },
+        token,
+      );
+      d.close();
+      window.dispatchEvent(new CustomEvent('uhm-test-install', { detail: plan }));
+    });
+  });
   d.querySelector<HTMLButtonElement>('#validate-package')?.addEventListener('click', function () {
     void busy(this, async () => {
       const result = await api(`/admin/packages/${p.id}/validate`, {}, token);

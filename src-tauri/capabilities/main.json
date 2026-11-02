@@ -24,6 +24,8 @@
     "allow-quarantine-files",
     "allow-list-quarantine",
     "allow-restore-quarantine",
-    "allow-control-job"
+    "allow-control-job",
+    "allow-set-download-preferences",
+    "allow-download-cache-status"
   ]
 }

@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager};
-const MAX_EXPANDED: u64 = 20_000_000_000;
+const MAX_EXPANDED: u64 = 100_000_000_000;
 const MAX_FILES: usize = 20_000;
 #[derive(Clone, Deserialize)]
 pub struct Artifact {
@@ -211,10 +211,19 @@ fn public_ip(ip: IpAddr) -> bool {
         IpAddr::V6(_) => false, // Fail closed for IPv6 until mapped/local address cases are exhaustively tested.
     }
 }
+#[derive(Default)]
+struct TransferStats(std::sync::Mutex<BTreeMap<String,(u64,f64)>>);
+impl TransferStats {
+    fn update(&self,app:&AppHandle,pkg:&str,id:&str,bytes:u64,speed:f64,total:u64){
+        if let Ok(mut files)=self.0.lock(){
+            files.insert(id.into(),(bytes,speed));let received:u64=files.values().map(|v|v.0).sum();let speed:f64=files.values().map(|v|v.1).sum();
+            let _=app.emit("install-progress",json!({"package_id":pkg,"phase":"در حال دانلود و بررسی فایل","progress":received as f64/total.max(1) as f64*65.0,"bytes":received,"total":total,"speed":speed,"eta":if speed>0.0{Some(total.saturating_sub(received) as f64/speed)}else{None}}));
+        }
+    }
+}
 fn download(
-    app: &AppHandle, pkg: &str, file: &Artifact, out: &Path, completed: u64, total: u64,
+    app: &AppHandle, pkg: &str, file: &Artifact, out: &Path, completed: u64, total: u64, stats:&TransferStats,
 ) -> Result<(), String> {
-    crate::jobs::mode("download");
     if file.size == 0 || file.size > MAX_EXPANDED || file.sha256.len()!=64 || !file.sha256.bytes().all(|b|b.is_ascii_hexdigit()) || file.mirrors.len()>5 {
         return Err("Invalid artifact size, checksum or mirrors".into());
     }
@@ -226,7 +235,7 @@ fn download(
     for source in std::iter::once(&file.url).chain(file.mirrors.iter()) {
         for _ in 0..3 {
             crate::jobs::checkpoint()?;
-            match transfer(app,pkg,file,source,out,completed,total) {
+            match transfer(app,pkg,file,source,out,completed,total,stats) {
                 Ok(())=>return Ok(()),
                 Err(e)=>{last_error=e;crate::jobs::checkpoint()?;}
             }
@@ -244,8 +253,18 @@ fn interruptible<F: std::future::Future>(future:F) -> Result<F::Output,String> {
         }
     })
 }
-fn transfer(app:&AppHandle,pkg:&str,file:&Artifact,source:&str,out:&Path,completed:u64,total:u64)->Result<(),String> {
+fn response_offset(status:u16,range:Option<&str>,length:Option<u64>,offset:u64,size:u64)->Result<u64,String>{
+    if offset>size || size==0{return Err("Invalid resume offset".into());}
+    let resumed=match status {
+        200=>0,
+        206=>{let expected=format!("bytes {}-{}/{}",offset,size-1,size);if range!=Some(expected.as_str()){return Err("Invalid Content-Range; resume refused".into());}offset},
+        _=>return Err(format!("Download host returned {status}")),
+    };
+    if length.map(|n|n!=size-resumed).unwrap_or(false){return Err("Content length does not match release manifest".into());}Ok(resumed)
+}
+fn transfer(app:&AppHandle,pkg:&str,file:&Artifact,source:&str,out:&Path,_completed:u64,total:u64,stats:&TransferStats)->Result<(),String> {
     let mut received=if out.exists(){fs::metadata(out).map_err(|e|e.to_string())?.len()}else{0};
+    stats.update(app,pkg,&file.sha256,received,0.0,total);
     let mut url=url::Url::parse(source).map_err(|_|"Invalid download URL")?;
     let mut response=None;
     for _ in 0..6 {
@@ -262,12 +281,7 @@ fn transfer(app:&AppHandle,pkg:&str,file:&Artifact,source:&str,out:&Path,complet
         if received>0 {request=request.header("Range",format!("bytes={received}-"));}
         let r=interruptible(request.send())?.map_err(|_|"Download connection failed; partial file retained")?;
         if r.status().is_redirection(){let location=r.headers().get("location").ok_or("Redirect has no location")?.to_str().map_err(|_|"Invalid redirect")?;url=url.join(location).map_err(|_|"Invalid redirect URL")?;continue;}
-        if r.status().as_u16()==206 {
-            let expected=format!("bytes {}-{}/{}",received,file.size-1,file.size);
-            if r.headers().get("content-range").and_then(|v|v.to_str().ok())!=Some(expected.as_str()){return Err("Invalid Content-Range; resume refused".into());}
-        } else if r.status().as_u16()==200 { received=0; }
-        else {return Err(format!("Download host returned {}",r.status()));}
-        if let Some(len)=r.content_length(){if len!=file.size-received{return Err("Content length does not match release manifest".into());}}
+        received=response_offset(r.status().as_u16(),r.headers().get("content-range").and_then(|v|v.to_str().ok()),r.content_length(),received,file.size)?;
         response=Some(r);break;
     }
     let mut response=response.ok_or("Too many download redirects")?;
@@ -280,7 +294,7 @@ fn transfer(app:&AppHandle,pkg:&str,file:&Artifact,source:&str,out:&Path,complet
         output.write_all(&chunk).map_err(|e|e.to_string())?;received+=chunk.len() as u64;
         if last.elapsed()>Duration::from_millis(250){
             let speed=(received-initial) as f64/started.elapsed().as_secs_f64().max(0.01);
-            let _=app.emit("install-progress",json!({"package_id":pkg,"phase":"در حال دانلود و بررسی فایل","progress":((completed+received) as f64/total.max(1) as f64)*65.0,"bytes":completed+received,"total":total,"speed":speed,"eta":(file.size-received) as f64/speed.max(1.0)}));last=Instant::now();
+            stats.update(app,pkg,&file.sha256,received,speed,total);last=Instant::now();
         }
     }
     output.sync_all().map_err(|e|e.to_string())?;drop(output);
@@ -564,9 +578,12 @@ fn activity(app: &AppHandle, package: &Package, kind: &str, file: Option<&Artifa
     }
     let _=app.emit("client-activity",event);
 }
-pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<Value, String> {
+pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Path, parallel: usize) -> Result<Value, String> {
     let control = regular_control(root)?;
     let _lock = content_lock(root)?;
+    fs::create_dir_all(cache).map_err(|e|e.to_string())?;
+    let cache_lock=fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(safe_target(cache,"cache.lock")?).map_err(|e|e.to_string())?;
+    cache_lock.try_lock_exclusive().map_err(|_|"Download cache is in use")?;
     recover_locked(root, &control)?;
     let mut library = library(root)?;
     for package in packages {
@@ -599,26 +616,46 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
         save_journal(&dir, &journal)?;
         let result = (|| -> Result<Vec<String>, String> {
             let total: u64 = package.files.iter().map(|f| f.size).sum();
-            let mut completed = 0;
-            let cache=safe_target(&control,"download-cache")?;
-            fs::create_dir_all(&cache).map_err(|e|e.to_string())?;
+            let completed = total;
+            let stats=TransferStats::default();
             if total > MAX_EXPANDED
                 || fs2::available_space(root).map_err(|e| e.to_string())?
                     < total.saturating_mul(3) + 256_000_000
             {
                 return Err("Insufficient disk space".into());
             }
+            let mut unique=BTreeMap::new();
             for file in &package.files {
-                uuid::Uuid::parse_str(&file.id).map_err(|_| "Invalid artifact identifier")?;
-                activity(app, &package, "download_started", Some(file), None);
-                let cached=safe_target(&cache,&format!("{}.part",file.sha256))?;
-                let downloaded = download(app, &package.id, file, &cached, completed, total);
-                if downloaded.is_ok() {fs::copy(&cached,dir.join("downloads").join(&file.name)).map_err(|e|e.to_string())?;}
-                if let Err(error) = &downloaded {
-                    activity(app, &package, "download_failed", Some(file), Some(error));
-                } else { activity(app, &package, "download_completed", Some(file), None); }
-                downloaded?;
-                completed += file.size;
+                uuid::Uuid::parse_str(&file.id).map_err(|_|"Invalid artifact identifier")?;
+                if let Some(previous)=unique.insert(file.sha256.clone(),file) {
+                    if previous.size!=file.size{return Err("Conflicting sizes for the same checksum".into());}
+                }
+            }
+            let transfer_total:u64=unique.values().map(|f|f.size).sum();
+            if fs2::available_space(cache).map_err(|e|e.to_string())?<transfer_total+128_000_000{return Err("Insufficient download-cache space".into());}
+            let files:Vec<_>=unique.values().copied().collect();
+            crate::jobs::mode("download");
+            for group in files.chunks(parallel.clamp(1,4)) {
+                std::thread::scope(|scope|->Result<(),String>{
+                    let handles:Vec<_>=group.iter().map(|file|{
+                        let stats=&stats;let package=&package;
+                        scope.spawn(crate::jobs::inherit(move ||->Result<(),String>{
+                            activity(app,package,"download_started",Some(file),None);
+                            let cached=safe_target(cache,&format!("{}.part",file.sha256))?;
+                            let result=download(app,&package.id,file,&cached,0,transfer_total,stats);
+                            activity(app,package,if result.is_ok(){"download_completed"}else{"download_failed"},Some(file),result.as_ref().err().map(|s|s.as_str()));
+                            if result.is_ok(){stats.update(app,&package.id,&file.sha256,file.size,0.0,transfer_total);}
+                            result
+                        }))
+                    }).collect();
+                    let mut failure=None;
+                    for handle in handles {match handle.join(){Ok(Ok(()))=>{},Ok(Err(e))=>failure=Some(e),Err(_)=>failure=Some("Download worker failed".into())}}
+                    if let Some(e)=failure{return Err(e);}Ok(())
+                })?;
+            }
+            for file in &package.files {
+                let cached=safe_target(cache,&format!("{}.part",file.sha256))?;
+                fs::copy(cached,dir.join("downloads").join(&file.name)).map_err(|e|e.to_string())?;
             }
             activity(app, &package, "package_download_completed", None, None);
             let mut operations: Vec<(PathBuf, String, String)> = Vec::new();
@@ -874,6 +911,15 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn range_resume_requires_exact_offset_size_and_length(){
+        assert_eq!(response_offset(206,Some("bytes 50-99/100"),Some(50),50,100).unwrap(),50);
+        assert_eq!(response_offset(200,None,Some(100),50,100).unwrap(),0);
+        assert!(response_offset(206,Some("bytes 0-99/100"),Some(100),50,100).is_err());
+        assert!(response_offset(206,Some("bytes 50-99/200"),Some(50),50,100).is_err());
+        assert!(response_offset(200,None,Some(50),50,100).is_err());
+        assert!(response_offset(416,None,None,50,100).is_err());
+    }
     #[test]
     fn rejects_local_download_ips() {
         for s in [

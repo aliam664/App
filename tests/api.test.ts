@@ -299,6 +299,56 @@ describe('immutable content publishing', () => {
       (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
     ).toBe('1.1.0');
   });
+  it('keeps stable catalog during scheduled/test updates and preserves richer snapshots', async () => {
+    const pkg = await publishFixture();
+    await request(
+      '/admin/packages',
+      {
+        ...pkg,
+        status: 'draft',
+        version: '2.0.0',
+        channel: 'test',
+        author: 'Real author',
+        tags: ['street'],
+        files: pkg.files.map((f) => ({ ...f, mirrors: ['https://mirror.example.com/a.ini'] })),
+      },
+      repo.adminToken,
+    );
+    const validation = await request(`/admin/packages/${pkg.id}/validate`, {}, repo.adminToken);
+    expect(validation.status).toBe(200);
+    await request(`/admin/packages/${pkg.id}/publish`, {}, repo.adminToken);
+    expect(
+      (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
+    ).toBe('1.0.0');
+    const release = (await repo.releases()).find(
+      (r) => r.package_id === pkg.id && r.version === '2.0.0',
+    );
+    expect(release?.manifest.author).toBe('Real author');
+    expect(release?.manifest.files[0].mirrors).toHaveLength(1);
+  });
+  it('issues device-bound administrator test plans without publicly publishing drafts', async () => {
+    const pkg = await publishFixture();
+    await request(
+      '/admin/packages',
+      { ...pkg, status: 'draft', version: '1.1.0' },
+      repo.adminToken,
+    );
+    const d = await device();
+    const active = await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    const body = { grant: active.data.grant, ...(await proof(d, 'plan')) };
+    expect((await request(`/admin/packages/${pkg.id}/test-plan`, body)).status).toBe(401);
+    const result = await request(`/admin/packages/${pkg.id}/test-plan`, body, repo.adminToken);
+    expect(result.status).toBe(200);
+    const token = await verifyToken(result.data.plan, config, 'uhm-plan+jwt');
+    expect(token.test).toBe(true);
+    expect((token.packages as any[])[0].version).toBe('1.1.0');
+    expect(
+      (await request(`/admin/packages/${pkg.id}/test-plan`, body, repo.adminToken)).status,
+    ).toBe(401);
+    expect(
+      (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
+    ).toBe('1.0.0');
+  });
   it('creates a verifiable installation plan from a real release', async () => {
     const pkg = await publishFixture();
     const d = await device();

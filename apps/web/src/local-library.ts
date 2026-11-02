@@ -1,56 +1,17 @@
 import { invoke, native } from './device';
 import { esc, icon, size, fa, modal, busy, toast, empty, decorate, handleError } from './ui';
-export type LocalItem = {
-  id: string;
-  kind: string;
-  parent: string | null;
-  path: string;
-  metadata: Record<string, unknown>;
-  bytes: number;
-  files: number;
-  image: string | null;
-  source: string;
-  warnings: string[];
-};
-type Snapshot = { items: LocalItem[]; bytes: number; scanned_at: number; warnings: string[] };
-const kinds: Record<string, string> = {
-  car: 'ماشین',
-  track: 'پیست',
-  skin: 'اسکین',
-  layout: 'لی‌اوت',
-};
-const origins: Record<string, string> = {
-  external: 'خارج از لانچر',
-  launcher: 'لانچر',
-  mixed: 'ترکیبی',
-};
-const text = (v: unknown) =>
-  typeof v === 'string' && v.trim() ? v : typeof v === 'number' ? String(v) : 'نامشخص';
-export const localName = (i: LocalItem) => text(i.metadata.name ?? i.metadata.skinname);
-export function filterLocal(
-  items: LocalItem[],
-  query: string,
-  kind: string,
-  origin: string,
-  sort: string,
-): LocalItem[] {
-  const q = query.trim().toLocaleLowerCase();
-  return items
-    .filter(
-      (i) =>
-        (kind === 'all' || i.kind === kind) &&
-        (origin === 'all' || i.source === origin) &&
-        `${i.path} ${Object.values(i.metadata).flat().join(' ')}`.toLocaleLowerCase().includes(q),
-    )
-    .sort((a, b) =>
-      sort === 'size'
-        ? b.bytes - a.bytes
-        : sort === 'brand'
-          ? text(a.metadata.brand).localeCompare(text(b.metadata.brand))
-          : localName(a).localeCompare(localName(b)),
-    );
-}
+import {
+  type LocalItem,
+  type Snapshot,
+  kinds,
+  origins,
+  text,
+  localName,
+  filterLocal,
+} from './library-model';
+let currentObserver: IntersectionObserver | undefined;
 export async function localLibrary(el: HTMLElement, force = false) {
+  currentObserver?.disconnect();
   el.innerHTML = `<div class="page-title"><h1>کتابخانه من</h1></div>${empty('خواندن کتابخانه واقعی', 'فایل‌های بازی و محتوای نصب‌شده خارج از لانچر بررسی می‌شوند.', 'folder-search')}`;
   if (!native) {
     el.innerHTML = empty(
@@ -85,7 +46,7 @@ export async function localLibrary(el: HTMLElement, force = false) {
     .map(([k, v]) => `<option value="${k}">${v}</option>`)
     .join(
       '',
-    )}</select><select id="local-sort" aria-label="مرتب‌سازی"><option value="name">نام</option><option value="size">حجم</option><option value="brand">برند</option></select></div>${snapshot.warnings.length ? `<details class="notice error"><summary>اسکن ناقص: ${fa(snapshot.warnings.length)} هشدار</summary>${snapshot.warnings.map(esc).join('<br>')}</details>` : ''}<div id="local-items"></div><small class="muted">آخرین اسکن: ${new Date(snapshot.scanned_at * 1000).toLocaleString('fa-IR')} · کش حداکثر ۶۰ ثانیه. حجم لی‌اوت مستقل نامشخص است؛ مدل‌های پیست مشترک‌اند.</small>`;
+    )}</select><select id="local-sort" aria-label="مرتب‌سازی"><option value="name">نام</option><option value="size">حجم</option><option value="brand">برند</option></select></div>${snapshot.warnings.length ? `<details class="notice error"><summary>اسکن ناقص: ${fa(snapshot.warnings.length)} هشدار</summary>${snapshot.warnings.map(esc).join('<br>')}</details>` : ''}<div id="local-items"></div><section class="panel"><h2>نصب‌های ثبت‌شده لانچر</h2><p class="muted">این بخش وجود فایل‌ها را بررسی می‌کند؛ سالم بودن بایت‌به‌بایت محتوای خارجی بدون hash مرجع نامشخص است.</p>${snapshot.packages.length ? snapshot.packages.map((p) => `<div class="setting-row"><code dir="ltr">${esc(p.id)} / v${esc(p.version)}</code><span>${fa(p.files)} فایل · ${p.missing ? `${fa(p.missing)} فایل مفقود / نیازمند بررسی` : 'همه مسیرها موجودند'}</span></div>`).join('') : '<p>نصب ثبت‌شده‌ای وجود ندارد؛ موارد بالا ممکن است با روش دیگری نصب شده باشند.</p>'}</section><small class="muted">آخرین اسکن: ${new Date(snapshot.scanned_at * 1000).toLocaleString('fa-IR')} · کش حداکثر ۶۰ ثانیه. حجم لی‌اوت مستقل نامشخص است؛ مدل‌های پیست مشترک‌اند.</small>`;
   const list = () => {
     const get = (id: string) => (el.querySelector('#' + id) as HTMLInputElement).value;
     const matches = filterLocal(
@@ -106,7 +67,8 @@ export async function localLibrary(el: HTMLElement, force = false) {
             () => localLibrary(el, true),
           )),
     );
-    const observer = new IntersectionObserver((entries) =>
+    currentObserver?.disconnect();
+    const observer = (currentObserver = new IntersectionObserver((entries) =>
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
         observer.unobserve(entry.target);
@@ -119,7 +81,7 @@ export async function localLibrary(el: HTMLElement, force = false) {
             image.alt = 'تصویر قابل خواندن نیست';
           });
       }),
-    );
+    ));
     el.querySelectorAll('[data-local-image]').forEach((img) => observer.observe(img));
     decorate();
   };

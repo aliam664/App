@@ -192,8 +192,13 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(401, 'CHALLENGE_USED');
         return thumb;
       }
-      async function device(purpose: string, data: z.infer<typeof Proof>): Promise<License> {
-        const token = request.headers.get('authorization')?.replace(/^Bearer /, '') || '';
+      async function device(
+        purpose: string,
+        data: z.infer<typeof Proof>,
+        suppliedGrant?: string,
+      ): Promise<License> {
+        const token =
+          suppliedGrant || request.headers.get('authorization')?.replace(/^Bearer /, '') || '';
         let payload;
         try {
           payload = await verifyToken(token, config, 'uhm-offline+jwt');
@@ -454,6 +459,41 @@ export function createApi(repo: Repository, config: ApiConfig) {
         else await repo.insert('packages', [pkg]);
         await audit(admin.id, 'package.draft.saved', pkg.id);
         return reply({ package: pkg });
+      }
+      const testing = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/test-plan$/);
+      if (testing && request.method === 'POST') {
+        const admin = await requireAdmin('content.publish');
+        const input = Proof.extend({ grant: z.string().max(16000) })
+          .strict()
+          .parse(body);
+        const license = await device('plan', input, input.grant);
+        if (admin.license_id && admin.license_id !== license.id)
+          throw new HttpError(403, 'ROLE_DENIED');
+        const draft = (await repo.list('packages')).find(
+          (p) => p.id === testing[1] && p.status !== 'archived',
+        );
+        if (!draft) throw new HttpError(404, 'NOT_FOUND');
+        const candidate = { ...draft, status: 'published' as const, channel: 'test' as const };
+        const all = [...(await repo.published()).filter((p) => p.id !== draft.id), candidate];
+        validatePublication(candidate, all);
+        const packages = resolvePlan(candidate.id, all, license.tier);
+        const plan = await signPayload(
+          {
+            schema_version: 1,
+            license_id: license.id,
+            device_thumbprint: license.device_thumbprint,
+            packages,
+            test: true,
+          },
+          config,
+          'uhm-plan+jwt',
+          900,
+        );
+        await audit(admin.id, 'package.test_plan', draft.id);
+        return reply({
+          plan,
+          packages: packages.map((p) => ({ id: p.id, name: p.name, version: p.version })),
+        });
       }
       const validation = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/validate$/);
       if (validation && request.method === 'POST') {

@@ -23,6 +23,17 @@ struct Settings {
     game_paths: Vec<String>,
     #[serde(default)]
     autoscan: bool,
+    #[serde(default)]
+    download_path: String,
+    #[serde(default="default_parallel")]
+    parallel_downloads: usize,
+}
+fn default_parallel()->usize {2}
+fn download_cache(app:&tauri::AppHandle,s:&Settings)->Result<PathBuf,String> {
+    if s.download_path.is_empty(){return security::safe_target(&installer::control_dir(&valid_game(&s.game_path)?)?,"download-cache");}
+    let parent=Path::new(&s.download_path).canonicalize().map_err(|_|"Download directory does not exist")?;
+    if !parent.is_dir(){return Err("Download directory is not a directory".into());}
+    security::safe_target(&parent,"uhm-download-cache")
 }
 fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
@@ -32,7 +43,7 @@ fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 fn settings(app: &tauri::AppHandle) -> Result<Settings, String> {
     let file = data_dir(app)?.join("settings.json");
     if !file.exists() {
-        return Ok(Settings::default());
+        return Ok(Settings {parallel_downloads:default_parallel(), ..Settings::default()});
     }
     serde_json::from_slice(&fs::read(file).map_err(|e| e.to_string())?)
         .map_err(|_| "Settings are damaged".into())
@@ -69,6 +80,7 @@ fn get_settings(app: tauri::AppHandle) -> Result<Settings, String> {
 }
 #[tauri::command]
 fn set_game_path(app: tauri::AppHandle, path: String) -> Result<Value, String> {
+    if jobs::active(){return Err("Wait for the active content operation before changing paths".into());}
     let root = valid_game(&path)?;
     installer::recover(&root)?;
     let canonical = root.to_string_lossy().into_owned();
@@ -130,6 +142,36 @@ async fn restore_quarantine(app: tauri::AppHandle,id:String) -> Result<Value,Str
 fn control_job(package_id:String,action:String,preview_id:Option<String>) -> Result<Value,String> {
     jobs::control(&package_id,&action,preview_id.as_deref())
 }
+#[tauri::command]
+fn set_download_preferences(app:tauri::AppHandle,path:String,parallel:usize)->Result<(),String>{
+    if jobs::active(){return Err("Wait for the active content operation before changing paths".into());}
+    if !(1..=4).contains(&parallel){return Err("Choose between one and four transfers".into());}
+    let mut s=settings(&app)?;
+    if !path.is_empty(){let p=Path::new(&path).canonicalize().map_err(|_|"Download directory does not exist")?;if !p.is_dir(){return Err("Select a directory".into());}s.download_path=p.to_string_lossy().into_owned();}else{s.download_path=String::new();}
+    s.parallel_downloads=parallel;
+    let cache=download_cache(&app,&s)?;fs::create_dir_all(cache).map_err(|e|e.to_string())?;
+    security::atomic_write(&data_dir(&app)?.join("settings.json"),&serde_json::to_vec(&s).map_err(|e|e.to_string())?)
+}
+#[tauri::command]
+async fn download_cache_status(app:tauri::AppHandle,clear:bool)->Result<Value,String>{
+    let s=settings(&app)?;let root=valid_game(&s.game_path)?;let cache=download_cache(&app,&s)?;
+    tauri::async_runtime::spawn_blocking(move ||->Result<Value,String>{
+        let _lock=installer::content_lock(&root)?;
+        fs::create_dir_all(&cache).map_err(|e|e.to_string())?;
+        let lock=fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(security::safe_target(&cache,"cache.lock")?).map_err(|e|e.to_string())?;
+        fs2::FileExt::try_lock_exclusive(&lock).map_err(|_|"Download cache is in use")?;
+        let mut bytes=0u64;let mut files=0usize;
+        for e in fs::read_dir(&cache).map_err(|e|e.to_string())?{
+            let e=e.map_err(|e|e.to_string())?;let name=e.file_name().to_string_lossy().into_owned();
+            let Some(hash)=name.strip_suffix(".part") else {continue;};
+            if hash.len()!=64 || !hash.bytes().all(|b|b.is_ascii_hexdigit()){continue;}
+            let p=security::safe_target(&cache,&name)?;
+            let m=fs::metadata(&p).map_err(|e|e.to_string())?;
+            if m.is_file(){bytes=bytes.saturating_add(m.len());files+=1;if clear{fs::remove_file(p).map_err(|e|e.to_string())?;}}
+        }
+        Ok(json!({"bytes":bytes,"files":files,"cleared":clear,"path":cache}))
+    }).await.map_err(|e|e.to_string())?
+}
 fn verified_grant(app: &tauri::AppHandle, grant: &str) -> Result<Value, String> {
     let payload = security::verify(grant, "uhm-offline+jwt")?;
     if payload["device_thumbprint"].as_str() != Some(&security::device_thumb(&data_dir(app)?)?) {
@@ -184,8 +226,10 @@ async fn install_plan(
     if packages.is_empty() || packages.len() > 30 {
         return Err("Invalid number of packages".into());
     }
-    let root = valid_game(&settings(&app)?.game_path)?;
-    tauri::async_runtime::spawn_blocking(move || installer::install(&app, &root, packages))
+    let s=settings(&app)?;
+    let root = valid_game(&s.game_path)?;
+    let cache=download_cache(&app,&s)?;
+    tauri::async_runtime::spawn_blocking(move || installer::install(&app, &root, packages,&cache,s.parallel_downloads))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -200,6 +244,7 @@ fn main() {
             set_game_path,
             installed_packages,
             control_job,
+            set_download_preferences, download_cache_status,
             discover_paths, set_autoscan, scan_content, content_image, deletion_preview, quarantine_files, list_quarantine, restore_quarantine,
             verify_offline_grant,
             recover_installations,

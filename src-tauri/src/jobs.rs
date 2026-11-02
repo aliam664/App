@@ -45,9 +45,19 @@ pub fn approval(id:&str,emit:impl FnOnce())->Result<(),String> {
 }
 #[cfg(test)] mod tests {
  use super::*;
+ #[test] fn inherited_workers_observe_parent_cancellation(){
+  let _guard=begin("parallel-test").unwrap();let barrier=std::sync::Barrier::new(2);
+  std::thread::scope(|scope|{let worker=scope.spawn(inherit(||{barrier.wait();checkpoint()}));control("parallel-test","cancel",None).unwrap();barrier.wait();assert!(worker.join().unwrap().is_err());});
+ }
  #[test] fn approval_bound_to_current_preview_and_cancel() {
   let _guard=begin("test-job").unwrap();assert!(control("test-job","approve",Some("stale")).is_err());
   mode("extract");assert!(control("test-job","pause",None).is_err());
   control("test-job","cancel",None).unwrap();assert!(checkpoint().is_err());
  }
 }
+/// Propagate one job's cancellation/approval state into bounded transfer workers.
+pub fn inherit<F:FnOnce()->R,R>(task:F)->impl FnOnce()->R {
+ let job=CURRENT.with(|c|c.borrow().clone());
+ move || {CURRENT.with(|c|*c.borrow_mut()=job);let result=task();CURRENT.with(|c|*c.borrow_mut()=None);result}
+}
+pub fn active()->bool {JOBS.get_or_init(Default::default).lock().map(|jobs|jobs.values().any(|j|j.state.lock().map(|s|!s.done).unwrap_or(true))).unwrap_or(true)}

@@ -16,6 +16,7 @@ fn main() {
             "set_game_path",
             "installed_packages",
             "control_job",
+            "set_download_preferences", "download_cache_status",
             "discover_paths",
             "set_autoscan",
             "scan_content",
