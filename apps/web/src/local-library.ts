@@ -34,7 +34,7 @@ export async function localLibrary(el: HTMLElement, force = false) {
     return;
   }
   if (!el.isConnected) return;
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">LOCAL CONTENT</p><h1>کتابخانه من</h1><p class="muted">${fa(snapshot.items.length)} مورد · ${size(snapshot.bytes)} مجموع ماشین‌ها و پیست‌ها، بدون دوباره‌شماری اسکین/لی‌اوت</p></div><button id="rescan-content" class="button secondary">${icon('refresh-cw')}اسکن مجدد</button></div><div class="catalog-search"><label class="search">${icon('search')}<input id="local-query" aria-label="جست‌وجوی کتابخانه" placeholder="نام، برند، کشور، سازنده یا پوشه"></label><select id="local-kind" aria-label="نوع محتوا"><option value="all">همه نوع‌ها</option>${Object.entries(
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">LOCAL CONTENT</p><h1>کتابخانه من</h1><p class="muted">${fa(snapshot.items.length)} مورد · ${size(snapshot.bytes)} مجموع ماشین‌ها و پیست‌ها، بدون دوباره‌شماری اسکین/لی‌اوت${snapshot.warnings.length ? ' · اسکن ناقص: حجم فقط بخش قابل خواندن است' : ''}</p></div><button id="rescan-content" class="button secondary">${icon('refresh-cw')}اسکن مجدد</button></div><div class="catalog-search"><label class="search">${icon('search')}<input id="local-query" aria-label="جست‌وجوی کتابخانه" placeholder="نام، برند، کشور، سازنده یا پوشه"></label><select id="local-kind" aria-label="نوع محتوا"><option value="all">همه نوع‌ها</option>${Object.entries(
     kinds,
   )
     .map(([k, v]) => `<option value="${k}">${v}</option>`)

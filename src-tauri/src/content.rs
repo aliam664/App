@@ -173,13 +173,13 @@ fn item(
     let mut warnings = Vec::new();
     let mut files = Vec::new();
     if let Err(e) = walk(root, path, &mut files, 0) {
-        warnings.push(e);
+        warnings.push(format!("Size scan incomplete: {e}"));
     }
     let mut bytes = 0u64;
     for f in &files {
         match safe_target(root, f).and_then(|p| fs::metadata(p).map_err(|e| e.to_string())) {
             Ok(m) => bytes = bytes.saturating_add(m.len()),
-            Err(e) => warnings.push(e),
+            Err(e) => warnings.push(format!("Size scan incomplete: {e}")),
         }
     }
     let (metadata, invalid) = metadata(root, meta);
