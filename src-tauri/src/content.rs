@@ -253,10 +253,10 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot, String> 
     let mut warnings = Vec::new();
     for path in children(root, "content/cars", &mut warnings) {
         let skins = children(root, &format!("{path}/skins"), &mut warnings);
-        let mut images: Vec<String> = skins
-            .iter()
-            .flat_map(|s| [format!("{s}/preview.jpg"), format!("{s}/preview.png")])
-            .collect();
+        let mut images = crate::content_rules::preview_candidates(&path, true);
+        for skin in &skins {
+            images.extend(crate::content_rules::preview_candidates(skin, true));
+        }
         images.push(format!("{path}/ui/badge.png"));
         let car = item(
             root,
@@ -276,7 +276,7 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot, String> 
                 "skin",
                 Some(parent.clone()),
                 &format!("{skin}/ui_skin.json"),
-                &[format!("{skin}/preview.jpg"), format!("{skin}/preview.png")],
+                &crate::content_rules::preview_candidates(&skin, true),
                 &registry,
             ));
         }
@@ -288,7 +288,7 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot, String> 
             "track",
             None,
             &format!("{path}/ui/ui_track.json"),
-            &[format!("{path}/ui/preview.png")],
+            &crate::content_rules::preview_candidates(&path, false),
             &registry,
         );
         let parent = track.id.clone();
@@ -303,7 +303,7 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot, String> 
                 "layout",
                 Some(parent.clone()),
                 &format!("{layout}/ui_track.json"),
-                &[format!("{layout}/preview.png")],
+                &crate::content_rules::preview_candidates(&layout, false),
                 &registry,
             ));
         }
@@ -355,6 +355,34 @@ pub fn image(root: &Path, relative: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reuses_released_preview_detection_without_following_links_or_guessing_names() {
+        let game = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let car = game.path().join("content/cars/example");
+        fs::create_dir_all(car.join("ui")).unwrap();
+        fs::create_dir_all(car.join("skins/red")).unwrap();
+        fs::write(car.join("ui/preview_light.jpeg"), b"local image fixture").unwrap();
+        fs::write(car.join("skins/red/preview.jpg"), b"skin image fixture").unwrap();
+        let track = game.path().join("content/tracks/example/ui/sprint");
+        fs::create_dir_all(&track).unwrap();
+        fs::write(track.join("ui_track.json"), br#"{"name":"Sprint"}"#).unwrap();
+        fs::write(track.join("preview.jpg"), b"layout image fixture").unwrap();
+        let snapshot = scan(game.path(), cache.path(), true).unwrap();
+        let car = snapshot.items.iter().find(|i| i.kind == "car").unwrap();
+        assert_eq!(
+            car.image.as_deref(),
+            Some("content/cars/example/ui/preview_light.jpeg")
+        );
+        assert!(car.metadata.get("name").is_none());
+        let layout = snapshot.items.iter().find(|i| i.kind == "layout").unwrap();
+        assert_eq!(
+            layout.image.as_deref(),
+            Some("content/tracks/example/ui/sprint/preview.jpg")
+        );
+        // Candidate detection does not make corrupt bytes a valid displayable image.
+        assert!(image(game.path(), car.image.as_deref().unwrap()).is_err());
+    }
     #[test]
     fn scans_external_and_counts_children_once() {
         let d = tempfile::tempdir().unwrap();

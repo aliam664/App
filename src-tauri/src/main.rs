@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod content;
+mod content_rules;
 mod discovery;
 mod installer;
 mod jobs;
