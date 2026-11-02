@@ -54,6 +54,23 @@ console.log(
 );
 // This is a policy preflight only; the cloud still independently verifies the RS256 signature.
 assertReleaseIdentity(claims);
+if (process.env.UHM_OIDC_PROBE === 'true') {
+  // Invalid build syntax is rejected only AFTER RS256 and identity policy verification.
+  // It cannot issue or consume a signing credential, even before a build has completed.
+  const probe = await fetch(broker, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${value}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ build_run: 'invalid' }),
+    signal: AbortSignal.timeout(30000),
+    redirect: 'error',
+  });
+  if (probe.status !== 400)
+    throw Error(`Signing authorization rejected (${probe.status}); no key logged`);
+  console.log(
+    '::notice title=OIDC policy::Cloud RS256 identity validated; invalid build rejected before credential issuance.',
+  );
+  process.exit(0);
+}
 const response = await fetch(broker, {
   method: 'POST',
   headers: { Authorization: `Bearer ${value}`, 'Content-Type': 'application/json' },

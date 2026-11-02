@@ -41,6 +41,10 @@ jobs:
         if: github.event_name == 'push'
         run: |
           node -e 'const request=require("./.github/release-request.json"); const id=request.build_run; if(!/^[0-9]{1,20}$/.test(id) || typeof request.publish_candidate!=="boolean") throw Error("Invalid release request"); require("fs").appendFileSync(process.env.GITHUB_ENV, `BUILD_RUN=${id}\nPUBLISH_CANDIDATE=${request.publish_candidate}\n`)'
+      - name: Verify hosted OIDC policy without issuing a signing credential
+        env:
+          UHM_OIDC_PROBE: 'true'
+        run: npx tsx scripts/request-update-key.ts
       - name: Verify source and successful installer build
         shell: bash
         run: |

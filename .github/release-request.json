@@ -1,5 +1,5 @@
 {
   "build_run": "41519684103",
   "publish_candidate": true,
-  "request_note": "Keep exact tested lock bytes; Windows artifact line endings are not a source change."
+  "request_note": "Non-issuing OIDC policy probe; build provenance still required before real signing."
 }
