@@ -44,6 +44,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Use compiled Actions deployment, never publish raw TypeScript
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/${{ github.repository }}/pages" -f build_type=workflow
       - uses: actions/configure-pages@v5
       - name: Deploy the same compiled UI
         id: deployment
