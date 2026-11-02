@@ -56,6 +56,8 @@ jobs:
           run-id: ${{ env.BUILD_RUN }}
           github-token: ${{ github.token }}
           path: release-assets
+      - name: Non-destructive live API, database isolation and key broker checks
+        run: npx tsx scripts/check-live-public.ts
       - name: Obtain short-lived release credential using GitHub OIDC
         run: npx tsx scripts/request-update-key.ts
       - name: Sign installer and bind its version
