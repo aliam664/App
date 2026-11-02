@@ -130,3 +130,30 @@ test('moving the HTML entry to the repository root does not expose local secrets
     await rm(file, { force: true });
   }
 });
+
+test('private operator handoff is denied by both direct and Vite filesystem routes', async ({
+  request,
+}) => {
+  const { mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { resolve } = await import('node:path');
+  const file = resolve('operator-private/fs-deny-probe.txt');
+  const marker = 'private-operator-handoff-must-not-be-served';
+  await mkdir('operator-private', { recursive: true, mode: 0o700 });
+  await writeFile(file, marker, { mode: 0o600 });
+  try {
+    for (const path of [
+      '/operator-private/fs-deny-probe.txt',
+      `/@fs${file}`,
+      '/operator-private/fs-deny-probe.txt?raw',
+      '/operator%2dprivate/fs-deny-probe.txt?raw',
+      '/operator-private%2ffs-deny-probe.txt?import',
+      `/@fs${file}?import`,
+    ]) {
+      const response = await request.get(path);
+      expect(response.status()).toBe(403);
+      expect(await response.text()).not.toContain(marker);
+    }
+  } finally {
+    await rm(file, { force: true });
+  }
+});

@@ -70,6 +70,28 @@ const vite = await createViteServer({
   appType: 'spa',
 });
 const server = createServer(async (req, res) => {
+  // Defense in depth: Vite transform queries (?raw/?import) must not bypass
+  // private-file denials. Never rely on .gitignore as an HTTP access policy.
+  let assetPath = new URL(req.url || '/', 'http://dev.local').pathname;
+  try {
+    for (let depth = 0; depth < 3; depth++) {
+      const decoded = decodeURIComponent(assetPath);
+      if (decoded === assetPath) break;
+      assetPath = decoded;
+    }
+  } catch {
+    res.writeHead(400).end();
+    return;
+  }
+  assetPath = assetPath.replaceAll('\\', '/');
+  if (
+    /(?:^|\/)(?:operator-private|\.local|\.git)(?:[\/?#]|$)/i.test(assetPath) ||
+    /(?:^|\/)\.env(?:[.\/?#]|$)/i.test(assetPath) ||
+    /\.(?:pem|key|crt)(?:[?#]|$)/i.test(assetPath)
+  ) {
+    res.writeHead(403, { 'Cache-Control': 'no-store' }).end();
+    return;
+  }
   if (req.url?.startsWith('/api/')) {
     try {
       // Same-origin only. Proxy forwarded-origin headers are NOT used for authentication or rate-limit identity.
