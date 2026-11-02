@@ -39,7 +39,7 @@ begin
  select new.id,(s->>'id')::uuid,(s->>'file_id')::uuid,s->>'action',s->>'destination',coalesce(s->>'overwrite','backup'),s->>'source_subdir',coalesce(s->'depends_on','[]'),n::integer
  from jsonb_array_elements(new.steps) with ordinality as a(s,n);
  insert into uhm.package_dependencies(package_id,dependency_id)
- select new.id,d::uuid from jsonb_array_elements_text(new.dependencies) d;
+ select distinct new.id,d::uuid from jsonb_array_elements_text(new.dependencies) d;
  return new;
 end $$;
 create trigger package_children_sync after insert or update on uhm.packages for each row execute function uhm.sync_package_children();
@@ -52,7 +52,7 @@ insert into uhm.package_steps(package_id,id,file_id,action,destination,overwrite
 select p.id,(s->>'id')::uuid,(s->>'file_id')::uuid,s->>'action',s->>'destination',coalesce(s->>'overwrite','backup'),s->>'source_subdir',coalesce(s->'depends_on','[]'),n::integer
 from uhm.packages p cross join lateral jsonb_array_elements(p.steps) with ordinality a(s,n);
 insert into uhm.package_dependencies(package_id,dependency_id)
-select p.id,d::uuid from uhm.packages p cross join lateral jsonb_array_elements_text(p.dependencies) d;
+select distinct p.id,d::uuid from uhm.packages p cross join lateral jsonb_array_elements_text(p.dependencies) d;
 do $$ declare t text; begin
  foreach t in array array['package_files','package_steps','package_dependencies'] loop
  execute format('alter table uhm.%I enable row level security',t);

@@ -465,6 +465,7 @@ function editPackage(existing?: PackageSpec) {
         return;
       const grant = localStore.getItem('uhm-grant');
       if (!grant) throw new Error('ابتدا لایسنس همین دستگاه را فعال کنید.');
+      await requireContentV2();
       const plan = await api(
         `/admin/packages/${p.id}/test-plan`,
         { grant, ...(await proof('plan')) },

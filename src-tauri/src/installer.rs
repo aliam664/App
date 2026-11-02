@@ -90,14 +90,23 @@ fn regular_control(root: &Path) -> Result<PathBuf, String> {
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
-pub fn content_lock(root: &Path) -> Result<fs::File,String> {
-    let control=regular_control(root)?;
-    let path=safe_target(&control,"install.lock")?;
-    let lock=fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(path).map_err(|e|e.to_string())?;
-    lock.try_lock_exclusive().map_err(|_|"Another content operation is running")?;
+pub fn content_lock(root: &Path) -> Result<fs::File, String> {
+    let control = regular_control(root)?;
+    let path = safe_target(&control, "install.lock")?;
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    lock.try_lock_exclusive()
+        .map_err(|_| "Another content operation is running")?;
     Ok(lock)
 }
-pub fn control_dir(root: &Path) -> Result<PathBuf,String> { regular_control(root) }
+pub fn control_dir(root: &Path) -> Result<PathBuf, String> {
+    regular_control(root)
+}
 pub fn library(root: &Path) -> Result<Library, String> {
     let path = safe_target(&regular_control(root)?, "installed.json")?;
     if !path.exists() {
@@ -212,32 +221,55 @@ fn public_ip(ip: IpAddr) -> bool {
     }
 }
 #[derive(Default)]
-struct TransferStats(std::sync::Mutex<BTreeMap<String,(u64,f64)>>);
+struct TransferStats(std::sync::Mutex<BTreeMap<String, (u64, f64)>>);
 impl TransferStats {
-    fn update(&self,app:&AppHandle,pkg:&str,id:&str,bytes:u64,speed:f64,total:u64){
-        if let Ok(mut files)=self.0.lock(){
-            files.insert(id.into(),(bytes,speed));let received:u64=files.values().map(|v|v.0).sum();let speed:f64=files.values().map(|v|v.1).sum();
+    fn update(&self, app: &AppHandle, pkg: &str, id: &str, bytes: u64, speed: f64, total: u64) {
+        if let Ok(mut files) = self.0.lock() {
+            files.insert(id.into(), (bytes, speed));
+            let received: u64 = files.values().map(|v| v.0).sum();
+            let speed: f64 = files.values().map(|v| v.1).sum();
             let _=app.emit("install-progress",json!({"package_id":pkg,"phase":"در حال دانلود و بررسی فایل","progress":received as f64/total.max(1) as f64*65.0,"bytes":received,"total":total,"speed":speed,"eta":if speed>0.0{Some(total.saturating_sub(received) as f64/speed)}else{None}}));
         }
     }
 }
 fn download(
-    app: &AppHandle, pkg: &str, file: &Artifact, out: &Path, completed: u64, total: u64, stats:&TransferStats,
+    app: &AppHandle,
+    pkg: &str,
+    file: &Artifact,
+    out: &Path,
+    completed: u64,
+    total: u64,
+    stats: &TransferStats,
 ) -> Result<(), String> {
-    if file.size == 0 || file.size > MAX_EXPANDED || file.sha256.len()!=64 || !file.sha256.bytes().all(|b|b.is_ascii_hexdigit()) || file.mirrors.len()>5 {
+    if file.size == 0
+        || file.size > MAX_EXPANDED
+        || file.sha256.len() != 64
+        || !file.sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        || file.mirrors.len() > 5
+    {
         return Err("Invalid artifact size, checksum or mirrors".into());
     }
-    let parent=out.parent().ok_or("Download destination missing")?;
-    fs::create_dir_all(parent).map_err(|e|e.to_string())?;
-    if out.exists() && fs::metadata(out).map_err(|e|e.to_string())?.len()==file.size && sha256_file(out)?==file.sha256.to_lowercase(){return Ok(());}
-    if out.exists() && fs::metadata(out).map_err(|e|e.to_string())?.len()>=file.size {fs::remove_file(out).map_err(|e|e.to_string())?;}
-    let mut last_error=String::from("No download source available");
+    let parent = out.parent().ok_or("Download destination missing")?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if out.exists()
+        && fs::metadata(out).map_err(|e| e.to_string())?.len() == file.size
+        && sha256_file(out)? == file.sha256.to_lowercase()
+    {
+        return Ok(());
+    }
+    if out.exists() && fs::metadata(out).map_err(|e| e.to_string())?.len() >= file.size {
+        fs::remove_file(out).map_err(|e| e.to_string())?;
+    }
+    let mut last_error = String::from("No download source available");
     for source in std::iter::once(&file.url).chain(file.mirrors.iter()) {
         for _ in 0..3 {
             crate::jobs::checkpoint()?;
-            match transfer(app,pkg,file,source,out,completed,total,stats) {
-                Ok(())=>return Ok(()),
-                Err(e)=>{last_error=e;crate::jobs::checkpoint()?;}
+            match transfer(app, pkg, file, source, out, completed, total, stats) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    last_error = e;
+                    crate::jobs::checkpoint()?;
+                }
             }
         }
     }
@@ -245,61 +277,155 @@ fn download(
 }
 // Poll the same pinned network future in one-second slices; cancellation does not
 // abandon partially polled requests, and no total-file deadline breaks slow large files.
-fn interruptible<F: std::future::Future>(future:F) -> Result<F::Output,String> {
+fn interruptible<F: std::future::Future>(future: F) -> Result<F::Output, String> {
     tauri::async_runtime::block_on(async {
-        let mut pending=Box::pin(future);
-        loop {crate::jobs::checkpoint()?;
-            if let Ok(result)=tokio::time::timeout(Duration::from_secs(1),&mut pending).await{return Ok(result);}
+        let mut pending = Box::pin(future);
+        loop {
+            crate::jobs::checkpoint()?;
+            if let Ok(result) = tokio::time::timeout(Duration::from_secs(1), &mut pending).await {
+                return Ok(result);
+            }
         }
     })
 }
-fn response_offset(status:u16,range:Option<&str>,length:Option<u64>,offset:u64,size:u64)->Result<u64,String>{
-    if offset>size || size==0{return Err("Invalid resume offset".into());}
-    let resumed=match status {
-        200=>0,
-        206=>{let expected=format!("bytes {}-{}/{}",offset,size-1,size);if range!=Some(expected.as_str()){return Err("Invalid Content-Range; resume refused".into());}offset},
-        _=>return Err(format!("Download host returned {status}")),
+fn response_offset(
+    status: u16,
+    range: Option<&str>,
+    length: Option<u64>,
+    offset: u64,
+    size: u64,
+) -> Result<u64, String> {
+    if offset > size || size == 0 {
+        return Err("Invalid resume offset".into());
+    }
+    let resumed = match status {
+        200 => 0,
+        206 => {
+            let expected = format!("bytes {}-{}/{}", offset, size - 1, size);
+            if range != Some(expected.as_str()) {
+                return Err("Invalid Content-Range; resume refused".into());
+            }
+            offset
+        }
+        _ => return Err(format!("Download host returned {status}")),
     };
-    if length.map(|n|n!=size-resumed).unwrap_or(false){return Err("Content length does not match release manifest".into());}Ok(resumed)
+    if length.map(|n| n != size - resumed).unwrap_or(false) {
+        return Err("Content length does not match release manifest".into());
+    }
+    Ok(resumed)
 }
-fn transfer(app:&AppHandle,pkg:&str,file:&Artifact,source:&str,out:&Path,_completed:u64,total:u64,stats:&TransferStats)->Result<(),String> {
-    let mut received=if out.exists(){fs::metadata(out).map_err(|e|e.to_string())?.len()}else{0};
-    stats.update(app,pkg,&file.sha256,received,0.0,total);
-    let mut url=url::Url::parse(source).map_err(|_|"Invalid download URL")?;
-    let mut response=None;
+fn transfer(
+    app: &AppHandle,
+    pkg: &str,
+    file: &Artifact,
+    source: &str,
+    out: &Path,
+    _completed: u64,
+    total: u64,
+    stats: &TransferStats,
+) -> Result<(), String> {
+    let mut received = if out.exists() {
+        fs::metadata(out).map_err(|e| e.to_string())?.len()
+    } else {
+        0
+    };
+    stats.update(app, pkg, &file.sha256, received, 0.0, total);
+    let mut url = url::Url::parse(source).map_err(|_| "Invalid download URL")?;
+    let mut response = None;
     for _ in 0..6 {
         crate::jobs::checkpoint()?;
-        if url.scheme()!="https" || !url.username().is_empty() || url.password().is_some(){return Err("Only public HTTPS downloads are allowed".into());}
-        let host=url.host_str().ok_or("Missing download host")?;
-        let port=url.port_or_known_default().ok_or("Invalid port")?;
-        if port!=443{return Err("Only HTTPS port 443 is allowed".into());}
-        let addresses:Vec<_>=(host,port).to_socket_addrs().map_err(|_|"Download DNS failed")?.collect();
-        if addresses.is_empty() || addresses.iter().any(|a|!public_ip(a.ip())){return Err("Private or unsupported download address blocked".into());}
-        let client=reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
-            .read_timeout(Duration::from_secs(30)).connect_timeout(Duration::from_secs(20)).resolve_to_addrs(host,&addresses).build().map_err(|e|e.to_string())?;
-        let mut request=client.get(url.clone()).header("User-Agent","UHM-Launcher/0.1").header("Accept-Encoding","identity");
-        if received>0 {request=request.header("Range",format!("bytes={received}-"));}
-        let r=interruptible(request.send())?.map_err(|_|"Download connection failed; partial file retained")?;
-        if r.status().is_redirection(){let location=r.headers().get("location").ok_or("Redirect has no location")?.to_str().map_err(|_|"Invalid redirect")?;url=url.join(location).map_err(|_|"Invalid redirect URL")?;continue;}
-        received=response_offset(r.status().as_u16(),r.headers().get("content-range").and_then(|v|v.to_str().ok()),r.content_length(),received,file.size)?;
-        response=Some(r);break;
+        if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+            return Err("Only public HTTPS downloads are allowed".into());
+        }
+        let host = url.host_str().ok_or("Missing download host")?;
+        let port = url.port_or_known_default().ok_or("Invalid port")?;
+        if port != 443 {
+            return Err("Only HTTPS port 443 is allowed".into());
+        }
+        let addresses: Vec<_> = (host, port)
+            .to_socket_addrs()
+            .map_err(|_| "Download DNS failed")?
+            .collect();
+        if addresses.is_empty() || addresses.iter().any(|a| !public_ip(a.ip())) {
+            return Err("Private or unsupported download address blocked".into());
+        }
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .read_timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(20))
+            .resolve_to_addrs(host, &addresses)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let mut request = client
+            .get(url.clone())
+            .header("User-Agent", "UHM-Launcher/0.1")
+            .header("Accept-Encoding", "identity");
+        if received > 0 {
+            request = request.header("Range", format!("bytes={received}-"));
+        }
+        let r = interruptible(request.send())?
+            .map_err(|_| "Download connection failed; partial file retained")?;
+        if r.status().is_redirection() {
+            let location = r
+                .headers()
+                .get("location")
+                .ok_or("Redirect has no location")?
+                .to_str()
+                .map_err(|_| "Invalid redirect")?;
+            url = url.join(location).map_err(|_| "Invalid redirect URL")?;
+            continue;
+        }
+        received = response_offset(
+            r.status().as_u16(),
+            r.headers()
+                .get("content-range")
+                .and_then(|v| v.to_str().ok()),
+            r.content_length(),
+            received,
+            file.size,
+        )?;
+        response = Some(r);
+        break;
     }
-    let mut response=response.ok_or("Too many download redirects")?;
-    let mut output=fs::OpenOptions::new().create(true).write(true).truncate(received==0).append(received>0).open(out).map_err(|e|e.to_string())?;
-    let initial=received;let started=Instant::now();let mut last=Instant::now();
+    let mut response = response.ok_or("Too many download redirects")?;
+    let mut output = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(received == 0)
+        .append(received > 0)
+        .open(out)
+        .map_err(|e| e.to_string())?;
+    let initial = received;
+    let started = Instant::now();
+    let mut last = Instant::now();
     loop {
         crate::jobs::checkpoint()?;
-        let Some(chunk)=interruptible(response.chunk())?.map_err(|_|"Download interrupted; partial file retained")? else {break;};
-        if received+chunk.len() as u64>file.size{return Err("Download exceeds declared size".into());}
-        output.write_all(&chunk).map_err(|e|e.to_string())?;received+=chunk.len() as u64;
-        if last.elapsed()>Duration::from_millis(250){
-            let speed=(received-initial) as f64/started.elapsed().as_secs_f64().max(0.01);
-            stats.update(app,pkg,&file.sha256,received,speed,total);last=Instant::now();
+        let Some(chunk) = interruptible(response.chunk())?
+            .map_err(|_| "Download interrupted; partial file retained")?
+        else {
+            break;
+        };
+        if received + chunk.len() as u64 > file.size {
+            return Err("Download exceeds declared size".into());
+        }
+        output.write_all(&chunk).map_err(|e| e.to_string())?;
+        received += chunk.len() as u64;
+        if last.elapsed() > Duration::from_millis(250) {
+            let speed = (received - initial) as f64 / started.elapsed().as_secs_f64().max(0.01);
+            stats.update(app, pkg, &file.sha256, received, speed, total);
+            last = Instant::now();
         }
     }
-    output.sync_all().map_err(|e|e.to_string())?;drop(output);
-    if received!=file.size{return Err("Incomplete download; partial file retained".into());}
-    if sha256_file(out)?!=file.sha256.to_lowercase(){fs::remove_file(out).map_err(|e|e.to_string())?;return Err("SHA-256 mismatch; no game files were modified".into());}
+    output.sync_all().map_err(|e| e.to_string())?;
+    drop(output);
+    if received != file.size {
+        return Err("Incomplete download; partial file retained".into());
+    }
+    if sha256_file(out)? != file.sha256.to_lowercase() {
+        fs::remove_file(out).map_err(|e| e.to_string())?;
+        return Err("SHA-256 mismatch; no game files were modified".into());
+    }
     Ok(())
 }
 fn collect_files(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -388,8 +514,20 @@ fn extract_zip(source: &Path, destination: &Path) -> Result<Vec<PathBuf>, String
             .open(&target)
             .map_err(|e| e.to_string())?;
         let expected = f.size();
-        let mut reader=(&mut f).take(expected+1);let mut actual=0u64;let mut buffer=[0u8;65536];
-        loop {crate::jobs::checkpoint()?;let n=reader.read(&mut buffer).map_err(|_|"ZIP extraction or checksum failed")?;if n==0{break;}writer.write_all(&buffer[..n]).map_err(|e|e.to_string())?;actual+=n as u64;}
+        let mut reader = (&mut f).take(expected + 1);
+        let mut actual = 0u64;
+        let mut buffer = [0u8; 65536];
+        loop {
+            crate::jobs::checkpoint()?;
+            let n = reader
+                .read(&mut buffer)
+                .map_err(|_| "ZIP extraction or checksum failed")?;
+            if n == 0 {
+                break;
+            }
+            writer.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
+            actual += n as u64;
+        }
         if actual != expected {
             return Err("ZIP expanded size mismatch".into());
         }
@@ -420,7 +558,11 @@ fn run_extractor(exe: &Path, args: &[String], log: &Path) -> Result<String, Stri
         .map_err(|_| "Archive extractor could not start")?;
     let start = Instant::now();
     loop {
-        if let Err(error)=crate::jobs::checkpoint(){let _=child.kill();let _=child.wait();return Err(error);}
+        if let Err(error) = crate::jobs::checkpoint() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
         if start.elapsed() > Duration::from_secs(300)
             || fs::metadata(log)
                 .map(|m| m.len() > 4_000_000)
@@ -443,18 +585,35 @@ fn run_extractor(exe: &Path, args: &[String], log: &Path) -> Result<String, Stri
     fs::read_to_string(log).map_err(|_| "Unsupported archive filename encoding".into())
 }
 fn extract_external_password(
-    app: &AppHandle, source: &Path, destination: &Path, password: Option<&str>,
+    app: &AppHandle,
+    source: &Path,
+    destination: &Path,
+    password: Option<&str>,
 ) -> Result<Vec<PathBuf>, String> {
-    let dir = app.path().resource_dir().map_err(|e| e.to_string())?.join("resources/extractor");
+    let dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("resources/extractor");
     extract_external_with_password(&dir, source, destination, password)
 }
 fn extract_external_with_tools(
-    dir: &Path, source: &Path, destination: &Path,
-) -> Result<Vec<PathBuf>, String> { extract_external_with_password(dir, source, destination, None) }
-fn extract_external_with_password(
-    dir: &Path, source: &Path, destination: &Path, password: Option<&str>,
+    dir: &Path,
+    source: &Path,
+    destination: &Path,
 ) -> Result<Vec<PathBuf>, String> {
-    if password.map(|p| p.len()>1024 || p.chars().any(|c| c.is_control())).unwrap_or(false) {
+    extract_external_with_password(dir, source, destination, None)
+}
+fn extract_external_with_password(
+    dir: &Path,
+    source: &Path,
+    destination: &Path,
+    password: Option<&str>,
+) -> Result<Vec<PathBuf>, String> {
+    if password
+        .map(|p| p.len() > 1024 || p.chars().any(|c| c.is_control()))
+        .unwrap_or(false)
+    {
         return Err("Invalid archive password".into());
     }
     // Passed as one process argument, never through a shell, never included in errors.
@@ -503,7 +662,6 @@ fn extract_external_with_password(
         if line.starts_with("Symbolic Link =")
             || line.starts_with("Hard Link =")
             || line.starts_with("Reparse Point =")
-
         {
             return Err("Archive links are forbidden".into());
         }
@@ -556,36 +714,76 @@ fn extract_external_with_password(
     }
     Ok(files)
 }
-fn activity(app: &AppHandle, package: &Package, kind: &str, file: Option<&Artifact>, error: Option<&String>) {
-    let mut event=json!({"type":kind,"package_id":package.id,"version":package.version,"stage":if kind.starts_with("download") || kind=="package_download_completed" {"download"} else {"install"}});
-    if let Some(file)=file {
-        event["file_id"]=json!(file.id);
-        event["file_name"]=json!(file.name);
-        if let Ok(url)=url::Url::parse(&file.url) { if let Some(host)=url.host_str() {event["host"]=json!(host);} }
-        if kind=="download_completed" {event["bytes"]=json!(file.size);}
+fn activity(
+    app: &AppHandle,
+    package: &Package,
+    kind: &str,
+    file: Option<&Artifact>,
+    error: Option<&String>,
+) {
+    let mut event = json!({"type":kind,"package_id":package.id,"version":package.version,"stage":if kind.starts_with("download") || kind=="package_download_completed" {"download"} else {"install"}});
+    if let Some(file) = file {
+        event["file_id"] = json!(file.id);
+        event["file_name"] = json!(file.name);
+        if let Ok(url) = url::Url::parse(&file.url) {
+            if let Some(host) = url.host_str() {
+                event["host"] = json!(host);
+            }
+        }
+        if kind == "download_completed" {
+            event["bytes"] = json!(file.size);
+        }
     }
-    if let Some(error)=error {
-        let message=error.to_lowercase();
-        let code=if message.contains("sha") || message.contains("checksum") {"HASH_MISMATCH"}
-            else if message.contains("space") {"DISK_FULL"}
-            else if message.contains("archive") || message.contains("zip") || message.contains("password") {"ARCHIVE_PASSWORD_OR_CORRUPT"}
-            else if message.contains("repair_required") {"RECOVERY_REQUIRED"}
-            else if kind=="download_failed" {"DOWNLOAD_FAILED"} else {"INSTALL_FAILED"};
-        event["error_code"]=json!(code);
+    if let Some(error) = error {
+        let message = error.to_lowercase();
+        let code = if message.contains("sha") || message.contains("checksum") {
+            "HASH_MISMATCH"
+        } else if message.contains("space") {
+            "DISK_FULL"
+        } else if message.contains("archive")
+            || message.contains("zip")
+            || message.contains("password")
+        {
+            "ARCHIVE_PASSWORD_OR_CORRUPT"
+        } else if message.contains("repair_required") {
+            "RECOVERY_REQUIRED"
+        } else if kind == "download_failed" {
+            "DOWNLOAD_FAILED"
+        } else {
+            "INSTALL_FAILED"
+        };
+        event["error_code"] = json!(code);
     }
-    let _=app.emit("client-activity",event);
+    let _ = app.emit("client-activity", event);
 }
-pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Path, parallel: usize) -> Result<Value, String> {
+pub fn install(
+    app: &AppHandle,
+    root: &Path,
+    packages: Vec<Package>,
+    cache: &Path,
+    parallel: usize,
+) -> Result<Value, String> {
     let control = regular_control(root)?;
     let _lock = content_lock(root)?;
-    fs::create_dir_all(cache).map_err(|e|e.to_string())?;
-    let cache_lock=fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(safe_target(cache,"cache.lock")?).map_err(|e|e.to_string())?;
-    cache_lock.try_lock_exclusive().map_err(|_|"Download cache is in use")?;
+    fs::create_dir_all(cache).map_err(|e| e.to_string())?;
+    let cache_lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(safe_target(cache, "cache.lock")?)
+        .map_err(|e| e.to_string())?;
+    cache_lock
+        .try_lock_exclusive()
+        .map_err(|_| "Download cache is in use")?;
     recover_locked(root, &control)?;
     let mut library = library(root)?;
     for package in packages {
-        let _job=crate::jobs::begin(&package.id)?;
-        let _=app.emit("install-job-state",json!({"package_id":package.id,"active":true,"mode":"prepare"}));
+        let _job = crate::jobs::begin(&package.id)?;
+        let _ = app.emit(
+            "install-job-state",
+            json!({"package_id":package.id,"active":true,"mode":"prepare"}),
+        );
         uuid::Uuid::parse_str(&package.id).map_err(|_| "Invalid package identifier")?;
         if package.files.is_empty()
             || package.files.len() > 30
@@ -597,7 +795,7 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
         let mut artifact_names = HashSet::new();
         for file in &package.files {
             let name = relative_path(&file.name)?;
-            if name.components().count()!=1 || !artifact_names.insert(file.name.to_lowercase()) {
+            if name.components().count() != 1 || !artifact_names.insert(file.name.to_lowercase()) {
                 return Err("Invalid or duplicate artifact filename".into());
             }
         }
@@ -615,55 +813,106 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
         let result = (|| -> Result<Vec<String>, String> {
             let total: u64 = package.files.iter().map(|f| f.size).sum();
             let completed = total;
-            let stats=TransferStats::default();
+            let stats = TransferStats::default();
             if total > MAX_EXPANDED
                 || fs2::available_space(root).map_err(|e| e.to_string())?
                     < total.saturating_mul(3) + 256_000_000
             {
                 return Err("Insufficient disk space".into());
             }
-            let mut unique=BTreeMap::new();
+            let mut unique = BTreeMap::new();
             for file in &package.files {
-                uuid::Uuid::parse_str(&file.id).map_err(|_|"Invalid artifact identifier")?;
-                if let Some(previous)=unique.insert(file.sha256.clone(),file) {
-                    if previous.size!=file.size{return Err("Conflicting sizes for the same checksum".into());}
+                uuid::Uuid::parse_str(&file.id).map_err(|_| "Invalid artifact identifier")?;
+                if let Some(previous) = unique.insert(file.sha256.clone(), file) {
+                    if previous.size != file.size {
+                        return Err("Conflicting sizes for the same checksum".into());
+                    }
                 }
             }
-            let transfer_total:u64=unique.values().map(|f|f.size).sum();
-            if fs2::available_space(cache).map_err(|e|e.to_string())?<transfer_total+128_000_000{return Err("Insufficient download-cache space".into());}
-            let files:Vec<_>=unique.values().copied().collect();
+            let transfer_total: u64 = unique.values().map(|f| f.size).sum();
+            if fs2::available_space(cache).map_err(|e| e.to_string())?
+                < transfer_total + 128_000_000
+            {
+                return Err("Insufficient download-cache space".into());
+            }
+            let files: Vec<_> = unique.values().copied().collect();
             crate::jobs::mode("download");
-            for group in files.chunks(parallel.clamp(1,4)) {
-                std::thread::scope(|scope|->Result<(),String>{
-                    let handles:Vec<_>=group.iter().map(|file|{
-                        let stats=&stats;let package=&package;
-                        scope.spawn(crate::jobs::inherit(move ||->Result<(),String>{
-                            activity(app,package,"download_started",Some(file),None);
-                            let cached=safe_target(cache,&format!("{}.part",file.sha256))?;
-                            let result=download(app,&package.id,file,&cached,0,transfer_total,stats);
-                            activity(app,package,if result.is_ok(){"download_completed"}else{"download_failed"},Some(file),result.as_ref().err());
-                            if result.is_ok(){stats.update(app,&package.id,&file.sha256,file.size,0.0,transfer_total);}
-                            result
-                        }))
-                    }).collect();
-                    let mut failure=None;
-                    for handle in handles {match handle.join(){Ok(Ok(()))=>{},Ok(Err(e))=>failure=Some(e),Err(_)=>failure=Some("Download worker failed".into())}}
-                    if let Some(e)=failure{return Err(e);}Ok(())
+            for group in files.chunks(parallel.clamp(1, 4)) {
+                std::thread::scope(|scope| -> Result<(), String> {
+                    let handles: Vec<_> = group
+                        .iter()
+                        .map(|file| {
+                            let stats = &stats;
+                            let package = &package;
+                            scope.spawn(crate::jobs::inherit(move || -> Result<(), String> {
+                                activity(app, package, "download_started", Some(file), None);
+                                let cached = safe_target(cache, &format!("{}.part", file.sha256))?;
+                                let result = download(
+                                    app,
+                                    &package.id,
+                                    file,
+                                    &cached,
+                                    0,
+                                    transfer_total,
+                                    stats,
+                                );
+                                activity(
+                                    app,
+                                    package,
+                                    if result.is_ok() {
+                                        "download_completed"
+                                    } else {
+                                        "download_failed"
+                                    },
+                                    Some(file),
+                                    result.as_ref().err(),
+                                );
+                                if result.is_ok() {
+                                    stats.update(
+                                        app,
+                                        &package.id,
+                                        &file.sha256,
+                                        file.size,
+                                        0.0,
+                                        transfer_total,
+                                    );
+                                }
+                                result
+                            }))
+                        })
+                        .collect();
+                    let mut failure = None;
+                    for handle in handles {
+                        match handle.join() {
+                            Ok(Ok(())) => {}
+                            Ok(Err(e)) => failure = Some(e),
+                            Err(_) => failure = Some("Download worker failed".into()),
+                        }
+                    }
+                    if let Some(e) = failure {
+                        return Err(e);
+                    }
+                    Ok(())
                 })?;
             }
             for file in &package.files {
-                let cached=safe_target(cache,&format!("{}.part",file.sha256))?;
-                fs::copy(cached,dir.join("downloads").join(&file.name)).map_err(|e|e.to_string())?;
+                let cached = safe_target(cache, &format!("{}.part", file.sha256))?;
+                fs::copy(cached, dir.join("downloads").join(&file.name))
+                    .map_err(|e| e.to_string())?;
             }
             activity(app, &package, "package_download_completed", None, None);
             let mut operations: Vec<(PathBuf, String, String)> = Vec::new();
             let mut destinations = HashSet::new();
-            let mut done_steps=HashSet::new();
+            let mut done_steps = HashSet::new();
             crate::jobs::mode("extract");
             for step in &package.steps {
                 crate::jobs::checkpoint()?;
-                if step.depends_on.iter().any(|id|!done_steps.contains(id)){return Err("Install step dependency must precede its consumer".into());}
-                if !done_steps.insert(step.id.clone()){return Err("Duplicate installation step".into());}
+                if step.depends_on.iter().any(|id| !done_steps.contains(id)) {
+                    return Err("Install step dependency must precede its consumer".into());
+                }
+                if !done_steps.insert(step.id.clone()) {
+                    return Err("Duplicate installation step".into());
+                }
                 relative_path(&step.destination)?;
                 let file = package
                     .files
@@ -672,7 +921,9 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                     .ok_or("Unknown artifact in install step")?;
                 let downloaded = dir.join("downloads").join(&file.name);
                 if step.action == "copy" {
-                    if step.source_subdir.is_some(){return Err("Source subtree is only supported for extraction".into());}
+                    if step.source_subdir.is_some() {
+                        return Err("Source subtree is only supported for extraction".into());
+                    }
                     operations.push((downloaded, step.destination.clone(), step.overwrite.clone()));
                 } else if step.action == "extract" {
                     let destination = dir.join(format!("extract-{}", uuid::Uuid::new_v4()));
@@ -698,12 +949,20 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                     } else {
                         destination.join("content")
                     };
-                    let selected_base=if let Some(subdir)=&step.source_subdir {safe_target(&base,subdir)?}else{base.clone()};
-                    if !selected_base.is_dir(){return Err("Selected archive subtree does not exist".into());}
-                    let mut selected=0;
+                    let selected_base = if let Some(subdir) = &step.source_subdir {
+                        safe_target(&base, subdir)?
+                    } else {
+                        base.clone()
+                    };
+                    if !selected_base.is_dir() {
+                        return Err("Selected archive subtree does not exist".into());
+                    }
+                    let mut selected = 0;
                     for path in files {
-                        if !path.starts_with(&selected_base){continue;}
-                        selected+=1;
+                        if !path.starts_with(&selected_base) {
+                            continue;
+                        }
+                        selected += 1;
                         let rel = path
                             .strip_prefix(&selected_base)
                             .map_err(|e| e.to_string())?
@@ -715,7 +974,9 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                             step.overwrite.clone(),
                         ));
                     }
-                    if selected==0{return Err("Selected archive subtree is empty".into());}
+                    if selected == 0 {
+                        return Err("Selected archive subtree is empty".into());
+                    }
                 } else {
                     return Err(
                         "Unsupported install action; executable launch is prohibited".into(),
@@ -763,24 +1024,39 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                 );
             }
             // The preview is built from the staged archive, never guessed from the package title.
-            let mut fingerprints=Vec::new();let mut preview_files=Vec::new();
-            for (source,relative,_) in &operations {
-                let target=safe_target(root,relative)?;
-                let hash=if target.exists(){Some(sha256_file(&target)?)}else{None};
+            let mut fingerprints = Vec::new();
+            let mut preview_files = Vec::new();
+            for (source, relative, _) in &operations {
+                let target = safe_target(root, relative)?;
+                let hash = if target.exists() {
+                    Some(sha256_file(&target)?)
+                } else {
+                    None
+                };
                 fingerprints.push(hash.clone());
                 preview_files.push(json!({"path":relative,"bytes":fs::metadata(source).map_err(|e|e.to_string())?.len(),"overwrite":hash.is_some(),"executable":relative.to_lowercase().ends_with(".exe")}));
             }
-            let preview_id=uuid::Uuid::new_v4().to_string();
-            let free=fs2::available_space(root).map_err(|e|e.to_string())?;
-            crate::jobs::approval(&preview_id,||{let _=app.emit("install-preview",json!({"id":preview_id,"package_id":package.id,"name":package.name,"files":preview_files,"required":required,"free":free}));})?;
+            let preview_id = uuid::Uuid::new_v4().to_string();
+            let free = fs2::available_space(root).map_err(|e| e.to_string())?;
+            crate::jobs::approval(&preview_id, || {
+                let _=app.emit("install-preview",json!({"id":preview_id,"package_id":package.id,"name":package.name,"files":preview_files,"required":required,"free":free}));
+            })?;
             crate::jobs::mode("apply");
-            if fs2::available_space(root).map_err(|e|e.to_string())?<required{return Err("Disk space changed after preview".into());}
+            if fs2::available_space(root).map_err(|e| e.to_string())? < required {
+                return Err("Disk space changed after preview".into());
+            }
             let mut ownership = Vec::new();
             for (index, (source, relative, _)) in operations.iter().enumerate() {
                 crate::jobs::checkpoint()?;
                 let target = safe_target(root, relative)?;
-                let current=if target.exists(){Some(sha256_file(&target)?)}else{None};
-                if current!=fingerprints[index]{return Err("Target changed after preview; installation was not authorized for these files".into());}
+                let current = if target.exists() {
+                    Some(sha256_file(&target)?)
+                } else {
+                    None
+                };
+                if current != fingerprints[index] {
+                    return Err("Target changed after preview; installation was not authorized for these files".into());
+                }
                 let existed = target.exists();
                 if existed && !target.is_file() {
                     return Err("Installation target is not a regular file".into());
@@ -802,7 +1078,11 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                         .map_err(|e| e.to_string())?;
                 }
                 crate::jobs::checkpoint()?;
-                if existed && Some(sha256_file(&dir.join(&backup))?)!=fingerprints[index]{return Err("Target changed during backup; approved files were not modified".into());}
+                if existed && Some(sha256_file(&dir.join(&backup))?) != fingerprints[index] {
+                    return Err(
+                        "Target changed during backup; approved files were not modified".into(),
+                    );
+                }
                 if let Some(parent) = target.parent() {
                     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
                 }
@@ -814,8 +1094,14 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                     .and_then(|f| f.sync_all())
                     .map_err(|e| e.to_string())?;
                 crate::jobs::checkpoint()?;
-                let latest=if target.exists(){Some(sha256_file(&target)?)}else{None};
-                if latest!=fingerprints[index]{return Err("Target changed before replacement; apply cancelled".into());}
+                let latest = if target.exists() {
+                    Some(sha256_file(&target)?)
+                } else {
+                    None
+                };
+                if latest != fingerprints[index] {
+                    return Err("Target changed before replacement; apply cancelled".into());
+                }
                 journal.entries.last_mut().unwrap().ready = true;
                 save_journal(&dir, &journal)?;
                 // Source and destination share the game filesystem; replacement is atomic on Windows.
@@ -873,18 +1159,18 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
             Err(error) => {
                 activity(app, &package, "install_failed", None, Some(&error));
                 match rollback(root, &dir, &journal) {
-                Ok(()) => {
-                    journal.state = "rolled_back".into();
-                    save_journal(&dir, &journal)?;
-                    return Err(error);
-                }
-                Err(_) => {
-                    return Err(format!(
-                        "{error}; repair_required: automatic recovery was incomplete"
-                    ))
+                    Ok(()) => {
+                        journal.state = "rolled_back".into();
+                        save_journal(&dir, &journal)?;
+                        return Err(error);
+                    }
+                    Err(_) => {
+                        return Err(format!(
+                            "{error}; repair_required: automatic recovery was incomplete"
+                        ))
+                    }
                 }
             }
-            },
         }
     }
     Ok(json!({"success":true}))
@@ -915,13 +1201,16 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
-    fn range_resume_requires_exact_offset_size_and_length(){
-        assert_eq!(response_offset(206,Some("bytes 50-99/100"),Some(50),50,100).unwrap(),50);
-        assert_eq!(response_offset(200,None,Some(100),50,100).unwrap(),0);
-        assert!(response_offset(206,Some("bytes 0-99/100"),Some(100),50,100).is_err());
-        assert!(response_offset(206,Some("bytes 50-99/200"),Some(50),50,100).is_err());
-        assert!(response_offset(200,None,Some(50),50,100).is_err());
-        assert!(response_offset(416,None,None,50,100).is_err());
+    fn range_resume_requires_exact_offset_size_and_length() {
+        assert_eq!(
+            response_offset(206, Some("bytes 50-99/100"), Some(50), 50, 100).unwrap(),
+            50
+        );
+        assert_eq!(response_offset(200, None, Some(100), 50, 100).unwrap(), 0);
+        assert!(response_offset(206, Some("bytes 0-99/100"), Some(100), 50, 100).is_err());
+        assert!(response_offset(206, Some("bytes 50-99/200"), Some(50), 50, 100).is_err());
+        assert!(response_offset(200, None, Some(50), 50, 100).is_err());
+        assert!(response_offset(416, None, None, 50, 100).is_err());
     }
     #[test]
     fn rejects_local_download_ips() {
@@ -1129,19 +1418,37 @@ mod crash_and_archive_tests {
     #[cfg(windows)]
     #[test]
     fn encrypted_archives_require_correct_password() {
-        let tools=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/extractor");
+        let tools = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/extractor");
         for format in ["zip", "7z"] {
-            let dir=tempfile::tempdir().unwrap();
-            let payload=dir.path().join("payload.txt");fs::write(&payload,b"encrypted fixture").unwrap();
-            let archive=dir.path().join(format!("fixture.{format}"));
-            assert!(Command::new(tools.join("7z.exe")).args(["a", &format!("-t{format}"), "-pTest-only-123", "-y"]).arg(&archive).arg(&payload).stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap().success());
-            for (name,password,success) in [("ok",Some("Test-only-123"),true),("wrong",Some("wrong"),false),("missing",None,false)] {
-                let out=dir.path().join(name);fs::create_dir(&out).unwrap();
-                let result=extract_external_with_password(&tools,&archive,&out,password);
-                assert_eq!(result.is_ok(),success);
-                if success {assert_eq!(fs::read(out.join("content/payload.txt")).unwrap(),b"encrypted fixture");}
+            let dir = tempfile::tempdir().unwrap();
+            let payload = dir.path().join("payload.txt");
+            fs::write(&payload, b"encrypted fixture").unwrap();
+            let archive = dir.path().join(format!("fixture.{format}"));
+            assert!(Command::new(tools.join("7z.exe"))
+                .args(["a", &format!("-t{format}"), "-pTest-only-123", "-y"])
+                .arg(&archive)
+                .arg(&payload)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success());
+            for (name, password, success) in [
+                ("ok", Some("Test-only-123"), true),
+                ("wrong", Some("wrong"), false),
+                ("missing", None, false),
+            ] {
+                let out = dir.path().join(name);
+                fs::create_dir(&out).unwrap();
+                let result = extract_external_with_password(&tools, &archive, &out, password);
+                assert_eq!(result.is_ok(), success);
+                if success {
+                    assert_eq!(
+                        fs::read(out.join("content/payload.txt")).unwrap(),
+                        b"encrypted fixture"
+                    );
+                }
             }
         }
     }
-
 }
