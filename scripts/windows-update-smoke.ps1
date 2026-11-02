@@ -12,6 +12,7 @@ function Version([string]$path) {
   if (-not (Test-Path $path)) { return '' }
   try { [regex]::Match((Get-Item $path).VersionInfo.ProductVersion, '^\d+\.\d+\.\d+').Value } catch { '' }
 }
+Assert ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_OS -eq 'Windows' -and $env:GITHUB_REPOSITORY -eq 'aliam664/App' -and $env:RUNNER_TEMP) 'This harness is restricted to the explicit disposable Windows CI job'
 $root = Join-Path $env:RUNNER_TEMP 'uhm-real-update-smoke'
 $target = Join-Path $root 'launcher'
 $game = Join-Path $root 'game-fixture'

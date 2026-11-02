@@ -42,6 +42,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: tested-source/src-tauri
+      - name: Parse the PowerShell harness before building
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD '../scripts/windows-update-smoke.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
       - run: npm ci
       - name: Verify actual published installer before any execution
         run: |
@@ -57,7 +62,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./scripts/prepare-extractor.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run desktop:build
+          npm run desktop:build:production
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Real installed upgrade, process deferral, automatic restart and data preservation
         run: ../scripts/windows-update-smoke.ps1 -ExpectedVersion $env:APP_VERSION
