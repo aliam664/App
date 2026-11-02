@@ -455,6 +455,20 @@ export function createApi(repo: Repository, config: ApiConfig) {
         await audit(admin.id, 'package.draft.saved', pkg.id);
         return reply({ package: pkg });
       }
+      const validation = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/validate$/);
+      if (validation && request.method === 'POST') {
+        const admin = await requireAdmin('content.publish');
+        const pkg = (await repo.list('packages')).find((p) => p.id === validation[1]);
+        if (!pkg) throw new HttpError(404, 'NOT_FOUND');
+        validatePublication(pkg, await repo.published());
+        await audit(admin.id, 'package.validated', pkg.id);
+        return reply({
+          ok: true,
+          files: pkg.files.length,
+          steps: pkg.steps.length,
+          bytes: pkg.files.reduce((n, f) => n + f.size, 0),
+        });
+      }
       const publish = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/(publish|archive)$/);
       if (publish && request.method === 'POST') {
         const admin = await requireAdmin('content.publish'),
@@ -496,6 +510,8 @@ export function createApi(repo: Repository, config: ApiConfig) {
         'DESTINATION_CONFLICT',
         'NOT_FOUND',
         'DUPLICATE_FILENAME',
+        'STEP_DEPENDENCY_ORDER',
+        'INVALID_SOURCE_SUBDIR',
         'INVALID_ACTION',
         'LAST_OWNER',
         'RELEASE_IMMUTABLE',

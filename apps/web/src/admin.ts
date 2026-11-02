@@ -243,13 +243,16 @@ async function versionsPage(el: HTMLElement) {
         );
         d.querySelector('#fork-release')?.addEventListener('click', () => {
           d.close();
-          const parts = r.version.split('.').map(Number);
+          const parts = (overview.packages.find((p) => p.id === r.package_id)?.version || r.version)
+            .split('.')
+            .map(Number);
           parts[2]++;
           editPackage({
             ...r.manifest,
             version: parts.join('.'),
             status: 'draft',
             released_at: null,
+            scheduled_at: null,
           });
         });
       }),
@@ -283,7 +286,7 @@ function editPackage(existing?: PackageSpec) {
       `<select name="category">${Object.entries(category)
         .map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`)
         .join('')}</select>`,
-    )}${field('تصویر کاور (HTTPS یا تصویر داخلی)', `<input name="image" required dir="ltr" value="${esc(p.image)}" placeholder="https://… یا /images/01.jpg">`)}}</div>${field('توضیحات', `<textarea name="description" minlength="10" maxlength="3000" required>${esc(p.description)}</textarea>`)}${field('تغییرات این نسخه', `<textarea name="changelog" maxlength="3000">${esc(p.changelog)}</textarea>`)}<h3 class="form-section">پیش‌نیازها</h3><div class="checks">${
+    )}${field('تصویر کاور (HTTPS یا تصویر داخلی)', `<input name="image" required dir="ltr" value="${esc(p.image)}" placeholder="https://… یا /images/01.jpg">`)}}</div>${field('توضیح کوتاه', `<input name="short_description" maxlength="240" value="${esc(p.short_description || '')}">`)}<div class="form-grid">${field('نوع محتوا', `<select name="content_type">${['car', 'track', 'skin', 'python_app', 'lua_app', 'csp', 'ppfilter', 'pack'].map((k) => `<option value="${k}" ${(p.content_type || 'pack') === k ? 'selected' : ''}>${k}</option>`).join('')}</select>`)}${field('سازنده', `<input name="author" maxlength="120" value="${esc(p.author || '')}">`)}${field('برند', `<input name="brand" maxlength="120" value="${esc(p.brand || '')}">`)}${field('کانال انتشار', `<select name="channel"><option value="stable">عمومی</option><option value="test" ${p.channel === 'test' ? 'selected' : ''}>تست / مخفی از کاتالوگ عمومی</option></select>`)}${field('زمان انتشار (زمان محلی؛ اختیاری)', `<input name="scheduled_at" type="datetime-local" value="${p.scheduled_at ? new Date(Date.parse(p.scheduled_at) - new Date(p.scheduled_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}">`)}</div>${field('برچسب‌ها (با کامای انگلیسی)', `<input name="tags" value="${esc((p.tags || []).join(', '))}">`)}${field('تصاویر اضافی HTTPS (هر خط یک لینک)', `<textarea name="images" dir="ltr">${esc((p.images || []).join('\n'))}</textarea>`)}${field('توضیحات', `<textarea name="description" minlength="10" maxlength="3000" required>${esc(p.description)}</textarea>`)}${field('تغییرات این نسخه', `<textarea name="changelog" maxlength="3000">${esc(p.changelog)}</textarea>`)}<h3 class="form-section">پیش‌نیازها</h3><div class="checks">${
       overview.packages
         .filter((q) => q.id !== p.id)
         .map(
@@ -291,7 +294,7 @@ function editPackage(existing?: PackageSpec) {
             `<label><input type="checkbox" name="dependencies" value="${q.id}" ${p.dependencies.includes(q.id) ? 'checked' : ''}>${esc(q.name)} ${badge(q.tier)}</label>`,
         )
         .join('') || '<span class="muted">پکیج دیگری وجود ندارد.</span>'
-    }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p><div class="actions"><button class="button" type="submit">ذخیره پیش‌نویس</button>${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></fieldset></form>`,
+    }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p><div class="actions"><button class="button" type="submit">ذخیره پیش‌نویس</button>${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="validate-package">اعتبارسنجی سرور</button><button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></fieldset></form>`,
     true,
   );
   const rows = d.querySelector('#file-rows')!;
@@ -329,7 +332,7 @@ function editPackage(existing?: PackageSpec) {
     const el = document.createElement('div');
     el.className = 'install-step';
     el.dataset.id = step?.id || crypto.randomUUID();
-    el.innerHTML = `<div class="section-heading"><b>مرحله نصب</b><div class="actions"><button type="button" data-up aria-label="مرحله بالاتر">↑</button><button type="button" data-down aria-label="مرحله پایین‌تر">↓</button><button type="button" data-remove aria-label="حذف مرحله">${icon('trash-2')}</button></div></div><div class="form-grid">${field('فایل منبع', '<select data-step-file required></select>')}${field('عملیات', `<select data-step="action"><option value="extract" ${step?.action === 'extract' ? 'selected' : ''}>استخراج آرشیو</option><option value="copy" ${step?.action === 'copy' ? 'selected' : ''}>کپی فایل</option></select>`)}${field('مسیر نسبی مقصد', `<input data-step="destination" required dir="ltr" value="${esc(step?.destination || 'extension')}">`)}${field('فایل موجود', `<select data-step="overwrite"><option value="backup">بکاپ و جایگزینی</option><option value="fail" ${step?.overwrite === 'fail' ? 'selected' : ''}>توقف در صورت تداخل</option></select>`)}</div>`;
+    el.innerHTML = `<div class="section-heading"><b>مرحله نصب</b><div class="actions"><button type="button" data-up aria-label="مرحله بالاتر">↑</button><button type="button" data-down aria-label="مرحله پایین‌تر">↓</button><button type="button" data-remove aria-label="حذف مرحله">${icon('trash-2')}</button></div></div><div class="form-grid">${field('فایل منبع', '<select data-step-file required></select>')}${field('عملیات', `<select data-step="action"><option value="extract" ${step?.action === 'extract' ? 'selected' : ''}>استخراج آرشیو</option><option value="copy" ${step?.action === 'copy' ? 'selected' : ''}>کپی فایل</option></select>`)}${field('مسیر نسبی مقصد', `<input data-step="destination" required dir="ltr" value="${esc(step?.destination || 'extension')}">`)}${field('زیرپوشه منبع آرشیو (اختیاری)', `<input data-step="source_subdir" dir="ltr" value="${esc(step?.source_subdir || '')}" placeholder="wrapper/content/cars">`)}${field('وابستگی مراحل (شناسه‌ها با کاما؛ باید بالاتر باشند)', `<input data-step="depends_on" dir="ltr" value="${esc((step?.depends_on || []).join(', '))}">`)}<small class="muted" dir="ltr">Step ID: ${esc(el.dataset.id!)}</small>${field('فایل موجود', `<select data-step="overwrite"><option value="backup">بکاپ و جایگزینی</option><option value="fail" ${step?.overwrite === 'fail' ? 'selected' : ''}>توقف در صورت تداخل</option></select>`)}</div>`;
     (el.querySelector('[data-step-file]') as HTMLSelectElement).dataset.initial =
       step?.file_id || fileId || '';
     el.querySelector('[data-up]')!.addEventListener('click', () => move(el, false));
@@ -346,7 +349,7 @@ function editPackage(existing?: PackageSpec) {
     const el = document.createElement('div');
     el.className = 'file-row';
     el.dataset.id = file?.id || crypto.randomUUID();
-    el.innerHTML = `<div class="section-heading"><b>فایل دانلود / جزء آرشیو</b><div class="actions"><button type="button" data-up aria-label="فایل بالاتر">↑</button><button type="button" data-down aria-label="فایل پایین‌تر">↓</button><button type="button" class="icon-button remove-file" aria-label="حذف فایل">${icon('trash-2')}</button></div></div><div class="form-grid">${field('نام دقیق فایل (مانند mod.part1.rar)', `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field('فرمت', `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field('لینک مستقیم HTTPS', `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field('SHA-256 (۶۴ کاراکتر)', `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field('حجم دقیق (بایت)', `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field('رمز آرشیو (اختیاری)', `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><p class="fine-print">رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.</p>`;
+    el.innerHTML = `<div class="section-heading"><b>فایل دانلود / جزء آرشیو</b><div class="actions"><button type="button" data-up aria-label="فایل بالاتر">↑</button><button type="button" data-down aria-label="فایل پایین‌تر">↓</button><button type="button" class="icon-button remove-file" aria-label="حذف فایل">${icon('trash-2')}</button></div></div><div class="form-grid">${field('نام دقیق فایل (مانند mod.part1.rar)', `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field('فرمت', `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field('لینک مستقیم HTTPS', `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field('لینک‌های جایگزین HTTPS (هر خط یک لینک؛ حداکثر ۵)', `<textarea data-f="mirrors" dir="ltr">${esc((file?.mirrors || []).join('\n'))}</textarea>`)}${field('SHA-256 (۶۴ کاراکتر)', `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field('حجم دقیق (بایت)', `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field('رمز آرشیو (اختیاری)', `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><p class="fine-print">رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.</p>`;
     rows.append(el);
     el.querySelector('.remove-file')!.addEventListener('click', () => {
       stepsEl.querySelectorAll<HTMLElement>('.install-step').forEach((step) => {
@@ -385,6 +388,10 @@ function editPackage(existing?: PackageSpec) {
           name: get('name'),
           format: get('format'),
           url: get('url'),
+          mirrors: get('mirrors')
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean),
           sha256: get('sha256'),
           size: Number(get('size')),
           ...(get('archive_password') ? { archive_password: get('archive_password') } : {}),
@@ -398,12 +405,28 @@ function editPackage(existing?: PackageSpec) {
           action: get('action'),
           destination: get('destination'),
           overwrite: get('overwrite'),
+          ...(get('source_subdir').trim() ? { source_subdir: get('source_subdir').trim() } : {}),
+          depends_on: get('depends_on')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
         });
       });
       const pkg = PackageSpec.parse({
         ...p,
         ...Object.fromEntries(f),
         dependencies: f.getAll('dependencies'),
+        tags: String(f.get('tags') || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        images: String(f.get('images') || '')
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+        scheduled_at: f.get('scheduled_at')
+          ? new Date(String(f.get('scheduled_at'))).toISOString()
+          : null,
         files,
         steps,
         status: 'draft',
@@ -415,8 +438,22 @@ function editPackage(existing?: PackageSpec) {
       await refreshPage();
     });
   };
+  d.querySelector<HTMLButtonElement>('#validate-package')?.addEventListener('click', function () {
+    void busy(this, async () => {
+      const result = await api(`/admin/packages/${p.id}/validate`, {}, token);
+      toast(
+        `ساختار ذخیره‌شده معتبر است؛ ${result.files} فایل و ${result.steps} مرحله. این آزمون، نصب واقعی نیست.`,
+      );
+    });
+  });
   d.querySelector<HTMLButtonElement>('#publish-package')?.addEventListener('click', function () {
     void busy(this as HTMLButtonElement, async () => {
+      if (
+        !window.confirm(
+          'نسخه ذخیره‌شده با فایل‌ها و مراحل فعلی منتشر شود؟ تغییرات ذخیره‌نشده این فرم منتشر نمی‌شوند.',
+        )
+      )
+        return;
       await api(`/admin/packages/${p.id}/publish`, {}, token);
       d.close();
       toast('نسخه منتشر شد.');
@@ -425,6 +462,8 @@ function editPackage(existing?: PackageSpec) {
   });
   d.querySelector<HTMLButtonElement>('#archive-package')?.addEventListener('click', function () {
     void busy(this as HTMLButtonElement, async () => {
+      if (!window.confirm('پکیج از کاتالوگ حذف و بایگانی شود؟ تاریخچه نسخه‌ها محفوظ می‌ماند.'))
+        return;
       await api(`/admin/packages/${p.id}/archive`, {}, token);
       d.close();
       toast('پکیج بایگانی شد.');

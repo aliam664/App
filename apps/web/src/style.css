@@ -2195,3 +2195,29 @@ fieldset:disabled {
     display: flex;
   }
 }
+
+/* Native content uses the existing UHM cards, spacing and palette. */
+.file-preview-list {
+  max-height: 46vh;
+  overflow: auto;
+  margin: 1rem 0;
+}
+.file-preview-list code,
+.local-content-card code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.local-content-card .card-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+}
+.local-content-card .card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#local-items {
+  margin: 1.5rem 0;
+}

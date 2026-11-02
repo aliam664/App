@@ -1,5 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod installer;
+mod content;
+mod discovery;
+mod quarantine;
+mod jobs;
 mod security;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -15,6 +19,10 @@ struct IdentityLock(Mutex<()>);
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     game_path: String,
+    #[serde(default)]
+    game_paths: Vec<String>,
+    #[serde(default)]
+    autoscan: bool,
 }
 fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
@@ -64,13 +72,10 @@ fn set_game_path(app: tauri::AppHandle, path: String) -> Result<Value, String> {
     let root = valid_game(&path)?;
     installer::recover(&root)?;
     let canonical = root.to_string_lossy().into_owned();
-    security::atomic_write(
-        &data_dir(&app)?.join("settings.json"),
-        &serde_json::to_vec(&Settings {
-            game_path: canonical.clone(),
-        })
-        .map_err(|e| e.to_string())?,
-    )?;
+    let mut current=settings(&app)?;
+    current.game_path=canonical.clone();
+    if !current.game_paths.contains(&canonical) {current.game_paths.push(canonical.clone());}
+    security::atomic_write(&data_dir(&app)?.join("settings.json"),&serde_json::to_vec(&current).map_err(|e|e.to_string())?)?;
     Ok(json!({"path":canonical}))
 }
 #[tauri::command]
@@ -80,6 +85,50 @@ fn installed_packages(app: tauri::AppHandle) -> Result<Value, String> {
         return Ok(json!({}));
     }
     serde_json::to_value(installer::library(&valid_game(&s.game_path)?)?).map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn discover_paths(app: tauri::AppHandle) -> Result<Value,String> {
+    let s=settings(&app)?;
+    tauri::async_runtime::spawn_blocking(move || discovery::discover(&s.game_paths)).await.map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn set_autoscan(app: tauri::AppHandle, enabled:bool) -> Result<(),String> {
+    let mut s=settings(&app)?;s.autoscan=enabled;
+    security::atomic_write(&data_dir(&app)?.join("settings.json"),&serde_json::to_vec(&s).map_err(|e|e.to_string())?)
+}
+#[tauri::command]
+async fn scan_content(app: tauri::AppHandle, force:bool) -> Result<content::Snapshot,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;let cache=data_dir(&app)?.join("library-cache");
+    tauri::async_runtime::spawn_blocking(move || content::scan(&root,&cache,force)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn content_image(app: tauri::AppHandle, path:String) -> Result<String,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || content::image(&root,&path)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn deletion_preview(app: tauri::AppHandle, path:String) -> Result<Value,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || quarantine::preview(&root,&path)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn quarantine_files(app: tauri::AppHandle,id:String,selected:Vec<String>,acknowledge_external:bool) -> Result<Value,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || quarantine::apply(&root,&id,&selected,acknowledge_external)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn list_quarantine(app: tauri::AppHandle) -> Result<Value,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || quarantine::list(&root)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn restore_quarantine(app: tauri::AppHandle,id:String) -> Result<Value,String> {
+    let root=valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || quarantine::restore(&root,&id)).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+fn control_job(package_id:String,action:String,preview_id:Option<String>) -> Result<Value,String> {
+    jobs::control(&package_id,&action,preview_id.as_deref())
 }
 fn verified_grant(app: &tauri::AppHandle, grant: &str) -> Result<Value, String> {
     let payload = security::verify(grant, "uhm-offline+jwt")?;
@@ -150,6 +199,8 @@ fn main() {
             get_settings,
             set_game_path,
             installed_packages,
+            control_job,
+            discover_paths, set_autoscan, scan_content, content_image, deletion_preview, quarantine_files, list_quarantine, restore_quarantine,
             verify_offline_grant,
             recover_installations,
             install_plan

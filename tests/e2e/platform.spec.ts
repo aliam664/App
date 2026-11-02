@@ -16,7 +16,7 @@ test('launcher catalog is searchable, filterable and never fabricates installati
   await expect(page.getByRole('dialog')).toContainText('نصب فایل تنها در برنامه ویندوز');
   await page.getByRole('button', { name: 'بستن', exact: true }).click();
   await page.getByRole('button', { name: 'کتابخانه من', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'هنوز اولین دور را شروع نکردی' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'کتابخانه محلی در نسخه ویندوز' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 test('demo activation performs cryptographic device flow', async ({ page }) => {
@@ -107,7 +107,7 @@ test('UHM reference identity, original media and persistent theme work together'
   await expect(page.locator('#package-catalog')).toBeInViewport();
   await page.getByRole('button', { name: 'منوی بخش‌ها' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'کتابخانه من', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'هنوز اولین دور را شروع نکردی' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'کتابخانه محلی در نسخه ویندوز' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
 

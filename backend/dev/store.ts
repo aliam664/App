@@ -49,9 +49,11 @@ export class LocalRepository implements Repository {
     const releases = await this.releases();
     return current.flatMap((p) => {
       if (p.status === 'archived') return [];
-      if (p.status === 'published') return [p];
+      const eligible = (p: PackageSpec) =>
+        p.channel !== 'test' && (!p.scheduled_at || Date.parse(p.scheduled_at) <= Date.now());
+      if (p.status === 'published' && eligible(p)) return [p];
       const previous = releases
-        .filter((r) => r.package_id === p.id)
+        .filter((r) => r.package_id === p.id && eligible(r.manifest))
         .sort((a, b) => b.published_at.localeCompare(a.published_at))[0];
       return previous ? [previous.manifest] : [];
     });

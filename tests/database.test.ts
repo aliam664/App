@@ -10,6 +10,7 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/202611010001_platform.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611010002_live_catalog.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611020003_admin_telemetry.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611020004_content_packages.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -18,7 +19,7 @@ it('installs all tables and enforces RLS on each', async () => {
   const result = await db.query<{ tablename: string; rowsecurity: boolean }>(
     "select tablename,rowsecurity from pg_tables where schemaname='uhm'",
   );
-  expect(result.rows.length).toBe(11);
+  expect(result.rows.length).toBe(14);
   expect(result.rows.every((r) => r.rowsecurity)).toBe(true);
 });
 it('has no anon/public RPC execution privilege', async () => {
@@ -74,7 +75,7 @@ it('keeps audit mutation and license update in the same transaction', async () =
 it('stores immutable snapshots and refuses repeated release version', async () => {
   const id = '20000000-0000-4000-8000-000000000002';
   await db.query(
-    `insert into uhm.packages(id,slug,name,description,category,tier,image,version,files,steps,status) values($1,'test','Test','Test description','tools','normal','/images/01.jpg','1.0.0','[{"id":"f"}]','[{"id":"s"}]','draft')`,
+    `insert into uhm.packages(id,slug,name,description,category,tier,image,version,files,steps,status) values($1,'test','Test','Test description','tools','normal','/images/01.jpg','1.0.0','[{"id":"60000000-0000-4000-8000-000000000001","name":"test.zip","url":"https://example.com/test.zip","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":100,"format":"zip"}]','[{"id":"60000000-0000-4000-8000-000000000002","file_id":"60000000-0000-4000-8000-000000000001","action":"extract","destination":"content/cars","overwrite":"backup"}]','draft')`,
     [id],
   );
   await db.exec('set role service_role');
@@ -167,4 +168,50 @@ it('deduplicates event IDs and aggregates by occurrence date, not upload date', 
   const r = await db.query<{ data: any }>("select uhm.dashboard_analytics('2026-10-01') as data");
   expect(r.rows[0].data.totals).toEqual([{ type: 'app_open', count: 1 }]);
   expect(r.rows[0].data.daily[0].day).toBe('2026-11-01');
+});
+
+it('normalizes package children atomically and denies browser access', async () => {
+  const id = '20000000-0000-4000-8000-000000000002';
+  const files = await db.query<{ name: string }>(
+    'select name from uhm.package_files where package_id=$1',
+    [id],
+  );
+  expect(files.rows[0].name).toBe('test.zip');
+  const steps = await db.query<{ destination: string }>(
+    'select destination from uhm.package_steps where package_id=$1',
+    [id],
+  );
+  expect(steps.rows[0].destination).toBe('content/cars');
+  for (const table of ['package_files', 'package_steps', 'package_dependencies']) {
+    const r = await db.query<{ allowed: boolean }>(
+      `select has_table_privilege('anon','uhm.${table}','select') as allowed`,
+    );
+    expect(r.rows[0].allowed).toBe(false);
+  }
+});
+it('keeps last stable version visible through future and test releases', async () => {
+  const id = '20000000-0000-4000-8000-000000000002';
+  await db.exec('set role service_role');
+  await db.query(
+    "update uhm.packages set status='draft',version='3.0.0',scheduled_at=now()+interval '1 year' where id=$1",
+    [id],
+  );
+  await db.query("update uhm.packages set status='published' where id=$1", [id]);
+  let r = await db.query<{ manifest: { version: string } }>(
+    'select uhm.published_packages() as manifest',
+  );
+  expect(r.rows[0].manifest.version).toBe('1.0.0');
+  await db.query(
+    "update uhm.packages set status='draft',version='4.0.0',scheduled_at=null,channel='test' where id=$1",
+    [id],
+  );
+  await db.query("update uhm.packages set status='published' where id=$1", [id]);
+  r = await db.query<{ manifest: { version: string } }>(
+    'select uhm.published_packages() as manifest',
+  );
+  expect(r.rows[0].manifest.version).toBe('1.0.0');
+  await expect(
+    db.query("update uhm.packages set author='mutated' where id=$1", [id]),
+  ).rejects.toThrow('RELEASE_IMMUTABLE');
+  await db.exec('reset role');
 });

@@ -193,6 +193,7 @@ export const FileSpec = z.object({
     .max(100)
     .refine((v) => safeRelativePath(v) && !/[\\/]/.test(v), 'نام امن فایل بدون مسیر لازم است'),
   url: DownloadUrl,
+  mirrors: z.array(DownloadUrl).max(5).optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   size: z.number().int().positive().max(100_000_000_000),
   archive_password: z
@@ -208,6 +209,8 @@ export const Step = z.object({
   action: z.enum(['copy', 'extract']),
   destination: RelativePath,
   overwrite: z.enum(['backup', 'fail']).default('backup'),
+  source_subdir: RelativePath.optional(),
+  depends_on: z.array(Id).max(100).optional(),
 });
 export const PackageSpec = z.object({
   id: Id,
@@ -218,6 +221,16 @@ export const PackageSpec = z.object({
   tier: Tier,
   image: z.union([z.string().regex(/^\/images\/(0[1-9]|logo)\.jpg$/), DownloadUrl]),
   version: Version,
+  short_description: z.string().max(240).optional(),
+  content_type: z
+    .enum(['car', 'track', 'skin', 'python_app', 'lua_app', 'csp', 'ppfilter', 'pack'])
+    .optional(),
+  author: z.string().max(120).optional(),
+  brand: z.string().max(120).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  images: z.array(DownloadUrl).max(8).optional(),
+  channel: z.enum(['stable', 'test']).optional(),
+  scheduled_at: z.string().datetime().nullable().optional(),
   changelog: z.string().max(3000),
   dependencies: z.array(Id).max(30),
   files: z.array(FileSpec).max(30),
@@ -348,7 +361,12 @@ export function validatePublication(pkg: PackageSpec, all: PackageSpec[]) {
   )
     throw new Error('DUPLICATE_ID');
   const targets = new Set<string>();
+  const completed = new Set<string>();
   for (const step of pkg.steps) {
+    if ((step.depends_on || []).some((id) => !completed.has(id)))
+      throw new Error('STEP_DEPENDENCY_ORDER');
+    completed.add(step.id);
+    if (step.source_subdir && step.action !== 'extract') throw new Error('INVALID_SOURCE_SUBDIR');
     const file = files.get(step.file_id);
     if (!file) throw new Error('UNKNOWN_FILE');
     if (step.action === 'extract' && !['zip', 'rar', '7z'].includes(file.format))

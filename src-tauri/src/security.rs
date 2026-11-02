@@ -71,6 +71,7 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut hash = Sha256::new();
     let mut buffer = [0u8; 65536];
     loop {
+        crate::jobs::checkpoint()?;
         let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
         if n == 0 {
             break;

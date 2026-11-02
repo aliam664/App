@@ -101,3 +101,73 @@ it('validates archive passwords and original multi-volume filenames without allo
   expect(() => FileSpec.parse({ ...base, name: '../secret.rar' })).toThrow();
   expect(() => FileSpec.parse({ ...base, archive_password: 'bad\npassword' })).toThrow();
 });
+
+it('accepts richer manifests but rejects unsafe mirror and archive subtree paths', () => {
+  const p = seedPackages()[0];
+  const file = {
+    id: crypto.randomUUID(),
+    name: 'pack.zip',
+    url: 'https://files.example.com/p.zip',
+    size: 100,
+    sha256: 'a'.repeat(64),
+    format: 'zip',
+  };
+  const step = {
+    id: crypto.randomUUID(),
+    file_id: file.id,
+    action: 'extract',
+    destination: 'content/cars',
+    source_subdir: 'wrapper/content/cars',
+    overwrite: 'backup',
+  };
+  expect(
+    PackageSpec.safeParse({
+      ...p,
+      files: [{ ...file, mirrors: ['https://mirror.example.com/p.zip'] }],
+      steps: [step],
+      content_type: 'skin',
+      tags: ['street'],
+      channel: 'test',
+    }).success,
+  ).toBe(true);
+  expect(
+    PackageSpec.safeParse({
+      ...p,
+      files: [{ ...file, mirrors: ['https://127.0.0.1/secret'] }],
+      steps: [step],
+    }).success,
+  ).toBe(false);
+  expect(
+    PackageSpec.safeParse({ ...p, files: [file], steps: [{ ...step, source_subdir: '../escape' }] })
+      .success,
+  ).toBe(false);
+});
+it('validates ordered step prerequisites and forbids subtrees on copy', () => {
+  const p = PackageSpec.parse({
+    ...seedPackages()[2],
+    dependencies: [],
+    files: [
+      {
+        id: crypto.randomUUID(),
+        name: 'a.zip',
+        url: 'https://example.com/a.zip',
+        size: 100,
+        sha256: 'a'.repeat(64),
+        format: 'zip',
+      },
+    ],
+  });
+  const a = {
+    id: crypto.randomUUID(),
+    file_id: p.files[0].id,
+    action: 'extract' as const,
+    destination: 'content/cars/a',
+    overwrite: 'backup' as const,
+  };
+  const b = { ...a, id: crypto.randomUUID(), destination: 'content/cars/b', depends_on: [a.id] };
+  expect(() => validatePublication({ ...p, steps: [a, b] }, [])).not.toThrow();
+  expect(() => validatePublication({ ...p, steps: [b, a] }, [])).toThrow('STEP_DEPENDENCY_ORDER');
+  expect(() =>
+    validatePublication({ ...p, steps: [{ ...a, action: 'copy', source_subdir: 'inner' }] }, []),
+  ).toThrow('INVALID_SOURCE_SUBDIR');
+});

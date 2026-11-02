@@ -2,6 +2,28 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "Bundled main window only; no arbitrary filesystem or shell API",
-  "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "allow-device-identity", "allow-sign-challenge", "allow-get-settings", "allow-set-game-path", "allow-installed-packages", "allow-install-plan", "allow-recover-installations", "allow-verify-offline-grant"]
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "allow-device-identity",
+    "allow-sign-challenge",
+    "allow-get-settings",
+    "allow-set-game-path",
+    "allow-installed-packages",
+    "allow-install-plan",
+    "allow-recover-installations",
+    "allow-verify-offline-grant",
+    "allow-discover-paths",
+    "allow-set-autoscan",
+    "allow-scan-content",
+    "allow-content-image",
+    "allow-deletion-preview",
+    "allow-quarantine-files",
+    "allow-list-quarantine",
+    "allow-restore-quarantine",
+    "allow-control-job"
+  ]
 }
