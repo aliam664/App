@@ -39,6 +39,8 @@ type Task = {
   total?: number;
   error?: string;
   paused?: boolean;
+  active?: boolean;
+  mode?: string;
   speed?: number;
   eta?: number;
 };
@@ -433,6 +435,7 @@ async function executeNativePlan(
     handleError(e);
   } finally {
     installing = false;
+    for (const task of batch) task.active = false;
     persistTasks();
   }
   await render();
@@ -544,7 +547,7 @@ function offlineRemaining() {
   }
 }
 function downloads(el: HTMLElement) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">TRANSFER STATION / 03</p><h1>از دانلود تا خط شروع.</h1><p class="muted">بررسی فایل، نصب مرحله‌ای و ثبت نتیجه؛ بدون موفقیت نمایشی.</p></div></div>${tasks.length ? `<div class="stack">${tasks.map((t) => `<article class="task"><div class="task-head">${icon(t.error ? 'triangle-alert' : t.progress === 100 ? 'circle-check' : 'download')}<div><h3>${esc(t.name)}</h3><p>${esc(t.phase)}</p></div><strong>${fa(Math.floor(t.progress))}٪</strong></div><progress max="100" value="${t.progress}"></progress>${t.bytes ? `<small dir="ltr">${size(t.bytes)} / ${size(t.total || 0)}</small>` : ''}${t.speed ? `<small>${size(t.speed)}/s · ${fa(Math.ceil(t.eta || 0))} ثانیه باقی‌مانده دانلود</small>` : ''}${t.error ? `<div class="notice error">${esc(t.error)}</div><button class="button secondary" data-task-retry="${t.id}" ${catalog.some((p) => p.id === t.id) ? '' : 'disabled'}>بررسی و تلاش مجدد</button>` : t.progress < 100 ? `<div class="actions"><button class="button secondary" data-task-control="${t.paused ? 'resume' : 'pause'}" data-task-id="${t.id}">${t.paused ? 'ادامه' : 'توقف دانلود'}</button><button class="text-button" data-task-control="cancel" data-task-id="${t.id}">لغو</button></div>` : ''}</article>`).join('')}</div>` : empty('صف دانلود خالی است', 'با شروع نصب، پیشرفت واقعی دانلود و استخراج اینجا نمایش داده می‌شود.', 'download')}<div class="installer-flow">${[
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">TRANSFER STATION / 03</p><h1>از دانلود تا خط شروع.</h1><p class="muted">بررسی فایل، نصب مرحله‌ای و ثبت نتیجه؛ بدون موفقیت نمایشی.</p></div></div>${tasks.length ? `<div class="stack">${tasks.map((t) => `<article class="task"><div class="task-head">${icon(t.error ? 'triangle-alert' : t.progress === 100 ? 'circle-check' : 'download')}<div><h3>${esc(t.name)}</h3><p>${esc(t.phase)}</p></div><strong>${fa(Math.floor(t.progress))}٪</strong></div><progress max="100" value="${t.progress}"></progress>${t.bytes ? `<small dir="ltr">${size(t.bytes)} / ${size(t.total || 0)}</small>` : ''}${t.speed ? `<small>${size(t.speed)}/s · ${fa(Math.ceil(t.eta || 0))} ثانیه باقی‌مانده دانلود</small>` : ''}${t.error ? `<div class="notice error">${esc(t.error)}</div><button class="button secondary" data-task-retry="${t.id}" ${catalog.some((p) => p.id === t.id) ? '' : 'disabled'}>بررسی و تلاش مجدد</button>` : t.progress < 100 && t.active ? `<div class="actions">${t.mode === 'download' ? `<button class="button secondary" data-task-control="${t.paused ? 'resume' : 'pause'}" data-task-id="${t.id}">${t.paused ? 'ادامه' : 'توقف دانلود'}</button>` : ''}<button class="text-button" data-task-control="cancel" data-task-id="${t.id}">لغو</button></div>` : ''}</article>`).join('')}</div>` : empty('صف دانلود خالی است', 'با شروع نصب، پیشرفت واقعی دانلود و استخراج اینجا نمایش داده می‌شود.', 'download')}<div class="installer-flow">${[
     ['01', 'دریافت فایل'],
     ['02', 'بررسی SHA-256'],
     ['03', 'استخراج و بکاپ'],
@@ -718,6 +721,22 @@ async function boot() {
       const { type, ...fields } = event.payload;
       void recordEvent(type, fields);
     });
+    await listen<{ package_id: string; active: boolean; mode: string }>(
+      'install-job-state',
+      (event) => {
+        const task = [...tasks]
+          .reverse()
+          .find((t) => t.id === event.payload.package_id && !t.error && t.progress < 100);
+        if (task) {
+          Object.assign(task, event.payload);
+          persistTasks();
+          if (page === 'downloads' && !adminMode) {
+            downloads(document.querySelector('#content')!);
+            decorate();
+          }
+        }
+      },
+    );
     await listen<{
       id: string;
       package_id: string;
@@ -732,6 +751,7 @@ async function boot() {
         .find((t) => t.id === p.package_id && !t.error && t.progress < 100);
       if (task) {
         task.phase = 'منتظر تأیید فایل‌های نصب';
+        task.mode = 'approval';
         task.progress = 72;
         persistTasks();
       }
@@ -774,6 +794,9 @@ async function boot() {
         .find((t) => t.id === e.payload.package_id && t.progress < 100 && !t.error);
       if (t) {
         Object.assign(t, e.payload);
+        if (e.payload.phase.includes('در حال دانلود')) t.mode = 'download';
+        else if (e.payload.phase.includes('استخراج')) t.mode = 'extract';
+        else if (e.payload.phase.includes('اعمال')) t.mode = 'apply';
         persistTasks();
         if (e.payload.phase === 'نصب تأیید شد') t.progress = 100;
         if (page === 'downloads' && !adminMode) {

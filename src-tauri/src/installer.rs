@@ -588,6 +588,7 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
     let mut library = library(root)?;
     for package in packages {
         let _job=crate::jobs::begin(&package.id)?;
+        let _=app.emit("install-job-state",json!({"package_id":package.id,"active":true,"mode":"prepare"}));
         uuid::Uuid::parse_str(&package.id).map_err(|_| "Invalid package identifier")?;
         if package.files.is_empty()
             || package.files.len() > 30
@@ -643,7 +644,7 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                             activity(app,package,"download_started",Some(file),None);
                             let cached=safe_target(cache,&format!("{}.part",file.sha256))?;
                             let result=download(app,&package.id,file,&cached,0,transfer_total,stats);
-                            activity(app,package,if result.is_ok(){"download_completed"}else{"download_failed"},Some(file),result.as_ref().err().map(|s|s.as_str()));
+                            activity(app,package,if result.is_ok(){"download_completed"}else{"download_failed"},Some(file),result.as_ref().err());
                             if result.is_ok(){stats.update(app,&package.id,&file.sha256,file.size,0.0,transfer_total);}
                             result
                         }))

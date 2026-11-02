@@ -22,7 +22,7 @@ fn read(path: &std::path::Path) -> String {
 #[cfg(windows)]
 fn registry(key: &str, name: &str) -> Option<PathBuf> {
     use std::os::windows::process::CommandExt;
-    let output = std::process::Command::new("reg.exe").args(["query",key,"/v",name])
+    let output = std::process::Command::new(env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:\\Windows")).join("System32/reg.exe")).args(["query",key,"/v",name])
         .creation_flags(0x08000000).output().ok()?;
     let text = String::from_utf8_lossy(&output.stdout);
     text.lines().find_map(|l| l.split_once("REG_SZ").map(|(_,v)| PathBuf::from(v.trim())))

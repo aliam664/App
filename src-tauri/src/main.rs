@@ -29,7 +29,7 @@ struct Settings {
     parallel_downloads: usize,
 }
 fn default_parallel()->usize {2}
-fn download_cache(app:&tauri::AppHandle,s:&Settings)->Result<PathBuf,String> {
+fn download_cache(_app:&tauri::AppHandle,s:&Settings)->Result<PathBuf,String> {
     if s.download_path.is_empty(){return security::safe_target(&installer::control_dir(&valid_game(&s.game_path)?)?,"download-cache");}
     let parent=Path::new(&s.download_path).canonicalize().map_err(|_|"Download directory does not exist")?;
     if !parent.is_dir(){return Err("Download directory is not a directory".into());}

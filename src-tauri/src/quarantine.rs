@@ -108,7 +108,7 @@ pub fn restore(root:&Path,id:&str)->Result<Value,String> {
     for (i,f) in m.files.iter().enumerate() {
         let source=safe_target(&dir,&format!("files/{i}"))?;let target=safe_target(root,&f.path)?;
         if source.exists() {
-            if target.exists() {return Err(format!("Restore conflict: {}",f.path));}
+            if target.exists() && !(m.state=="restoring" && target.is_file() && sha256_file(&source)?==f.sha256 && sha256_file(&target)?==f.sha256) {return Err(format!("Restore conflict: {}",f.path));}
             if sha256_file(&source)?!=f.sha256 {return Err("Quarantined file checksum mismatch".into());}
         } else if !target.is_file() || sha256_file(&target)?!=f.sha256 {return Err("Recovery file is missing or changed".into());}
     }
@@ -117,7 +117,10 @@ pub fn restore(root:&Path,id:&str)->Result<Value,String> {
         let source=safe_target(&dir,&format!("files/{i}"))?;
         if source.exists() {
             let target=safe_target(root,&f.path)?;
-            if target.exists(){return Err("Restore conflict; no overwrite allowed".into());}
+            if target.exists(){
+                if target.is_file() && sha256_file(&source)?==f.sha256 && sha256_file(&target)?==f.sha256 {fs::remove_file(source).map_err(|e|e.to_string())?;continue;}
+                return Err("Restore conflict; no overwrite allowed".into());
+            }
             if let Some(p)=target.parent(){fs::create_dir_all(p).map_err(|e|e.to_string())?;}
             restore_no_replace(&source,&target)?;
         }
