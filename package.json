@@ -22,7 +22,11 @@
     "preview:pages": "vite preview --mode pages --host 0.0.0.0 --port 5181",
     "test:pages": "playwright test --config playwright.pages.config.ts",
     "verify:builds": "tsx scripts/verify-builds.ts",
-    "build:branch": "npm run typecheck && vite build --mode branch && tsx scripts/finish-branch.ts"
+    "build:branch": "npm run typecheck && vite build --mode branch && tsx scripts/finish-branch.ts",
+    "build:edge": "tsx scripts/build-edge.ts",
+    "build:live-pages": "npm run typecheck && vite build --mode live-pages && tsx scripts/finish-pages.ts --live",
+    "build:live-branch": "npm run typecheck && vite build --mode live-branch && tsx scripts/finish-branch.ts --live",
+    "desktop:build:production": "tsx scripts/desktop-production.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
@@ -38,6 +42,7 @@
     "@sparticuz/chromium": "^153.0.0",
     "@tauri-apps/cli": "^2.8.0",
     "@types/node": "^22.19.0",
+    "esbuild": "^0.28.2",
     "prettier": "^3.9.10",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

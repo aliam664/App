@@ -16,3 +16,6 @@ src-tauri/resources/extractor/*.exe
 src-tauri/resources/extractor/*.dll
 src-tauri/resources/extractor/License.txt
 src-tauri/resources/extractor/copying.txt
+
+# Private operator handoff (never publish)
+operator-private/

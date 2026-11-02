@@ -21,7 +21,7 @@ await writeFile(
     {
       revision: process.env.GITHUB_SHA || 'local',
       source: 'index.html + apps/web/src/main.ts',
-      mode: 'branch-preview',
+      mode: process.argv.includes('--live') ? 'connected-production' : 'branch-preview',
     },
     null,
     2,

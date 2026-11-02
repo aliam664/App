@@ -1,0 +1,14 @@
+{
+  "project_ref": "ewjvnqlqacljflvjbpbv",
+  "api_base": "https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/api",
+  "supabase_url": "https://ewjvnqlqacljflvjbpbv.supabase.co",
+  "supabase_publishable_key": "sb_publishable_rmxy5pFFy6zaGphlGK1nLg_xKBdtnMD",
+  "license_public_jwk": {
+    "kty": "EC",
+    "x": "8tU4cX9Y4_mFKS0mIcdr_3bXByq0TC3KGbqRAE-geAA",
+    "y": "KlGpWYcLjY3Tu-QkKbpMwwgKpkceWU31lyy4ivt8nXo",
+    "crv": "P-256"
+  },
+  "license_issuer": "https://ewjvnqlqacljflvjbpbv.supabase.co",
+  "license_key_id": "uhm-1793633973234"
+}

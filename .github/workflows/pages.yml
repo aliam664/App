@@ -34,6 +34,7 @@ jobs:
       - run: npm run verify:builds
       - run: npx playwright install --with-deps chromium
       - run: npm run test:pages
+      - run: npm run build:live-pages
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist-pages

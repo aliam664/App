@@ -5,14 +5,19 @@ function required(name: string) {
   if (!value) throw new Error(`Missing server secret: ${name}`);
   return value;
 }
+// Base64 is a transport encoding, NOT encryption; both forms are server secrets.
+function signingJwk(name: string) {
+  const plain = Deno.env.get(name);
+  return JSON.parse(plain || atob(required(`${name}_B64`)));
+}
 const repository = new SupabaseRepository(
   required('SUPABASE_URL'),
   required('SUPABASE_SERVICE_ROLE_KEY'),
 );
 const api = createApi(repository, {
   mode: 'production',
-  privateJwk: JSON.parse(required('LICENSE_SIGNING_JWK')),
-  publicJwk: JSON.parse(required('LICENSE_PUBLIC_JWK')),
+  privateJwk: signingJwk('LICENSE_SIGNING_JWK'),
+  publicJwk: signingJwk('LICENSE_PUBLIC_JWK'),
   pepper: required('LICENSE_PEPPER'),
   kid: required('LICENSE_KEY_ID'),
   issuer: required('LICENSE_ISSUER'),

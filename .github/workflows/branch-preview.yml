@@ -26,7 +26,8 @@ jobs:
       - run: npm run build:branch
       - run: npx playwright install --with-deps chromium
       - run: npm run test:pages
-      - name: Store generated preview of the shared source
+      - run: npm run build:live-branch
+      - name: Store generated connected UI from the shared source
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
