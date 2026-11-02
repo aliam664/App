@@ -2,7 +2,19 @@
 
 > Historical initial commissioning record. Current updater/custody and package-v2 deployment status: [updater-setup-fa.md](updater-setup-fa.md). API upgraded to version 10; migration `20261102201702` applied; 14 RLS tables. Owner was read-only checked active/bound (activation_count=1), not unused. No owner reset/rotation was performed. Later CI/signing results supersede the initial counts below.
 
-## Live destination
+## Current signed-update candidate
+
+- [Candidate 0.1.0](https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.0), prerelease, not final commercial rollout. Immutable-by-workflow installer: 16,442,533 bytes; SHA-256 `e57d8d3abf17a1bffd34a6d5cdabd360a36c096700d3db600d01299acd1fd9f0`.
+- [Build 41522458902](https://github.com/aliam664/App/actions/runs/41522458902) SUCCESS: 130 unit tests, 31 Native tests, 19 browser scenarios, audits/NSIS. Binary source `09ee6a4b52f3c793a6a56cdaba665defb5761daf`.
+- [Signer/publication 41523341912](https://github.com/aliam664/App/actions/runs/41523341912) SUCCESS: live API/isolation, real cloud OIDC, independent key, version-bound signature, prerelease/feed and full remote artifact download/verification.
+- [Windows installed upgrade 41523753287](https://github.com/aliam664/App/actions/runs/41523753287) SUCCESS: real NSIS 0.0.0 fixture -> real signed 0.1.0, close deferral with a controlled acs.exe process, cached next-start upgrade/restart, preserved settings/content sentinel. **Not real Assetto Corsa or an activated-license migration test.**
+- No owner-license/ES256-key rotation. No manual key setup required. Long-lived updater key is temporarily released only to the trusted hosted CI; the short-lived part is OIDC authorization, not the private key itself.
+- Dedicated update-feed prerelease, `immutable=false` confirmed. Legacy latest remains v1.0.0. No Authenticode or binary delta claim.
+- Full remaining-scope report: [release-readiness-audit-fa.md](release-readiness-audit-fa.md).
+
+## Historical initial commissioning
+
+### Live destination
 
 - Separate **free-plan** project `ewjvnqlqacljflvjbpbv` — UHM Launcher, us-east-1. The unrelated TikTacProject was not changed.
 - API: `https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/api`

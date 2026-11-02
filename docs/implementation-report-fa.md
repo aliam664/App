@@ -77,7 +77,7 @@ Baseline این مرحله: `d68408aab4d19539e26bf69a0f95faba1d87e6f1` روی `a
 
 Rust محلی در این sandbox نصب نیست. Windows CI با `cargo test --locked`، extractorهای واقعی integrity-pinned و build نصب‌کننده اجرا شده است. یک اجرای کامل موفق روی revision `d5bbd7c` در [run 41505513574](https://github.com/aliam664/App/actions/runs/41505513574) ثبت شد. revision نهایی کد برنامه، `4e9f48b`، نیز در [run 41507366307](https://github.com/aliam664/App/actions/runs/41507366307) به‌صورت کامل موفق شد: web/API، ۱۱۰ آزمون، ۱۹ سناریوی مرورگر، ۲۵ آزمون Windows Native، `cargo audit` و ساخت NSIS. بررسی‌های Pages و branch preview همین revision نیز موفق‌اند. زمان اجرای job ویندوز ۵ دقیقه و ۳۶ ثانیه بود.
 
-نصب‌کننده تازه، بدون جایگزین‌کردن release قبلی، در artifact [uhm-windows-production-unsigned](https://github.com/aliam664/App/actions/runs/41507366307/artifacts/13172950348) موجود است؛ اندازه ZIP artifact برابر ۱۷٬۱۴۶٬۰۵۴ بایت است، نه اندازه مستقیم EXE. نسخه هنوز unsigned و بدون auto-updater است. موفقیت build/fixture به معنی آزمون GUI یا نصب محتوا روی بازی واقعی کاربر نیست.
+نصب‌کننده تازه، بدون جایگزین‌کردن release قبلی، در artifact [uhm-windows-production-unsigned](https://github.com/aliam664/App/actions/runs/41507366307/artifacts/13172950348) موجود است؛ اندازه ZIP artifact برابر ۱۷٬۱۴۶٬۰۵۴ بایت است، نه اندازه مستقیم EXE. این artifact تاریخی unsigned و بدون auto-updater بود؛ برای کاندید امضاشده جدید، گزارش release-readiness-audit-fa.md را ببینید. موفقیت build/fixture به معنی آزمون GUI یا نصب محتوا روی بازی واقعی کاربر نیست.
 
 پس از این revision فقط گزارش مستندات commit می‌شود؛ با این کار نتیجه CI به کد برنامه متفاوت نسبت داده نمی‌شود.
 

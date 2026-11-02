@@ -4,7 +4,7 @@
 
 > **وضعیت: پایلوت 0.1.0 متصل به سرویس واقعی.** پروژه مستقل رایگان Supabase، دیتابیس، Edge API و مالک لایسنس‌محور راه‌اندازی شده‌اند. سایت به API واقعی متصل است. نصب‌کننده Windows بدون امضای دیجیتال است؛ آزمون عملی با بازی و مود واقعی و gateهای عرضه تجاری همچنان لازم‌اند. هیچ secret واقعی در سورس نیست.
 
-[شروع سریع و به‌روزرسانی](docs/operations-fa.md) • [نصب‌کننده پایلوت](https://github.com/aliam664/App/releases/tag/uhm-platform-v0.1.0-pilot.1) • [وضعیت و شواهد](docs/production-status.md)
+[شروع سریع و به‌روزرسانی](docs/operations-fa.md) • [کاندید با امضای آپدیت](https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.0) • [گزارش آمادگی و موارد باقی‌مانده](docs/release-readiness-audit-fa.md)
 
 [طراحی جدید مطابق سایت اصلی UHM و تصاویر اجرا](docs/design-reference-fa.md)
 
