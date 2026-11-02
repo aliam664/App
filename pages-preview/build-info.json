@@ -1,5 +1,5 @@
 {
-  "revision": "78f29110dddf7fc4792cdd8ff40517b2bfabd9e9",
+  "revision": "e5488e76c53aceabdbc475d160f0567ce521ac2d",
   "source": "index.html + apps/web/src/main.ts",
   "mode": "connected-production"
 }
