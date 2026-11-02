@@ -1,0 +1,6 @@
+{
+  "public_key": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBQ0JBOTFENDAwODI1NTYKUldSV0pRaEFIYW5MZWp3Zmc2R0FaZDJ4Vk5tU20xc3BFeEpnNXVoTWwzY1ZlWmdpZWFFREZkU2wK",
+  "private_key_secret": "TAURI_SIGNING_PRIVATE_KEY",
+  "install_policy": "automatic_when_safe",
+  "key_created_at": "2026-11-02"
+}
