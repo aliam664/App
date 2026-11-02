@@ -126,7 +126,10 @@ fn installed_packages(app: tauri::AppHandle) -> Result<Value, String> {
 }
 #[tauri::command]
 async fn discover_paths(app: tauri::AppHandle) -> Result<Value, String> {
-    let s = settings(&app)?;
+    let mut s = settings(&app)?;
+    if !s.game_path.is_empty() && !s.game_paths.contains(&s.game_path) {
+        s.game_paths.push(s.game_path.clone());
+    }
     tauri::async_runtime::spawn_blocking(move || discovery::discover(&s.game_paths))
         .await
         .map_err(|e| e.to_string())

@@ -89,7 +89,7 @@ fn children(root: &Path, path: &str, warnings: &mut Vec<String>) -> Vec<String> 
     let dir = match safe_target(root, path) {
         Ok(p) => p,
         Err(e) => {
-            warnings.push(e);
+            warnings.push(format!("Size scan incomplete: {e}"));
             return result;
         }
     };
@@ -313,6 +313,13 @@ pub fn scan(root: &Path, cache: &Path, force: bool) -> Result<Snapshot, String> 
         .filter(|i| i.parent.is_none())
         .map(|i| i.bytes)
         .sum();
+    for item in &items {
+        for warning in &item.warnings {
+            if warning.starts_with("Size scan incomplete:") {
+                warnings.push(format!("{}: {}", item.path, warning));
+            }
+        }
+    }
     let snapshot = Snapshot {
         items,
         bytes,

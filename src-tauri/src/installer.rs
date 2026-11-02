@@ -149,6 +149,24 @@ fn rollback(root: &Path, dir: &Path, journal: &Journal) -> Result<(), String> {
     }
     Ok(())
 }
+fn cleanup_staging(dir: &Path) -> Result<(), String> {
+    for e in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let e = e.map_err(|e| e.to_string())?;
+        let name = e.file_name().to_string_lossy().into_owned();
+        let staged = name == "downloads"
+            || name
+                .strip_prefix("extract-")
+                .map(|id| uuid::Uuid::parse_str(id).is_ok())
+                .unwrap_or(false);
+        if staged {
+            let path = safe_target(dir, &name)?;
+            if path.is_dir() {
+                fs::remove_dir_all(path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
+}
 fn recover_locked(root: &Path, control: &Path) -> Result<usize, String> {
     let transactions = safe_target(control, "transactions")?;
     if !transactions.exists() {
@@ -830,8 +848,13 @@ pub fn install(
                 }
             }
             let transfer_total: u64 = unique.values().map(|f| f.size).sum();
-            if fs2::available_space(cache).map_err(|e| e.to_string())?
-                < transfer_total + 128_000_000
+            let mut cache_needed = 0u64;
+            for file in unique.values() {
+                let path = safe_target(cache, &format!("{}.part", file.sha256))?;
+                let existing = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+                cache_needed = cache_needed.saturating_add(file.size.saturating_sub(existing));
+            }
+            if fs2::available_space(cache).map_err(|e| e.to_string())? < cache_needed + 128_000_000
             {
                 return Err("Insufficient download-cache space".into());
             }
@@ -1152,7 +1175,7 @@ pub fn install(
                 )?;
                 journal.state = "committed".into();
                 save_journal(&dir, &journal)?;
-                let _ = fs::remove_dir_all(dir.join("downloads"));
+                let _ = cleanup_staging(&dir);
                 progress(app, &package.id, "نصب تأیید شد", 99.0, 0, 0);
                 activity(app, &package, "install_completed", None, None);
             }
@@ -1162,6 +1185,7 @@ pub fn install(
                     Ok(()) => {
                         journal.state = "rolled_back".into();
                         save_journal(&dir, &journal)?;
+                        let _ = cleanup_staging(&dir);
                         return Err(error);
                     }
                     Err(_) => {
@@ -1200,6 +1224,21 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cleans_only_staging_and_preserves_recovery_files() {
+        let d = tempfile::tempdir().unwrap();
+        fs::create_dir_all(d.path().join("downloads")).unwrap();
+        let extract = format!("extract-{}", uuid::Uuid::new_v4());
+        fs::create_dir_all(d.path().join(&extract)).unwrap();
+        fs::create_dir_all(d.path().join("backups")).unwrap();
+        fs::write(d.path().join("backups/0"), b"original").unwrap();
+        fs::write(d.path().join("journal.json"), b"journal").unwrap();
+        cleanup_staging(d.path()).unwrap();
+        assert!(!d.path().join("downloads").exists());
+        assert!(!d.path().join(extract).exists());
+        assert_eq!(fs::read(d.path().join("backups/0")).unwrap(), b"original");
+        assert!(d.path().join("journal.json").exists());
+    }
     #[test]
     fn range_resume_requires_exact_offset_size_and_length() {
         assert_eq!(
