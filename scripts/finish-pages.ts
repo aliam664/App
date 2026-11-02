@@ -1,7 +1,10 @@
 import { copyFile, writeFile, readFile } from 'node:fs/promises';
 // Vite compiled the single root index and the same UI entry used by desktop.
 const entry = await readFile('dist-pages/index.html', 'utf8');
-if (!entry.includes('type="module"') || entry.includes('/apps/web/src/main.ts')) {
+if (
+  !entry.includes('type="module"') ||
+  /<script[^>]+src=["']\/apps\/web\/src\/main\.ts/.test(entry)
+) {
   throw new Error(
     'Pages artifact must contain compiled JavaScript, not the TypeScript source entry.',
   );

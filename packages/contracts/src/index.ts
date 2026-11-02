@@ -4,6 +4,131 @@ export type Tier = z.infer<typeof Tier>;
 export const ranks: Record<Tier, number> = { normal: 0, pro: 1, vip: 2 };
 export const Role = z.enum(['owner', 'license_manager', 'content_manager', 'support', 'viewer']);
 export type Role = z.infer<typeof Role>;
+export const Permission = z.enum([
+  'licenses.read',
+  'licenses.create',
+  'licenses.update',
+  'licenses.suspend',
+  'licenses.revoke',
+  'licenses.reset',
+  'licenses.extend',
+  'licenses.archive',
+  'content.read',
+  'content.write',
+  'content.publish',
+  'analytics.read',
+  'errors.read',
+  'errors.resolve',
+  'team.manage',
+  'service.manage',
+  'audit.read',
+]);
+export type Permission = z.infer<typeof Permission>;
+export const rolePermissions: Record<Role, Permission[]> = {
+  owner: [...Permission.options],
+  license_manager: Permission.options.filter(
+    (p) => p.startsWith('licenses.') || ['analytics.read', 'errors.read'].includes(p),
+  ),
+  content_manager: [
+    'content.read',
+    'content.write',
+    'content.publish',
+    'analytics.read',
+    'errors.read',
+  ],
+  support: [
+    'licenses.read',
+    'licenses.update',
+    'content.read',
+    'analytics.read',
+    'errors.read',
+    'errors.resolve',
+  ],
+  viewer: ['content.read', 'analytics.read'],
+};
+export function hasPermission(admin: Pick<Admin, 'role' | 'permissions'>, permission: Permission) {
+  return (
+    admin.role === 'owner' ||
+    (admin.permissions ?? rolePermissions[admin.role]).includes(permission)
+  );
+}
+export const AccessInput = z
+  .object({
+    role: Role,
+    permissions: z.array(Permission).max(Permission.options.length),
+    enabled: z.boolean(),
+  })
+  .strict();
+export type AdminAccess = z.infer<typeof AccessInput> & {
+  id: string;
+  version: number;
+  updated_at: string;
+};
+export const EventInput = z
+  .object({
+    id: z.string().uuid(),
+    type: z.enum([
+      'app_open',
+      'download_started',
+      'download_completed',
+      'download_failed',
+      'package_download_completed',
+      'install_started',
+      'install_completed',
+      'install_failed',
+      'app_error',
+    ]),
+    occurred_at: z.string().datetime(),
+    session_id: z.string().uuid(),
+    package_id: z.string().uuid().optional(),
+    version: z.string().max(30).optional(),
+    file_id: z.string().uuid().optional(),
+    file_name: z
+      .string()
+      .max(100)
+      .refine((v) => safeRelativePath(v) && !/[\\/]/.test(v))
+      .optional(),
+    host: z
+      .string()
+      .regex(/^[a-zA-Z0-9.-]{1,253}$/)
+      .optional(),
+    bytes: z.number().int().min(0).max(100_000_000_000).optional(),
+    duration_ms: z.number().int().min(0).max(604800000).optional(),
+    error_code: z
+      .string()
+      .regex(/^[A-Z0-9_]{1,80}$/)
+      .optional(),
+    stage: z.enum(['app', 'download', 'verify', 'extract', 'install', 'recovery']).optional(),
+    app_version: z.string().max(30).optional(),
+  })
+  .strict();
+export type ClientEvent = z.infer<typeof EventInput>;
+export type TelemetryEvent = ClientEvent & {
+  license_id: string;
+  received_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+};
+export const ServiceInput = z
+  .object({
+    maintenance: z.boolean(),
+    activation_paused: z.boolean(),
+    issuance_paused: z.boolean(),
+    downloads_paused: z.boolean(),
+    message: z.string().max(500),
+  })
+  .strict();
+export type ServiceSettings = z.infer<typeof ServiceInput> & { id: string; updated_at: string };
+export const SERVICE_ID = '00000000-0000-4000-8000-000000000001';
+export const defaultService = (): ServiceSettings => ({
+  id: SERVICE_ID,
+  maintenance: false,
+  activation_paused: false,
+  issuance_paused: false,
+  downloads_paused: false,
+  message: '',
+  updated_at: new Date().toISOString(),
+});
 export const Version = z.string().regex(/^\d+\.\d+\.\d+$/, 'نسخه باید مانند 1.2.0 باشد');
 export const Id = z.string().uuid();
 export function safeRelativePath(input: string): boolean {
@@ -62,10 +187,19 @@ export function isPrivateHost(host: string): boolean {
 }
 export const FileSpec = z.object({
   id: Id,
-  name: z.string().min(1).max(100),
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((v) => safeRelativePath(v) && !/[\\/]/.test(v), 'نام امن فایل بدون مسیر لازم است'),
   url: DownloadUrl,
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   size: z.number().int().positive().max(100_000_000_000),
+  archive_password: z
+    .string()
+    .max(256)
+    .refine((v) => !/[\x00-\x1f\x7f]/.test(v), 'رمز نباید کاراکتر کنترلی داشته باشد')
+    .optional(),
   format: z.enum(['zip', 'rar', '7z', 'file', 'exe']),
 });
 export const Step = z.object({
@@ -82,7 +216,7 @@ export const PackageSpec = z.object({
   description: z.string().min(10).max(3000),
   category: z.enum(['graphics', 'tracks', 'cars', 'tools']),
   tier: Tier,
-  image: z.string().regex(/^\/images\/(0[1-9]|logo)\.jpg$/),
+  image: z.union([z.string().regex(/^\/images\/(0[1-9]|logo)\.jpg$/), DownloadUrl]),
   version: Version,
   changelog: z.string().max(3000),
   dependencies: z.array(Id).max(30),
@@ -105,6 +239,10 @@ export type License = {
   device_thumbprint: string | null;
   entitlement_version: number;
   activation_count: number;
+  display_name?: string;
+  notes?: string;
+  tags?: string[];
+  archived?: boolean;
 };
 export type AuditEvent = {
   id: string;
@@ -130,13 +268,23 @@ export type Challenge = {
   consumed: boolean;
   purpose: string;
 };
-export type Admin = { id: string; role: Role; aal: string };
+export type Admin = {
+  id: string;
+  role: Role;
+  aal: string;
+  permissions?: Permission[];
+  license_id?: string;
+  auth_method?: 'license' | 'account';
+};
 export type Tables = {
   licenses: License;
   packages: PackageSpec;
   audit_events: AuditEvent;
   challenges: Challenge;
   install_reports: InstallReport;
+  admin_access: AdminAccess;
+  telemetry_events: TelemetryEvent;
+  service_settings: ServiceSettings;
 };
 export type Table = keyof Tables;
 export const GenerateLicenses = z
@@ -191,6 +339,8 @@ export function resolvePlan(id: string, packages: PackageSpec[], tier: Tier): Pa
 }
 export function validatePublication(pkg: PackageSpec, all: PackageSpec[]) {
   if (!pkg.files.length || !pkg.steps.length) throw new Error('EMPTY_INSTALL_PLAN');
+  if (new Set(pkg.files.map((f) => f.name.toLowerCase())).size !== pkg.files.length)
+    throw new Error('DUPLICATE_FILENAME');
   const files = new Map(pkg.files.map((f) => [f.id, f]));
   if (
     files.size !== pkg.files.length ||

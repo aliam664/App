@@ -84,3 +84,20 @@ describe('package graph', () => {
   it('validates sample metadata', () =>
     seedPackages().forEach((p) => expect(PackageSpec.safeParse(p).success).toBe(true)));
 });
+
+it('validates archive passwords and original multi-volume filenames without allowing paths', async () => {
+  const { FileSpec } = await import('../packages/contracts/src/index');
+  const base = {
+    id: crypto.randomUUID(),
+    name: 'mod.part1.rar',
+    url: 'https://files.example.com/mod.part1.rar',
+    sha256: 'a'.repeat(64),
+    size: 123,
+    format: 'rar',
+  };
+  expect(FileSpec.parse({ ...base, archive_password: 'test-رمز-123' }).archive_password).toBe(
+    'test-رمز-123',
+  );
+  expect(() => FileSpec.parse({ ...base, name: '../secret.rar' })).toThrow();
+  expect(() => FileSpec.parse({ ...base, archive_password: 'bad\npassword' })).toThrow();
+});

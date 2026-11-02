@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#03050a" />
+    <meta
+      name="description"
+      content="UHM Launcher — مدیریت و نصب پکیج‌های Assetto Corsa، با طراحی رسمی UHM"
+    />
+    <link rel="icon" type="image/png" href="/App/public/brand/logo.png" />
+    <title>UHM — Assetto Corsa Launcher</title>
+    <script type="module" crossorigin src="/App/pages-preview/assets/index-BN2jy0J4.js"></script>
+    <link rel="stylesheet" crossorigin href="/App/pages-preview/assets/index-oZT7vS4l.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      // A branch-based Pages deployment cannot execute TypeScript. Use the compiled
+      // preview generated from this exact source instead of leaving a white screen.
+      setTimeout(function () {
+        var source = document.querySelector('script[src$="/apps/web/src/main.ts"]');
+        if (source && location.hostname.endsWith('.github.io')) {
+          location.replace(new URL('./pages-preview/' + location.hash, location.href));
+        }
+      }, 50);
+    </script>
+  </body>
+</html>

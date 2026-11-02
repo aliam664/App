@@ -353,3 +353,263 @@ describe('explicit license renewal', () => {
     ).toBe(403);
   });
 });
+
+describe('license-bound staff and operational console', () => {
+  async function activateStaff(
+    permissions: import('../packages/contracts/src/index').Permission[] = [
+      'licenses.read',
+      'licenses.update',
+      'analytics.read',
+      'errors.read',
+    ],
+  ) {
+    const d = await device();
+    const id = repo.state.licenses[0].id;
+    expect(
+      (
+        await request(
+          `/admin/team/${id}`,
+          { role: 'support', permissions, enabled: true },
+          repo.adminToken,
+        )
+      ).status,
+    ).toBe(200);
+    const activation = await request('/licenses/activate', {
+      code,
+      ...(await proof(d, 'activate')),
+    });
+    expect(activation.status).toBe(200);
+    const session = await request('/admin/license-session', {
+      license_id: id,
+      ...(await proof(d, 'admin')),
+    });
+    expect(session.status).toBe(200);
+    return { d, id, token: session.data.token, grant: activation.data.grant };
+  }
+  it('never upgrades an ordinary app license into an administrator', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    expect(
+      (
+        await request('/admin/license-session', {
+          license_id: repo.state.licenses[0].id,
+          ...(await proof(d, 'admin')),
+        })
+      ).status,
+    ).toBe(403);
+  });
+  it('uses one assigned license for app and panel, with per-permission enforcement', async () => {
+    const { id, token, grant: g } = await activateStaff();
+    expect((await request('/admin/overview', undefined, token)).data.licenses[0].id).toBe(id);
+    expect(
+      (await request('/admin/licenses', { tier: 'pro', count: 1, duration_days: 30 }, token))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          `/admin/licenses/${id}/metadata`,
+          { display_name: 'Support One', notes: 'internal', tags: ['team'] },
+          token,
+        )
+      ).status,
+    ).toBe(200);
+    expect((await request('/admin/overview', undefined, g)).status).toBe(401);
+  });
+  it('denies another device, replayed challenges, and disabled memberships', async () => {
+    const { d, id, token } = await activateStaff();
+    const other = await device();
+    expect(
+      (
+        await request('/admin/license-session', {
+          license_id: id,
+          ...(await proof(other, 'admin')),
+        })
+      ).status,
+    ).toBe(403);
+    const p = await proof(d, 'admin');
+    expect((await request('/admin/license-session', { license_id: id, ...p })).status).toBe(200);
+    expect((await request('/admin/license-session', { license_id: id, ...p })).status).toBe(401);
+    await repo.saveAccess({ ...repo.state.admin_access[0], enabled: false }, 'owner');
+    expect((await request('/admin/overview', undefined, token)).status).toBe(401);
+  });
+  it('applies reduced permissions on the very next request and can renew a valid device session', async () => {
+    const { d, id, token } = await activateStaff();
+    await repo.saveAccess(
+      { ...repo.state.admin_access[0], permissions: ['content.read'] },
+      'owner',
+    );
+    expect((await request('/admin/overview', undefined, token)).status).toBe(401);
+    const next = await request('/admin/license-session', {
+      license_id: id,
+      ...(await proof(d, 'admin')),
+    });
+    const view = await request('/admin/overview', undefined, next.data.token);
+    expect(view.data.licenses).toEqual([]);
+    expect(view.data.packages.length).toBeGreaterThan(0);
+    expect(view.data.packages.every((p: any) => p.files.length === 0)).toBe(true);
+  });
+  it('prevents self-promotion and a delegated manager granting rights they do not own', async () => {
+    const { id, token } = await activateStaff(['team.manage', 'licenses.read']);
+    expect(
+      (await request(`/admin/team/${id}`, { role: 'owner', permissions: [], enabled: true }, token))
+        .status,
+    ).toBe(403);
+    const fresh = await request(
+      '/admin/licenses',
+      { tier: 'normal', count: 1, duration_days: 30 },
+      repo.adminToken,
+    );
+    expect(
+      (
+        await request(
+          `/admin/team/${fresh.data.licenses[0].id}`,
+          { role: 'support', permissions: ['service.manage'], enabled: true },
+          token,
+        )
+      ).status,
+    ).toBe(403);
+  });
+  it('invalidates staff sessions after device reset or license suspension', async () => {
+    const { id, token } = await activateStaff();
+    await repo.mutateLicense(id, 'reset', 'owner');
+    expect((await request('/admin/overview', undefined, token)).status).toBe(401);
+  });
+  it('stores metadata privately, not in the activation response', async () => {
+    const id = repo.state.licenses[0].id;
+    await request(
+      `/admin/licenses/${id}/metadata`,
+      { display_name: 'Customer', notes: 'private-note', tags: ['vip'] },
+      repo.adminToken,
+    );
+    const d = await device();
+    const r = await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    expect(JSON.stringify(r.data)).not.toContain('private-note');
+    expect(
+      (await request('/admin/overview', undefined, repo.adminToken)).data.licenses[0].notes,
+    ).toBe('private-note');
+  });
+  it('accepts offline events idempotently and uses occurrence time for analytics', async () => {
+    const { id, d } = await activateStaff();
+    const event = {
+      id: crypto.randomUUID(),
+      session_id: crypto.randomUUID(),
+      type: 'app_open',
+      occurred_at: new Date(Date.now() - 86400000).toISOString(),
+      stage: 'app',
+    };
+    for (let i = 0; i < 2; i++)
+      expect(
+        (
+          await request('/telemetry/batch', {
+            license_id: id,
+            events: [event],
+            ...(await proof(d, 'telemetry')),
+          })
+        ).data.accepted,
+      ).toEqual([event.id]);
+    expect(repo.state.telemetry_events).toHaveLength(1);
+    const stats = await request('/admin/analytics?days=7', undefined, repo.adminToken);
+    expect(stats.data.totals).toEqual([{ type: 'app_open', count: 1 }]);
+    expect(stats.data.daily[0].day).toBe(event.occurred_at.slice(0, 10));
+  });
+  it('rejects raw stack traces or URLs in telemetry and permits expiry-only late uploads', async () => {
+    const { id, d } = await activateStaff();
+    repo.state.licenses[0].expires_at = new Date(Date.now() - 1000).toISOString();
+    const e = {
+      id: crypto.randomUUID(),
+      session_id: crypto.randomUUID(),
+      type: 'app_error',
+      occurred_at: new Date().toISOString(),
+      error_code: 'APP_RUNTIME_ERROR',
+    };
+    expect(
+      (
+        await request('/telemetry/batch', {
+          license_id: id,
+          events: [{ ...e, url: 'https://private.example/?token=x' }],
+          ...(await proof(d, 'telemetry')),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request('/telemetry/batch', {
+          license_id: id,
+          events: [e],
+          ...(await proof(d, 'telemetry')),
+        })
+      ).status,
+    ).toBe(200);
+  });
+  it('pauses new operations without locking out owners or telemetry', async () => {
+    const { id, d } = await activateStaff();
+    expect(
+      (
+        await request(
+          '/admin/service',
+          {
+            maintenance: true,
+            activation_paused: false,
+            issuance_paused: true,
+            downloads_paused: true,
+            message: 'Maintenance',
+          },
+          repo.adminToken,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (await request('/licenses/activate', { code, ...(await proof(d, 'activate')) })).status,
+    ).toBe(503);
+    expect(
+      (
+        await request(
+          '/admin/licenses',
+          { tier: 'normal', count: 1, duration_days: 30 },
+          repo.adminToken,
+        )
+      ).status,
+    ).toBe(503);
+    expect((await request('/admin/overview', undefined, repo.adminToken)).status).toBe(200);
+    const e = {
+      id: crypto.randomUUID(),
+      session_id: crypto.randomUUID(),
+      type: 'install_failed',
+      occurred_at: new Date().toISOString(),
+      error_code: 'DISK_FULL',
+    };
+    expect(
+      (
+        await request('/telemetry/batch', {
+          license_id: id,
+          events: [e],
+          ...(await proof(d, 'telemetry')),
+        })
+      ).status,
+    ).toBe(200);
+  });
+  it('protects the last license owner', async () => {
+    const id = repo.state.licenses[0].id;
+    await repo.saveAccess(
+      {
+        id,
+        role: 'owner',
+        permissions: [],
+        enabled: true,
+        version: 1,
+        updated_at: new Date().toISOString(),
+      },
+      'bootstrap',
+    );
+    expect(
+      (
+        await request(
+          `/admin/team/${id}`,
+          { role: 'viewer', permissions: [], enabled: true },
+          repo.adminToken,
+        )
+      ).status,
+    ).toBe(409);
+  });
+});

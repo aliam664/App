@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
-  testDir: 'tests/pages',
+  testDir: 'tests',
+  testMatch: ['pages/*.spec.ts', 'branch/*.spec.ts'],
   workers: 1,
   use: {
     baseURL: 'http://127.0.0.1:5181/App/',
@@ -12,10 +13,18 @@ export default defineConfig({
         }
       : {},
   },
-  webServer: {
-    command: 'npm run preview:pages',
-    url: 'http://127.0.0.1:5181/App/',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30000,
-  },
+  webServer: [
+    {
+      command: 'npm run preview:pages',
+      url: 'http://127.0.0.1:5181/App/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
+    {
+      command: 'npx tsx scripts/serve-branch.ts',
+      url: 'http://127.0.0.1:5182/App/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
+  ],
 });

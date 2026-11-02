@@ -9,6 +9,7 @@ beforeAll(async () => {
   );
   await db.exec(await readFile('supabase/migrations/202611010001_platform.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611010002_live_catalog.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611020003_admin_telemetry.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -17,7 +18,7 @@ it('installs all tables and enforces RLS on each', async () => {
   const result = await db.query<{ tablename: string; rowsecurity: boolean }>(
     "select tablename,rowsecurity from pg_tables where schemaname='uhm'",
   );
-  expect(result.rows.length).toBe(8);
+  expect(result.rows.length).toBe(11);
   expect(result.rows.every((r) => r.rowsecurity)).toBe(true);
 });
 it('has no anon/public RPC execution privilege', async () => {
@@ -123,4 +124,47 @@ it('does not expose signed download manifests through a public catalog RPC', asy
     "select has_function_privilege('anon','uhm.published_packages()','execute') as allowed",
   );
   expect(r.rows[0].allowed).toBe(false);
+});
+
+it('protects new telemetry, staff, service tables and aggregate RPC from browser roles', async () => {
+  for (const table of ['admin_access', 'telemetry_events', 'service_settings']) {
+    const r = await db.query<{ allowed: boolean }>(
+      `select has_table_privilege('anon','uhm.${table}','select') as allowed`,
+    );
+    expect(r.rows[0].allowed).toBe(false);
+  }
+  const r = await db.query<{ allowed: boolean }>(
+    "select has_function_privilege('authenticated','uhm.dashboard_analytics(timestamptz)','execute') as allowed",
+  );
+  expect(r.rows[0].allowed).toBe(false);
+});
+it('atomically retains the last owner and records changes', async () => {
+  const id = '30000000-0000-4000-8000-000000000001';
+  await db.exec(
+    `insert into uhm.licenses(id,code_hash,prefix,tier,duration_days) values('${id}','admin-test-hash','TEST','pro',30)`,
+  );
+  await db.query('select uhm.save_admin_access($1::jsonb,$2)', [
+    JSON.stringify({ id, role: 'owner', enabled: true, permissions: [] }),
+    'bootstrap',
+  ]);
+  await expect(
+    db.query('select uhm.save_admin_access($1::jsonb,$2)', [
+      JSON.stringify({ id, role: 'viewer', enabled: true, permissions: [] }),
+      'bootstrap',
+    ]),
+  ).rejects.toThrow('LAST_OWNER');
+  const r = await db.query<{ role: string }>('select role from uhm.admin_access where id=$1', [id]);
+  expect(r.rows[0].role).toBe('owner');
+});
+it('deduplicates event IDs and aggregates by occurrence date, not upload date', async () => {
+  const license = '30000000-0000-4000-8000-000000000001';
+  const id = '40000000-0000-4000-8000-000000000001';
+  for (let i = 0; i < 2; i++)
+    await db.query(
+      `insert into uhm.telemetry_events(id,license_id,type,occurred_at,session_id) values($1,$2,'app_open','2026-11-01T12:00:00Z',$1) on conflict(license_id,id) do nothing`,
+      [id, license],
+    );
+  const r = await db.query<{ data: any }>("select uhm.dashboard_analytics('2026-10-01') as data");
+  expect(r.rows[0].data.totals).toEqual([{ type: 'app_open', count: 1 }]);
+  expect(r.rows[0].data.daily[0].day).toBe('2026-11-01');
 });

@@ -1,3 +1,9 @@
+import { adminServices } from './admin-services.ts';
+import {
+  hasPermission,
+  defaultService,
+  type Permission,
+} from '../../packages/contracts/src/index.ts';
 import { z } from 'zod';
 import {
   PackageSpec,
@@ -37,11 +43,6 @@ class HttpError extends Error {
     super(message);
   }
 }
-const allowed = (role: Role, section: 'license' | 'content' | 'read') =>
-  role === 'owner' ||
-  section === 'read' ||
-  (section === 'license' && role === 'license_manager') ||
-  (section === 'content' && role === 'content_manager');
 export function createApi(repo: Repository, config: ApiConfig) {
   return async (request: Request, trustedIp = 'unknown'): Promise<Response> => {
     const requestId = crypto.randomUUID(),
@@ -129,12 +130,49 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(400, 'INVALID_JSON');
         }
       }
-      async function requireAdmin(section: 'license' | 'content' | 'read'): Promise<Admin> {
+      async function requireAdmin(
+        section: Permission | 'read' | 'license' | 'content',
+      ): Promise<Admin> {
         const token = request.headers.get('authorization')?.replace(/^Bearer /, '') || '';
-        const admin = await repo.admin(token);
+        let admin: Admin | null = null;
+        try {
+          const claims = await verifyToken(token, config, 'uhm-admin+jwt');
+          const access = (await repo.list('admin_access')).find(
+            (a) => a.id === claims.license_id && a.enabled && a.version === claims.access_version,
+          );
+          const license = (await repo.list('licenses')).find(
+            (l) =>
+              l.id === claims.license_id &&
+              !l.archived &&
+              l.status === 'active' &&
+              l.device_thumbprint === claims.device_thumbprint &&
+              l.entitlement_version === claims.entitlement_version &&
+              Date.parse(l.expires_at!) > Date.now(),
+          );
+          if (access && license)
+            admin = {
+              id: `license:${license.id}`,
+              license_id: license.id,
+              role: access.role,
+              permissions: access.permissions,
+              aal: 'device-proof',
+              auth_method: 'license',
+            };
+        } catch {
+          /* Tokens for Supabase Auth have a separate issuer and trust path. */
+        }
+        if (!admin) admin = await repo.admin(token);
         if (!admin) throw new HttpError(401, 'ADMIN_REQUIRED');
-        if (!allowed(admin.role, section)) throw new HttpError(403, 'ROLE_DENIED');
-        if (section !== 'read' && admin.aal !== 'aal2') throw new HttpError(403, 'MFA_REQUIRED');
+        const permission =
+          section === 'license'
+            ? 'licenses.create'
+            : section === 'content'
+              ? 'content.write'
+              : section;
+        if (permission !== 'read' && !hasPermission(admin, permission))
+          throw new HttpError(403, 'ROLE_DENIED');
+        if (admin.auth_method !== 'license' && admin.aal !== 'aal2')
+          throw new HttpError(403, 'MFA_REQUIRED');
         return admin;
       }
       async function proof(purpose: string, data: z.infer<typeof Proof>): Promise<string> {
@@ -167,6 +205,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         if (
           !license ||
           license.status !== 'active' ||
+          license.archived ||
           license.device_thumbprint !== thumb ||
           payload.device_thumbprint !== thumb ||
           license.entitlement_version !== payload.entitlement_version ||
@@ -175,6 +214,27 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(403, 'LICENSE_INVALID');
         return license;
       }
+      const extended = await adminServices({
+        url: request.url,
+        path,
+        method: request.method,
+        body,
+        repo,
+        config,
+        proof,
+        requireAdmin,
+        reply,
+        audit,
+      });
+      if (extended) return extended;
+      const service = (await repo.list('service_settings'))[0] ?? defaultService();
+      if (
+        request.method === 'POST' &&
+        ((path === '/licenses/activate' && (service.maintenance || service.activation_paused)) ||
+          (path === '/install/plan' && (service.maintenance || service.downloads_paused)) ||
+          (path === '/admin/licenses' && service.issuance_paused))
+      )
+        return reply({ error: 'SERVICE_PAUSED', message: service.message }, 503);
       if (path === '/demo/license' && request.method === 'POST' && config.mode === 'demo') {
         const code = generateLicenseCode();
         await repo.insert('licenses', [
@@ -199,7 +259,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         const input = z
           .object({
             public_key: PublicJwk,
-            purpose: z.enum(['activate', 'refresh', 'plan', 'report']),
+            purpose: z.enum(['activate', 'refresh', 'plan', 'report', 'admin', 'telemetry']),
           })
           .strict()
           .parse(body);
@@ -232,7 +292,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
           await audit('device', 'activation.rejected', thumb.slice(0, 12));
           throw new HttpError(403, 'ACTIVATION_DENIED');
         }
-        return reply({ grant: await grant(license, config), license: publicLicense(license) });
+        return reply({ grant: await grant(license, config), license: clientLicense(license) });
       }
       if (path === '/licenses/refresh' && request.method === 'POST') {
         // Renewal uses device proof plus the explicit license ID; an expired grant is not authorization.
@@ -243,10 +303,11 @@ export function createApi(repo: Repository, config: ApiConfig) {
             l.id === input.license_id &&
             l.device_thumbprint === thumb &&
             l.status === 'active' &&
+            !l.archived &&
             Date.parse(l.expires_at!) > Date.now(),
         );
         if (!license) throw new HttpError(403, 'LICENSE_INVALID');
-        return reply({ grant: await grant(license, config), license: publicLicense(license) });
+        return reply({ grant: await grant(license, config), license: clientLicense(license) });
       }
       if (path === '/install/plan' && request.method === 'POST') {
         const input = Proof.extend({ package_id: Id }).strict().parse(body);
@@ -294,21 +355,42 @@ export function createApi(repo: Repository, config: ApiConfig) {
         return reply({ accepted: true });
       }
       if (path === '/admin/releases' && request.method === 'GET') {
-        await requireAdmin('read');
-        return reply({ releases: await repo.releases() });
+        await requireAdmin('content.read');
+        const actor = await requireAdmin('content.read');
+        return reply({
+          releases: (await repo.releases()).map((r) =>
+            hasPermission(actor, 'content.write')
+              ? r
+              : { ...r, manifest: { ...r.manifest, files: [], steps: [] } },
+          ),
+        });
       }
       if (path === '/admin/overview' && request.method === 'GET') {
         const admin = await requireAdmin('read');
-        const licenses = await repo.list('licenses');
-        const packages = await repo.list('packages');
+        const can = (permission: Permission) => hasPermission(admin, permission);
+        const events =
+          can('analytics.read') || can('errors.read') ? await repo.list('telemetry_events') : [];
         return reply({
           admin,
-          licenses: licenses.map(publicLicense),
-          packages,
-          events: (await repo.list('audit_events'))
-            .sort((a, b) => b.created_at.localeCompare(a.created_at))
-            .slice(0, 100),
-          reports: await repo.list('install_reports'),
+          licenses: can('licenses.read') ? (await repo.list('licenses')).map(publicLicense) : [],
+          packages: can('content.read')
+            ? (await repo.list('packages')).map((p) =>
+                can('content.write') ? p : { ...p, files: [], steps: [] },
+              )
+            : [],
+          events: can('audit.read')
+            ? (await repo.list('audit_events'))
+                .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                .slice(0, 500)
+            : [],
+          reports: can('analytics.read') ? await repo.list('install_reports') : [],
+          telemetry: events
+            .filter(
+              (e) => can('analytics.read') || e.type.endsWith('failed') || e.type === 'app_error',
+            )
+            .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+            .slice(0, 10000),
+          service: can('service.manage') ? service : null,
         });
       }
       if (path === '/admin/licenses' && request.method === 'POST') {
@@ -340,12 +422,21 @@ export function createApi(repo: Repository, config: ApiConfig) {
         /^\/admin\/licenses\/([a-f0-9-]+)\/(suspend|revoke|resume|reset|extend)$/,
       );
       if (licenseAction && request.method === 'POST') {
-        const admin = await requireAdmin('license');
+        const admin = await requireAdmin(
+          licenseAction[2] === 'resume'
+            ? 'licenses.suspend'
+            : (`licenses.${licenseAction[2]}` as Permission),
+        );
         const id = Id.parse(licenseAction[1]);
         const input = z
           .object({ days: z.number().int().min(1).max(365).optional() })
           .strict()
           .parse(body);
+        const targetAccess = (await repo.list('admin_access')).find(
+          (a) => a.id === id && a.enabled,
+        );
+        if (targetAccess && admin.role !== 'owner') throw new HttpError(403, 'ROLE_DENIED');
+        if (admin.license_id === id) throw new HttpError(403, 'SELF_ACCESS_CHANGE');
         await repo.mutateLicense(id, licenseAction[2], admin.id, input.days);
         return reply({ ok: true });
       }
@@ -366,7 +457,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
       }
       const publish = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/(publish|archive)$/);
       if (publish && request.method === 'POST') {
-        const admin = await requireAdmin('content'),
+        const admin = await requireAdmin('content.publish'),
           all = await repo.list('packages');
         const pkg = all.find((p) => p.id === Id.parse(publish[1]));
         if (!pkg) throw new HttpError(404, 'NOT_FOUND');
@@ -404,7 +495,9 @@ export function createApi(repo: Repository, config: ApiConfig) {
         'DUPLICATE_ID',
         'DESTINATION_CONFLICT',
         'NOT_FOUND',
+        'DUPLICATE_FILENAME',
         'INVALID_ACTION',
+        'LAST_OWNER',
         'RELEASE_IMMUTABLE',
       ];
       if (error instanceof Error && known.includes(error.message))
@@ -417,4 +510,14 @@ export function createApi(repo: Repository, config: ApiConfig) {
 }
 export function publicLicense({ code_hash, ...license }: License) {
   return license;
+}
+
+function clientLicense(l: License) {
+  return {
+    id: l.id,
+    tier: l.tier,
+    expires_at: l.expires_at,
+    device_thumbprint: l.device_thumbprint,
+    status: l.status,
+  };
 }

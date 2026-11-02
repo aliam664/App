@@ -1,0 +1,45 @@
+name: Refresh compiled branch preview
+on:
+  push:
+    branches: [arena/37af8e92-app]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: branch-preview
+  cancel-in-progress: true
+jobs:
+  refresh:
+    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - run: npm run build:branch
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:pages
+      - name: Store generated preview of the shared source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pages-preview
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh generated shared UI preview [skip ci]'
+            git push origin HEAD:arena/37af8e92-app
+          fi
+      - name: Rebuild legacy Pages when that source is selected
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(gh api 'repos/${{ github.repository }}/pages' --jq '.build_type')
+          if [ "$source" = 'legacy' ]; then
+            gh api --method POST 'repos/${{ github.repository }}/pages/builds'
+          fi

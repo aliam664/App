@@ -14,7 +14,13 @@ export class SupabaseRepository implements Repository {
   }
   private check(error: { message: string } | null) {
     if (error) {
-      const known = ['RELEASE_IMMUTABLE', 'EMPTY_INSTALL_PLAN', 'INVALID_ACTION', 'NOT_FOUND'];
+      const known = [
+        'RELEASE_IMMUTABLE',
+        'EMPTY_INSTALL_PLAN',
+        'INVALID_ACTION',
+        'NOT_FOUND',
+        'LAST_OWNER',
+      ];
       const code = known.find((code) => error.message.includes(code));
       if (code) throw new Error(code);
       if (error.message.includes('package_releases_pkey')) throw new Error('RELEASE_IMMUTABLE');
@@ -108,6 +114,73 @@ export class SupabaseRepository implements Repository {
     const { data: claims, error: claimsError } = await this.db.auth.getClaims(token);
     if (claimsError || !claims) return null;
     return { id: user.id, role: membership.role, aal: String(claims.claims.aal || 'aal1') };
+  }
+  async errorsPage(status: 'open' | 'all' | 'resolved', before?: { at: string; id: string }) {
+    let q = this.db
+      .from('telemetry_events')
+      .select('*')
+      .in('type', ['download_failed', 'install_failed', 'app_error'])
+      .order('occurred_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(100);
+    if (status === 'open') q = q.is('resolved_at', null);
+    if (status === 'resolved') q = q.not('resolved_at', 'is', null);
+    if (before)
+      q = q.or(`occurred_at.lt.${before.at},and(occurred_at.eq.${before.at},id.lt.${before.id})`);
+    const { data, error } = await q;
+    this.check(error);
+    return data as import('../../packages/contracts/src/index.ts').TelemetryEvent[];
+  }
+  async licenseStats(id: string) {
+    const { data, error } = await this.db.rpc('license_event_stats', { p_license: id });
+    this.check(error);
+    return data;
+  }
+  async auditPage(id: string, before?: { at: string; id: string }) {
+    let q = this.db
+      .from('audit_events')
+      .select('*')
+      .eq('target', id)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(100);
+    if (before)
+      q = q.or(`created_at.lt.${before.at},and(created_at.eq.${before.at},id.lt.${before.id})`);
+    const { data, error } = await q;
+    this.check(error);
+    return data as import('../../packages/contracts/src/index.ts').AuditEvent[];
+  }
+  async analytics(since: string) {
+    const { data, error } = await this.db.rpc('dashboard_analytics', { p_since: since });
+    this.check(error);
+    return data;
+  }
+  async eventsPage(licenseId: string, before?: { at: string; id: string }) {
+    let q = this.db
+      .from('telemetry_events')
+      .select('*')
+      .eq('license_id', licenseId)
+      .order('occurred_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(100);
+    if (before)
+      q = q.or(`occurred_at.lt.${before.at},and(occurred_at.eq.${before.at},id.lt.${before.id})`);
+    const { data, error } = await q;
+    this.check(error);
+    return data as import('../../packages/contracts/src/index.ts').TelemetryEvent[];
+  }
+  async saveAccess(
+    access: import('../../packages/contracts/src/index.ts').AdminAccess,
+    actor: string,
+  ) {
+    const { error } = await this.db.rpc('save_admin_access', { p_access: access, p_actor: actor });
+    this.check(error);
+  }
+  async ingestEvents(events: import('../../packages/contracts/src/index.ts').TelemetryEvent[]) {
+    const { error } = await this.db
+      .from('telemetry_events')
+      .upsert(events, { onConflict: 'license_id,id', ignoreDuplicates: true });
+    this.check(error);
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {
     const { error } = await this.db.rpc('mutate_license', {

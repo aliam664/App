@@ -5,12 +5,15 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pages: read
 concurrency:
   group: github-pages
   cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_source: ${{ steps.pages-source.outputs.type }}
     env:
       PAGES_BASE_PATH: /App/
     steps:
@@ -19,9 +22,15 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Detect the configured Pages source
+        id: pages-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "type=$(gh api 'repos/${{ github.repository }}/pages' --jq '.build_type')" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - run: npm run build
       - run: npm run build:pages
+      - run: npm run build:branch
       - run: npm run verify:builds
       - run: npx playwright install --with-deps chromium
       - run: npm run test:pages
@@ -37,6 +46,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    if: needs.build.outputs.pages_source == 'workflow'
     permissions:
       pages: write
       id-token: write
@@ -44,10 +54,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Use compiled Actions deployment, never publish raw TypeScript
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api --method PUT "repos/${{ github.repository }}/pages" -f build_type=workflow
       - uses: actions/configure-pages@v5
       - name: Deploy the same compiled UI
         id: deployment

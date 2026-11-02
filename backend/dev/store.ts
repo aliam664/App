@@ -1,3 +1,4 @@
+import { summarizeEvents } from '../src/analytics.ts';
 import type {
   Tables,
   Table,
@@ -14,6 +15,9 @@ export const emptyState = (): State => ({
   challenges: [],
   install_reports: [],
   releases: [],
+  admin_access: [],
+  telemetry_events: [],
+  service_settings: [],
 });
 export class LocalRepository implements Repository {
   private queue: Promise<unknown> = Promise.resolve();
@@ -22,7 +26,9 @@ export class LocalRepository implements Repository {
     public state: State = emptyState(),
     private persist: (state: State) => Promise<void> = async () => {},
     public adminToken = 'test-admin-token',
-  ) {}
+  ) {
+    this.state = { ...emptyState(), ...state };
+  }
   private async transaction<T>(fn: () => T | Promise<T>): Promise<T> {
     const next = this.queue.then(async () => {
       const previous = structuredClone(this.state);
@@ -95,6 +101,7 @@ export class LocalRepository implements Repository {
       const l = this.state.licenses.find((l) => l.code_hash === hash);
       if (
         !l ||
+        l.archived ||
         ['suspended', 'revoked'].includes(l.status) ||
         (l.expires_at && l.expires_at <= now) ||
         (l.device_thumbprint && l.device_thumbprint !== thumb)
@@ -141,6 +148,92 @@ export class LocalRepository implements Repository {
   }
   async admin(token: string): Promise<Admin | null> {
     return token === this.adminToken ? { id: 'demo-owner', role: 'owner', aal: 'aal2' } : null;
+  }
+  async errorsPage(status: 'open' | 'all' | 'resolved', before?: { at: string; id: string }) {
+    return (await this.list('telemetry_events'))
+      .filter(
+        (e) =>
+          (e.type.endsWith('failed') || e.type === 'app_error') &&
+          (status === 'all' || (status === 'resolved' ? !!e.resolved_at : !e.resolved_at)) &&
+          (!before ||
+            e.occurred_at < before.at ||
+            (e.occurred_at === before.at && e.id < before.id)),
+      )
+      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || b.id.localeCompare(a.id))
+      .slice(0, 100);
+  }
+  async licenseStats(id: string) {
+    const rows = (await this.list('telemetry_events'))
+      .filter((e) => e.license_id === id)
+      .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+    return {
+      totals: summarizeEvents(rows, '0000').totals,
+      first_seen: rows[0]?.occurred_at || null,
+      last_seen: rows.at(-1)?.occurred_at || null,
+    };
+  }
+  async auditPage(id: string, before?: { at: string; id: string }) {
+    return (await this.list('audit_events'))
+      .filter(
+        (e) =>
+          e.target === id &&
+          (!before || e.created_at < before.at || (e.created_at === before.at && e.id < before.id)),
+      )
+      .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+      .slice(0, 100);
+  }
+  async analytics(since: string) {
+    return summarizeEvents(await this.list('telemetry_events'), since);
+  }
+  async eventsPage(licenseId: string, before?: { at: string; id: string }) {
+    return (await this.list('telemetry_events'))
+      .filter(
+        (e) =>
+          e.license_id === licenseId &&
+          (!before ||
+            e.occurred_at < before.at ||
+            (e.occurred_at === before.at && e.id < before.id)),
+      )
+      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || b.id.localeCompare(a.id))
+      .slice(0, 100);
+  }
+  async saveAccess(
+    access: import('../../packages/contracts/src/index.ts').AdminAccess,
+    actor: string,
+  ) {
+    await this.transaction(() => {
+      const old = this.state.admin_access.find((a) => a.id === access.id);
+      if (
+        old?.enabled &&
+        old.role === 'owner' &&
+        (!access.enabled || access.role !== 'owner') &&
+        !this.state.admin_access.some((a) => a.id !== access.id && a.role === 'owner' && a.enabled)
+      )
+        throw new Error('LAST_OWNER');
+      const next = { ...access, version: (old?.version ?? 0) + 1 };
+      this.state.admin_access = this.state.admin_access
+        .filter((a) => a.id !== access.id)
+        .concat(next);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'admin.access.changed',
+        target: access.id,
+        detail: JSON.stringify({ before: old, after: next }),
+        created_at: new Date().toISOString(),
+      });
+    });
+  }
+  async ingestEvents(events: import('../../packages/contracts/src/index.ts').TelemetryEvent[]) {
+    await this.transaction(() => {
+      for (const event of events)
+        if (
+          !this.state.telemetry_events.some(
+            (e) => e.id === event.id && e.license_id === event.license_id,
+          )
+        )
+          this.state.telemetry_events.push(structuredClone(event));
+    });
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {
     await this.transaction(() => {

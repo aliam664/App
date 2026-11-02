@@ -1,0 +1,471 @@
+import { api } from './api';
+import {
+  hasPermission,
+  Permission,
+  rolePermissions,
+  defaultService,
+  type Admin,
+  type AdminAccess,
+  type License,
+  type TelemetryEvent,
+  type ServiceSettings,
+} from '../../../packages/contracts/src/index';
+import { esc, icon, fa, date, badge, modal, field, busy, toast, decorate, empty } from './ui';
+type LicenseView = Omit<License, 'code_hash'>;
+export type ConsoleData = {
+  admin: Admin;
+  licenses: LicenseView[];
+  telemetry?: TelemetryEvent[];
+  service?: ServiceSettings | null;
+  packages: { id: string; name: string }[];
+};
+type Context = { data: ConsoleData; token: string; reload: () => Promise<void> };
+const roles: Record<string, string> = {
+  owner: 'مالک اصلی',
+  license_manager: 'مدیر لایسنس',
+  content_manager: 'مدیر محتوا',
+  support: 'پشتیبان',
+  viewer: 'مشاهده‌گر',
+};
+const permissionLabels: Record<Permission, string> = {
+  'licenses.read': 'مشاهده پرونده لایسنس',
+  'licenses.create': 'صدور لایسنس',
+  'licenses.update': 'ویرایش نام، توضیح و سطح',
+  'licenses.suspend': 'تعلیق و رفع تعلیق',
+  'licenses.revoke': 'لغو دائمی',
+  'licenses.reset': 'آزادسازی دستگاه',
+  'licenses.extend': 'تمدید اعتبار',
+  'licenses.archive': 'بایگانی',
+  'content.read': 'مشاهده محتوا',
+  'content.write': 'ویرایش فایل‌ها و رمز آرشیو',
+  'content.publish': 'انتشار و بایگانی محتوا',
+  'analytics.read': 'مشاهده تحلیل عملکرد',
+  'errors.read': 'مشاهده خطاها',
+  'errors.resolve': 'رسیدگی به خطاها',
+  'team.manage': 'واگذاری دسترسی مدیران',
+  'service.manage': 'کنترل نگهداری سرویس',
+  'audit.read': 'مشاهده ردپای مدیریتی',
+};
+const eventLabels: Record<string, string> = {
+  app_open: 'اجرای برنامه',
+  download_started: 'شروع دانلود',
+  download_completed: 'دانلود فایل تأییدشده',
+  package_download_completed: 'دانلود کامل پکیج',
+  download_failed: 'خطای دانلود',
+  install_started: 'شروع نصب',
+  install_completed: 'نصب تأییدشده',
+  install_failed: 'خطای نصب',
+  app_error: 'خطای برنامه',
+};
+const errors: Record<string, string> = {
+  HASH_MISMATCH: 'هش فایل با نسخه منتشرشده مطابقت ندارد',
+  DISK_FULL: 'فضای خالی کافی نیست',
+  ARCHIVE_PASSWORD_OR_CORRUPT: 'رمز آرشیو نادرست است یا فایل خراب/پشتیبانی‌نشده است',
+  DOWNLOAD_FAILED: 'ارتباط دانلود یا دریافت فایل ناموفق بود',
+  INSTALL_FAILED: 'موتور نصب عملیات را کامل نکرد',
+  RECOVERY_REQUIRED: 'نصب به بررسی و بازیابی نیاز دارد',
+};
+const can = (c: Context, p: Permission) => hasPermission(c.data.admin, p);
+const heading = (over: string, title: string, description: string) =>
+  `<div class="page-title"><div><p class="eyebrow">${over}</p><h1>${title}</h1><p class="muted">${description}</p></div><span class="console-pill">${icon('shield-check')} ${roles['owner'] && 'UHM CONTROL'}</span></div>`;
+function activityTable(events: TelemetryEvent[], packages: Context['data']['packages']) {
+  return events.length
+    ? `<div class="table-scroll"><table><thead><tr><th>فعالیت / نتیجه</th><th>پکیج / نسخه</th><th>فایل / میزبان</th><th>زمان وقوع</th><th>دریافت سرور</th></tr></thead><tbody>${events.map((e) => `<tr><td><span class="event-state ${e.type.includes('failed') || e.type === 'app_error' ? 'is-error' : ''}">${esc(eventLabels[e.type])}</span><small class="cell-sub">${esc(errors[e.error_code || ''] || e.error_code || '')}</small></td><td>${esc(packages.find((p) => p.id === e.package_id)?.name || '—')}<small class="cell-sub" dir="ltr">${esc(e.version || '')}</small></td><td><code>${esc(e.file_name || e.file_id?.slice(0, 8) || '—')}</code><small class="cell-sub" dir="ltr">${esc(e.host || '')}</small></td><td>${date(e.occurred_at)}<small class="cell-sub">${new Date(e.occurred_at).toLocaleTimeString('fa-IR')}</small></td><td>${date(e.received_at)}</td></tr>`).join('')}</tbody></table></div>`
+    : empty(
+        'هنوز رویدادی دریافت نشده',
+        'داده‌ها فقط پس از ارسال واقعی از برنامه نمایش داده می‌شوند.',
+        'radio',
+      );
+}
+export function licenseProfile(l: LicenseView, c: Context) {
+  const events = (c.data.telemetry || []).filter((e) => e.license_id === l.id);
+  const d = modal(
+    l.display_name || 'پرونده لایسنس',
+    `<div class="license-hero"><div>${badge(l.tier)}<h3>${esc(l.display_name || l.prefix + '••••')}</h3><code>${esc(l.id)}</code></div><span class="status ${l.status}">${esc(l.status)}</span></div><div class="console-tabs" role="tablist"><button type="button" class="current" data-profile-tab="details">مشخصات و کنترل</button><button type="button" data-profile-tab="activity">دانلود و نصب</button><button type="button" data-profile-tab="history">تاریخچه مدیران</button></div><section data-profile-panel="details"><div class="profile-summary"><div><small>اعتبار تا</small><b>${date(l.expires_at)}</b></div><div><small>فعال‌سازی دستگاه</small><b>${fa(l.activation_count)}</b></div><div><small>اجراهای گزارش‌شده</small><b id="profile-open-count">…</b></div></div><form id="license-metadata">${field('نام دلخواه', `<input name="display_name" maxlength="120" value="${esc(l.display_name || '')}">`)}${field('برچسب‌ها (با ویرگول جدا کنید)', `<input name="tags" value="${esc((l.tags || []).join(', '))}">`)}${field('توضیحات داخلی', `<textarea name="notes" rows="4" maxlength="4000">${esc(l.notes || '')}</textarea>`)}${can(c, 'licenses.update') ? '<button class="button" type="submit">ذخیره مشخصات</button>' : ''}</form><div class="license-controls">${can(c, 'licenses.extend') ? `<label class="field">روز تمدید<input id="extend-days" type="number" min="1" max="365" value="30"></label><button class="button secondary" data-license-action="extend">تمدید اعتبار</button>` : ''}${can(c, 'licenses.update') ? `<label class="field">سطح جدید<select id="new-tier">${['normal', 'pro', 'vip'].map((t) => `<option ${t === l.tier ? 'selected' : ''}>${t}</option>`).join('')}</select></label><button class="button secondary" data-license-action="tier">تغییر سطح</button>` : ''}${(
+      ['suspend', 'resume', 'reset', 'revoke', 'archive'] as const
+    )
+      .filter((a) => can(c, `licenses.${a === 'resume' ? 'suspend' : a}` as Permission))
+      .map(
+        (a) =>
+          `<button class="button ${a === 'revoke' ? 'danger-button' : 'secondary'}" data-license-action="${a}">${{ suspend: 'تعلیق', resume: 'رفع تعلیق', reset: 'آزادسازی دستگاه', revoke: 'لغو دائمی', archive: l.archived ? 'خارج کردن از بایگانی' : 'بایگانی و تعلیق' }[a]}</button>`,
+      )
+      .join(
+        '',
+      )}</div><p class="fine-print">مجوز آفلاینِ قبلاً صادرشده فوراً از دستگاه حذف نمی‌شود. بایگانی، سابقه را نگه می‌دارد و صدور دسترسی جدید را متوقف می‌کند.</p></section><section data-profile-panel="activity" hidden><div id="profile-activity">${activityTable(events, c.data.packages)}</div><button class="button secondary" id="load-activity">دریافت تاریخچه بیشتر از سرور</button></section><section data-profile-panel="history" hidden><div id="profile-history" class="audit-timeline"></div><button type="button" class="button secondary" id="load-audit">تاریخچه قدیمی‌تر</button></section>`,
+    true,
+  );
+  d.querySelectorAll<HTMLButtonElement>('[data-profile-tab]').forEach(
+    (button) =>
+      (button.onclick = () => {
+        d.querySelectorAll('[data-profile-tab]').forEach((b) =>
+          b.classList.toggle('current', b === button),
+        );
+        d.querySelectorAll<HTMLElement>('[data-profile-panel]').forEach(
+          (p) => (p.hidden = p.dataset.profilePanel !== button.dataset.profileTab),
+        );
+      }),
+  );
+  const adminEvents = ((c.data as any).events || []).filter((e: any) => e.target === l.id);
+  d.querySelector('#profile-history')!.innerHTML = adminEvents.length
+    ? adminEvents
+        .map(
+          (e: any) =>
+            `<article><b dir="ltr">${esc(e.action)}</b><p>${esc(e.actor)}</p><small>${date(e.created_at)}</small></article>`,
+        )
+        .join('')
+    : '<p class="muted">رویدادی در تاریخچه دریافتی شما نیست یا مجوز مشاهده آن را ندارید.</p>';
+  d.querySelector('form')!.onsubmit = (e) => {
+    e.preventDefault();
+    if (!can(c, 'licenses.update')) return;
+    void busy(d.querySelector('button[type=submit]')!, async () => {
+      const f = new FormData(e.target as HTMLFormElement);
+      await api(
+        `/admin/licenses/${l.id}/metadata`,
+        {
+          display_name: f.get('display_name'),
+          notes: f.get('notes'),
+          tags: String(f.get('tags'))
+            .split(/[,،]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        },
+        c.token,
+      );
+      d.close();
+      await c.reload();
+      toast('پرونده به‌روزرسانی شد.');
+    });
+  };
+  d.querySelectorAll<HTMLButtonElement>('[data-license-action]').forEach(
+    (button) =>
+      (button.onclick = () => {
+        const action = button.dataset.licenseAction!;
+        const confirm = modal(
+          'تأیید عملیات',
+          `<p>«${esc(button.textContent)}» برای این لایسنس ثبت شود؟</p><button class="button full" id="confirm-action">تأیید و ثبت</button>`,
+        );
+        confirm.querySelector<HTMLButtonElement>('#confirm-action')!.onclick = function () {
+          void busy(this as HTMLButtonElement, async () => {
+            const body =
+              action === 'extend'
+                ? { days: Number((d.querySelector('#extend-days') as HTMLInputElement).value) }
+                : action === 'tier'
+                  ? { tier: (d.querySelector('#new-tier') as HTMLSelectElement).value }
+                  : action === 'archive'
+                    ? { archived: !l.archived }
+                    : {};
+            await api(`/admin/licenses/${l.id}/${action}`, body, c.token);
+            confirm.close();
+            d.close();
+            await c.reload();
+            toast('تغییر ثبت شد.');
+          });
+        };
+      }),
+  );
+  let cursor = '';
+  let rows: TelemetryEvent[] = [];
+  const loadActivity = async () => {
+    const response = await api<{
+      events: TelemetryEvent[];
+      next: string | null;
+      stats: {
+        totals: { type: string; count: number }[];
+        first_seen: string | null;
+        last_seen: string | null;
+      };
+    }>(
+      `/admin/licenses/${l.id}/activity${cursor ? '?cursor=' + encodeURIComponent(cursor) : ''}`,
+      undefined,
+      c.token,
+    );
+    rows.push(...response.events);
+    cursor = response.next || '';
+    d.querySelector('#profile-activity')!.innerHTML = activityTable(rows, c.data.packages);
+    const count = d.querySelector('#profile-open-count');
+    if (count)
+      count.textContent = fa(
+        Number(response.stats.totals.find((t) => t.type === 'app_open')?.count || 0),
+      );
+    const button = d.querySelector<HTMLButtonElement>('#load-activity')!;
+    button.disabled = !response.next;
+    button.textContent = response.next ? 'رویدادهای قدیمی‌تر' : 'پایان تاریخچه';
+  };
+  d.querySelector<HTMLButtonElement>('#load-activity')!.onclick = function () {
+    void busy(this as HTMLButtonElement, loadActivity);
+  };
+  void loadActivity().catch(() => {});
+  let auditCursor = '';
+  let auditRows: any[] = [];
+  const loadAudit = async () => {
+    const response = await api<any>(
+      `/admin/licenses/${l.id}/audit${auditCursor ? '?cursor=' + encodeURIComponent(auditCursor) : ''}`,
+      undefined,
+      c.token,
+    );
+    auditRows.push(...response.events);
+    auditCursor = response.next || '';
+    d.querySelector('#profile-history')!.innerHTML =
+      auditRows
+        .map(
+          (e) =>
+            `<article><b dir="ltr">${esc(e.action)}</b><p>${esc(e.actor)}</p><small>${date(e.created_at)}</small><details><summary>جزئیات تغییر</summary><pre class="audit-detail">${esc(e.detail)}</pre></details></article>`,
+        )
+        .join('') || '<p class="muted">رویدادی برای این لایسنس ثبت نشده است.</p>';
+    d.querySelector<HTMLButtonElement>('#load-audit')!.disabled = !response.next;
+  };
+  if (can(c, 'audit.read')) {
+    void loadAudit().catch(() => {});
+    d.querySelector<HTMLButtonElement>('#load-audit')!.onclick = function () {
+      void busy(this as HTMLButtonElement, loadAudit);
+    };
+  } else d.querySelector<HTMLButtonElement>('#load-audit')!.hidden = true;
+  decorate();
+}
+export async function renderConsole(el: HTMLElement, page: string, c: Context): Promise<boolean> {
+  const need: Record<string, Permission> = {
+    analytics: 'analytics.read',
+    errors: 'errors.read',
+    team: 'team.manage',
+    service: 'service.manage',
+  };
+  if (!need[page]) return false;
+  if (!can(c, need[page])) {
+    el.innerHTML = empty(
+      'دسترسی این بخش واگذار نشده',
+      'مالک می‌تواند مجوزهای حساب مدیریتی شما را تغییر دهد.',
+      'shield',
+    );
+    decorate();
+    return true;
+  }
+  if (page === 'team') await team(el, c);
+  else if (page === 'service') service(el, c);
+  else if (page === 'errors') await errorCenter(el, c);
+  else await analytics(el, c);
+  decorate();
+  return true;
+}
+async function team(el: HTMLElement, c: Context) {
+  const { members, license_options } = await api<{
+    members: AdminAccess[];
+    license_options: ConsoleData['licenses'];
+  }>('/admin/team', undefined, c.token);
+  el.innerHTML =
+    heading(
+      'PEOPLE & PERMISSIONS / 06',
+      'تیم شما. مرزهای روشن.',
+      'هر مدیر با لایسنس و کلید دستگاه مستقل؛ تغییر مجوزها در درخواست بعدی کنترل می‌شود.',
+    ) +
+    `<div class="console-notice">${icon('key-round')}ابتدا لایسنس بسازید، سپس اینجا دسترسی بدهید. فرد با همان کد، برنامه و دسترسی مدیریتی خود را فعال می‌کند.</div><div class="team-grid">${members
+      .map((m) => {
+        const l = c.data.licenses.find((l) => l.id === m.id);
+        return `<article class="panel member-card"><span class="avatar">${esc((l?.display_name || l?.prefix || 'A').slice(0, 2))}</span><h3>${esc(l?.display_name || l?.prefix || m.id.slice(0, 8))}</h3><span class="console-pill">${esc(roles[m.role])}</span><p class="muted">${m.enabled ? 'دسترسی فعال' : 'دسترسی متوقف'} · ${fa(m.role === 'owner' ? Permission.options.length : m.permissions.length)} مجوز مشخص</p><small>${date(m.updated_at)}</small><button class="button secondary" data-edit-member="${m.id}">تنظیم دسترسی‌ها</button></article>`;
+      })
+      .join(
+        '',
+      )}<button class="panel add-member-card" id="new-member">${icon('plus')}<b>واگذاری دسترسی جدید</b><span>انتخاب لایسنس و مجوزها</span></button></div>`;
+  const edit = (existing?: AdminAccess) => {
+    const candidates = (license_options || c.data.licenses).filter(
+      (l) =>
+        !l.archived && l.status !== 'revoked' && (existing || !members.some((m) => m.id === l.id)),
+    );
+    if (!candidates.length) {
+      toast('ابتدا یک لایسنس قابل استفاده بسازید.', true);
+      return;
+    }
+    const d = modal(
+      'مجوزهای حساب مدیریتی',
+      `<form id="access-form">${field('لایسنس', `<select name="license_id" ${existing ? 'disabled' : ''}>${candidates.map((l) => `<option value="${l.id}" ${existing?.id === l.id ? 'selected' : ''}>${esc(l.display_name || l.prefix)} · ${l.id.slice(0, 8)}</option>`).join('')}</select>`)}${field(
+        'قالب نقش',
+        `<select name="role">${Object.entries(roles)
+          .filter(([r]) => c.data.admin.role === 'owner' || r !== 'owner')
+          .map(
+            ([r, label]) =>
+              `<option value="${r}" ${(existing?.role || 'support') === r ? 'selected' : ''}>${label}</option>`,
+          )
+          .join('')}</select>`,
+      )}<label class="setting-row"><span>دسترسی مدیریت فعال باشد</span><input type="checkbox" name="enabled" ${!existing || existing.enabled ? 'checked' : ''}></label><h3>مجوزهای قابل واگذاری</h3><div class="permission-grid">${Permission.options
+        .filter((p) => hasPermission(c.data.admin, p))
+        .map(
+          (p) =>
+            `<label><input type="checkbox" name="permission" value="${p}" ${(existing?.permissions || rolePermissions.support).includes(p) ? 'checked' : ''}><span>${permissionLabels[p]}</span></label>`,
+        )
+        .join(
+          '',
+        )}</div><p class="fine-print">نقش مالک همه اختیارات برنامه را دارد. مجوزهای رمز عبور آرشیو و مدیریت تیم حساس‌اند؛ فقط در صورت نیاز واگذار شوند. تغییر حساب فعلی خودتان ممنوع است.</p><button class="button full" type="submit">ذخیره و اعمال دسترسی</button></form>`,
+      true,
+    );
+    d.querySelector<HTMLSelectElement>('[name=role]')!.onchange = function () {
+      const list =
+        rolePermissions[(this as HTMLSelectElement).value as keyof typeof rolePermissions];
+      d.querySelectorAll<HTMLInputElement>('[name=permission]').forEach(
+        (i) => (i.checked = list.includes(i.value as Permission)),
+      );
+    };
+    d.querySelector('form')!.onsubmit = (e) => {
+      e.preventDefault();
+      void busy(d.querySelector('[type=submit]')!, async () => {
+        const f = new FormData(e.target as HTMLFormElement);
+        await api(
+          `/admin/team/${existing?.id || f.get('license_id')}`,
+          { role: f.get('role'), permissions: f.getAll('permission'), enabled: f.has('enabled') },
+          c.token,
+        );
+        d.close();
+        await c.reload();
+        toast('دسترسی جدید ثبت شد.');
+      });
+    };
+    decorate();
+  };
+  el.querySelector('#new-member')!.addEventListener('click', () => edit());
+  el.querySelectorAll<HTMLButtonElement>('[data-edit-member]').forEach(
+    (b) => (b.onclick = () => edit(members.find((m) => m.id === b.dataset.editMember))),
+  );
+}
+function service(el: HTMLElement, c: Context) {
+  const s = c.data.service || defaultService();
+  el.innerHTML =
+    heading(
+      'SERVICE OPERATIONS / 07',
+      'کنترل سرویس، بدون قطع کور.',
+      'عملیات جدید را متوقف کنید؛ پنل و دریافت گزارش‌ها برای مدیریت و عیب‌یابی در دسترس می‌مانند.',
+    ) +
+    `<form id="service-form" class="panel service-card">${(['maintenance', 'activation_paused', 'issuance_paused', 'downloads_paused'] as const).map((k) => `<label class="setting-row"><div><b>${{ maintenance: 'حالت نگهداری عمومی', activation_paused: 'توقف فعال‌سازی لایسنس جدید', issuance_paused: 'توقف صدور کد جدید', downloads_paused: 'توقف شروع دانلود و نصب جدید' }[k]}</b><p>تغییر سمت API اعمال و در تاریخچه ثبت می‌شود.</p></div><input type="checkbox" name="${k}" ${s[k] ? 'checked' : ''}></label>`).join('')}${field('پیام برای کاربران', `<textarea name="message" maxlength="500" rows="3">${esc(s.message)}</textarea>`)}<button class="button" type="submit">اعمال وضعیت سرویس</button><p class="fine-print">این کنترل، نصب جاری را وسط تغییر فایل‌ها قطع نمی‌کند و لینک دریافت‌شده از هاست خارجی را باطل نمی‌کند.</p></form><section class="panel integration-card"><span class="console-pill">NOT CONNECTED</span><h3>کنترل ربات / سرور بازی</h3><p class="muted">ربات یا میزبان مشخصی به پروژه متصل نشده است. برای امنیت، دکمه توقف فرضی یا اجرای دستور دلخواه سرور وجود ندارد.</p></section>`;
+  el.querySelector('form')!.onsubmit = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    void busy(el.querySelector('[type=submit]')!, async () => {
+      await api(
+        '/admin/service',
+        {
+          maintenance: f.has('maintenance'),
+          activation_paused: f.has('activation_paused'),
+          issuance_paused: f.has('issuance_paused'),
+          downloads_paused: f.has('downloads_paused'),
+          message: String(f.get('message')),
+        },
+        c.token,
+      );
+      await c.reload();
+      toast('وضعیت سرویس اعمال شد.');
+    });
+  };
+}
+async function errorCenter(el: HTMLElement, c: Context) {
+  let events: TelemetryEvent[] = [];
+  let cursor = '';
+  el.innerHTML =
+    heading(
+      'INCIDENT DESK / 08',
+      'خطاها، قابل پیگیری.',
+      'نتیجه واقعی گزارش‌های کلاینت؛ بدون ثبت رمز آرشیو، مسیر شخصی یا لینک امضاشده.',
+    ) +
+    `<div class="toolbar"><label class="search">${icon('search')}<input id="error-search" placeholder="کد خطا، لایسنس یا پکیج…"></label><select id="error-status"><option value="open">نیازمند رسیدگی</option><option value="all">همه</option><option value="resolved">رسیدگی‌شده</option></select></div><div id="incident-list" class="incident-list"></div><button class="button secondary" id="load-errors">گزارش‌های قدیمی‌تر</button>`;
+  const render = () => {
+    const q = (el.querySelector('#error-search') as HTMLInputElement).value.toLowerCase();
+    const status = (el.querySelector('#error-status') as HTMLSelectElement).value;
+    const selected = events.filter(
+      (e) =>
+        (status === 'all' || (status === 'resolved' ? !!e.resolved_at : !e.resolved_at)) &&
+        `${e.error_code} ${e.package_id} ${e.license_id}`.toLowerCase().includes(q),
+    );
+    el.querySelector('#incident-list')!.innerHTML = selected.length
+      ? selected
+          .map(
+            (e) =>
+              `<article class="panel incident-card"><span class="event-state is-error">${esc(e.error_code || eventLabels[e.type])}</span><h3>${esc(errors[e.error_code || ''] || eventLabels[e.type])}</h3><p>${esc(c.data.packages.find((p) => p.id === e.package_id)?.name || 'برنامه')} · ${esc(e.stage || '—')} · ${esc(e.host || '')}</p><div class="incident-meta"><code>${esc(e.license_id.slice(0, 8))}</code><span>${date(e.occurred_at)}</span><span>${e.resolved_at ? 'رسیدگی‌شده' : 'جدید'}</span></div>${!e.resolved_at && can(c, 'errors.resolve') ? `<button class="button secondary" data-resolve="${e.id}">ثبت رسیدگی</button>` : ''}</article>`,
+          )
+          .join('')
+      : empty(
+          'خطایی در این فیلتر نیست',
+          'نبود گزارش به معنی اثبات نبود خطا در دستگاه‌های آفلاین نیست.',
+          'circle-check',
+        );
+    el.querySelectorAll<HTMLButtonElement>('[data-resolve]').forEach(
+      (b) =>
+        (b.onclick = () =>
+          void busy(b, async () => {
+            await api(`/admin/errors/${b.dataset.resolve}/resolve`, {}, c.token);
+            await c.reload();
+          })),
+    );
+    decorate();
+  };
+  el.querySelector('#error-search')!.addEventListener('input', render);
+  async function load(append: boolean) {
+    const status = (el.querySelector('#error-status') as HTMLSelectElement).value;
+    const response = await api<{ events: TelemetryEvent[]; next: string | null }>(
+      `/admin/errors?status=${status}${append && cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`,
+      undefined,
+      c.token,
+    );
+    events = append ? events.concat(response.events) : response.events;
+    cursor = response.next || '';
+    el.querySelector<HTMLButtonElement>('#load-errors')!.disabled = !response.next;
+    render();
+  }
+  el.querySelector('#error-status')!.addEventListener('change', () => void load(false));
+  el.querySelector<HTMLButtonElement>('#load-errors')!.onclick = function () {
+    void busy(this as HTMLButtonElement, () => load(true));
+  };
+  await load(false);
+}
+async function analytics(el: HTMLElement, c: Context) {
+  el.innerHTML =
+    heading(
+      'INSIGHTS / 09',
+      'عملکرد واقعی، نه حدس.',
+      'دانلود موفق پس از تأیید هش؛ نصب موفق پس از commit موتور نصب. آمار آفلاین با تأخیر همگام می‌شود.',
+    ) +
+    `<div class="toolbar"><label>بازه زمانی <select id="analytics-days"><option value="7">۷ روز</option><option value="30" selected>۳۰ روز</option><option value="90">۹۰ روز</option></select></label><label>نمودار <select id="analytics-metric"><option value="downloads">دانلود کامل پکیج</option><option value="installs">نصب موفق</option><option value="errors">خطاها</option><option value="opens">اجرای برنامه</option></select></label></div><div id="analytics-content"></div>`;
+  const draw = async () => {
+    const days = Number((el.querySelector('#analytics-days') as HTMLSelectElement).value);
+    const data = await api<any>(`/admin/analytics?days=${days}`, undefined, c.token);
+    const count = (type: string) =>
+      Number(data.totals.find((t: any) => t.type === type)?.count || 0);
+    const metric = (el.querySelector('#analytics-metric') as HTMLSelectElement).value;
+    const titles: Record<string, string> = {
+      downloads: 'دانلود کامل پکیج',
+      installs: 'نصب موفق',
+      errors: 'خطاها',
+      opens: 'اجرای برنامه',
+    };
+    const series = Array.from({ length: days }, (_, i) => {
+      const date = new Date();
+      date.setUTCDate(date.getUTCDate() - days + 1 + i);
+      const day = date.toISOString().slice(0, 10);
+      return {
+        day,
+        opens: 0,
+        downloads: 0,
+        installs: 0,
+        errors: 0,
+        ...data.daily.find((d: any) => d.day === day),
+      };
+    });
+    const max = Math.max(1, ...series.map((d) => Number(d[metric])));
+    el.querySelector('#analytics-content')!.innerHTML = `<div class="metrics">${[
+      [count('app_open'), 'اجرای گزارش‌شده', 'monitor'],
+      [count('package_download_completed'), 'دانلود تأییدشده', 'download'],
+      [count('install_completed'), 'نصب موفق', 'circle-check'],
+      [
+        count('download_failed') + count('install_failed') + count('app_error'),
+        'خطا',
+        'triangle-alert',
+      ],
+    ]
+      .map(
+        ([n, label, i]) =>
+          `<div class="metric">${icon(String(i))}<span>${label}</span><strong>${fa(Number(n))}</strong></div>`,
+      )
+      .join(
+        '',
+      )}</div><div class="insight-grid"><section class="panel chart-panel"><div class="section-heading"><h2>روند ${titles[metric]}</h2><span>روزانه</span></div><div class="bar-chart" role="img" aria-label="نمودار روزانه ${titles[metric]}">${series.map((d) => `<div class="chart-column"><span>${fa(Number(d[metric]))}</span><i style="height:${Math.max(2, (Number(d[metric]) / max) * 150)}px" title="${esc(d.day)}: ${d[metric]}"></i><small>${new Date(d.day).toLocaleDateString('fa-IR', { day: 'numeric', month: 'numeric' })}</small></div>`).join('') || '<p class="muted">هنوز گزارشی برای این بازه دریافت نشده است.</p>'}</div></section><section class="panel"><div class="section-heading"><h2>نصب‌ها</h2><span>نتیجه گزارش‌شده</span></div><div class="success-ring" style="--success:${(count('install_completed') / Math.max(1, count('install_completed') + count('install_failed'))) * 100}%"><div><b>${fa(count('install_completed'))}</b><span>نصب موفق</span></div></div><p class="muted">${fa(count('install_failed'))} نصب ناموفق · ${fa(count('download_failed'))} دانلود ناموفق</p></section></div><section class="panel"><div class="section-heading"><h2>محبوب‌ترین پکیج‌ها</h2><span>دانلود / نصب / خطا</span></div>${data.packages.length ? `<div class="ranking-list">${data.packages.map((p: any, i: number) => `<article><span class="rank-number">${fa(i + 1)}</span><div><b>${esc(c.data.packages.find((q) => q.id === p.package_id)?.name || p.package_id)}</b><small>${fa(Number(p.installs))} نصب · ${fa(Number(p.errors))} خطا</small></div><strong>${fa(Number(p.downloads))}</strong></article>`).join('')}</div>` : empty('هنوز رتبه‌بندی وجود ندارد', 'با دریافت اولین رویداد واقعی، نمودار و رتبه‌بندی ساخته می‌شوند.', 'package')}</section><p class="fine-print">منبع: گزارش کلاینت‌های متصل به لایسنس. رویدادهای ارسال‌نشده یا اجرای پیش از فعال‌سازی در این آمار نیستند؛ این داده سند ضدتقلب یا شمارنده بازدید هاست خارجی نیست.</p>`;
+    decorate();
+  };
+  el.querySelector('#analytics-days')!.addEventListener('change', () => void draw());
+  el.querySelector('#analytics-metric')!.addEventListener('change', () => void draw());
+  await draw();
+}

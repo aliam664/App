@@ -23,6 +23,8 @@ pub struct Artifact {
     pub sha256: String,
     pub size: u64,
     pub format: String,
+    #[serde(default)]
+    pub archive_password: Option<String>,
 }
 #[derive(Clone, Deserialize)]
 pub struct Step {
@@ -439,22 +441,26 @@ fn run_extractor(exe: &Path, args: &[String], log: &Path) -> Result<String, Stri
     fs::read_to_string(log).map_err(|_| "Unsupported archive filename encoding".into())
 }
 fn extract_external(
-    app: &AppHandle,
-    source: &Path,
-    destination: &Path,
+    app: &AppHandle, source: &Path, destination: &Path,
+) -> Result<Vec<PathBuf>, String> { extract_external_password(app, source, destination, None) }
+fn extract_external_password(
+    app: &AppHandle, source: &Path, destination: &Path, password: Option<&str>,
 ) -> Result<Vec<PathBuf>, String> {
-    let dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("resources/extractor");
-    extract_external_with_tools(&dir, source, destination)
+    let dir = app.path().resource_dir().map_err(|e| e.to_string())?.join("resources/extractor");
+    extract_external_with_password(&dir, source, destination, password)
 }
 fn extract_external_with_tools(
-    dir: &Path,
-    source: &Path,
-    destination: &Path,
+    dir: &Path, source: &Path, destination: &Path,
+) -> Result<Vec<PathBuf>, String> { extract_external_with_password(dir, source, destination, None) }
+fn extract_external_with_password(
+    dir: &Path, source: &Path, destination: &Path, password: Option<&str>,
 ) -> Result<Vec<PathBuf>, String> {
+    if password.map(|p| p.len()>1024 || p.chars().any(|c| c.is_control())).unwrap_or(false) {
+        return Err("Invalid archive password".into());
+    }
+    // Passed as one process argument, never through a shell, never included in errors.
+    // Explicit noninteractive fallback prevents encrypted archives from prompting.
+    let password_arg = format!("-p{}", password.unwrap_or("UHM-NO-PASSWORD-PROVIDED"));
     let exe = dir.join("7z.exe");
     let dll = dir.join("7z.dll");
     let exe_hash = option_env!("UHM_EXTRACTOR_EXE_SHA256")
@@ -473,6 +479,7 @@ fn extract_external_with_tools(
             "-slt".into(),
             "-ba".into(),
             "-sccUTF-8".into(),
+            password_arg.clone(),
             "--".into(),
             source.to_string_lossy().into_owned(),
         ],
@@ -497,10 +504,13 @@ fn extract_external_with_tools(
         if line.starts_with("Symbolic Link =")
             || line.starts_with("Hard Link =")
             || line.starts_with("Reparse Point =")
-            || line == "Encrypted = +"
+
         {
-            return Err("Archive links and encrypted entries are forbidden".into());
+            return Err("Archive links are forbidden".into());
         }
+    }
+    if password.is_none() && listed.lines().any(|line| line == "Encrypted = +") {
+        return Err("Archive password is required".into());
     }
     if count == 0
         || count > MAX_FILES
@@ -529,6 +539,7 @@ fn extract_external_with_tools(
             "-bd".into(),
             "-bb0".into(),
             "-mmt=1".into(),
+            password_arg,
             format!("-o{}", output.display()),
             "--".into(),
             source.to_string_lossy().into_owned(),
@@ -545,6 +556,25 @@ fn extract_external_with_tools(
         return Err("Expanded archive exceeds preflight size".into());
     }
     Ok(files)
+}
+fn activity(app: &AppHandle, package: &Package, kind: &str, file: Option<&Artifact>, error: Option<&String>) {
+    let mut event=json!({"type":kind,"package_id":package.id,"version":package.version,"stage":if kind.starts_with("download") || kind=="package_download_completed" {"download"} else {"install"}});
+    if let Some(file)=file {
+        event["file_id"]=json!(file.id);
+        event["file_name"]=json!(file.name);
+        if let Ok(url)=url::Url::parse(&file.url) { if let Some(host)=url.host_str() {event["host"]=json!(host);} }
+        if kind=="download_completed" {event["bytes"]=json!(file.size);}
+    }
+    if let Some(error)=error {
+        let message=error.to_lowercase();
+        let code=if message.contains("sha") || message.contains("checksum") {"HASH_MISMATCH"}
+            else if message.contains("space") {"DISK_FULL"}
+            else if message.contains("archive") || message.contains("zip") || message.contains("password") {"ARCHIVE_PASSWORD_OR_CORRUPT"}
+            else if message.contains("repair_required") {"RECOVERY_REQUIRED"}
+            else if kind=="download_failed" {"DOWNLOAD_FAILED"} else {"INSTALL_FAILED"};
+        event["error_code"]=json!(code);
+    }
+    let _=app.emit("client-activity",event);
 }
 pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<Value, String> {
     let control = regular_control(root)?;
@@ -567,6 +597,14 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
         {
             return Err("Invalid installation manifest".into());
         }
+        let mut artifact_names = HashSet::new();
+        for file in &package.files {
+            let name = relative_path(&file.name)?;
+            if name.components().count()!=1 || !artifact_names.insert(file.name.to_lowercase()) {
+                return Err("Invalid or duplicate artifact filename".into());
+            }
+        }
+        activity(app, &package, "install_started", None, None);
         let transaction_id = uuid::Uuid::new_v4().to_string();
         let dir = safe_target(&control, &format!("transactions/{transaction_id}"))?;
         fs::create_dir_all(dir.join("downloads")).map_err(|e| e.to_string())?;
@@ -588,16 +626,15 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
             }
             for file in &package.files {
                 uuid::Uuid::parse_str(&file.id).map_err(|_| "Invalid artifact identifier")?;
-                download(
-                    app,
-                    &package.id,
-                    file,
-                    &dir.join("downloads").join(&file.id),
-                    completed,
-                    total,
-                )?;
+                activity(app, &package, "download_started", Some(file), None);
+                let downloaded = download(app, &package.id, file, &dir.join("downloads").join(&file.name), completed, total);
+                if let Err(error) = &downloaded {
+                    activity(app, &package, "download_failed", Some(file), Some(error));
+                } else { activity(app, &package, "download_completed", Some(file), None); }
+                downloaded?;
                 completed += file.size;
             }
+            activity(app, &package, "package_download_completed", None, None);
             let mut operations: Vec<(PathBuf, String, String)> = Vec::new();
             let mut destinations = HashSet::new();
             for step in &package.steps {
@@ -607,7 +644,7 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
                     .iter()
                     .find(|f| f.id == step.file_id)
                     .ok_or("Unknown artifact in install step")?;
-                let downloaded = dir.join("downloads").join(&file.id);
+                let downloaded = dir.join("downloads").join(&file.name);
                 if step.action == "copy" {
                     operations.push((downloaded, step.destination.clone(), step.overwrite.clone()));
                 } else if step.action == "extract" {
@@ -621,14 +658,15 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
                         completed,
                         total,
                     );
-                    let files = if file.format == "zip" {
+                    let encrypted = file.archive_password.as_deref().filter(|p| !p.is_empty());
+                    let files = if file.format == "zip" && encrypted.is_none() {
                         extract_zip(&downloaded, &destination)?
-                    } else if file.format == "rar" || file.format == "7z" {
-                        extract_external(app, &downloaded, &destination)?
+                    } else if file.format == "rar" || file.format == "7z" || file.format == "zip" {
+                        extract_external_password(app, &downloaded, &destination, encrypted)?
                     } else {
                         return Err("Artifact format cannot be extracted".into());
                     };
-                    let base = if file.format == "zip" {
+                    let base = if file.format == "zip" && encrypted.is_none() {
                         destination
                     } else {
                         destination.join("content")
@@ -776,8 +814,11 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
                 save_journal(&dir, &journal)?;
                 let _ = fs::remove_dir_all(dir.join("downloads"));
                 progress(app, &package.id, "نصب تأیید شد", 99.0, 0, 0);
+                activity(app, &package, "install_completed", None, None);
             }
-            Err(error) => match rollback(root, &dir, &journal) {
+            Err(error) => {
+                activity(app, &package, "install_failed", None, Some(&error));
+                match rollback(root, &dir, &journal) {
                 Ok(()) => {
                     journal.state = "rolled_back".into();
                     save_journal(&dir, &journal)?;
@@ -788,6 +829,7 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>) -> Result<V
                         "{error}; repair_required: automatic recovery was incomplete"
                     ))
                 }
+            }
             },
         }
     }
@@ -1021,4 +1063,22 @@ mod crash_and_archive_tests {
             }
         }
     }
+    #[cfg(windows)]
+    #[test]
+    fn encrypted_archives_require_correct_password() {
+        let tools=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/extractor");
+        for format in ["zip", "7z"] {
+            let dir=tempfile::tempdir().unwrap();
+            let payload=dir.path().join("payload.txt");fs::write(&payload,b"encrypted fixture").unwrap();
+            let archive=dir.path().join(format!("fixture.{format}"));
+            assert!(Command::new(tools.join("7z.exe")).args(["a", &format!("-t{format}"), "-pTest-only-123", "-y"]).arg(&archive).arg(&payload).stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap().success());
+            for (name,password,success) in [("ok",Some("Test-only-123"),true),("wrong",Some("wrong"),false),("missing",None,false)] {
+                let out=dir.path().join(name);fs::create_dir(&out).unwrap();
+                let result=extract_external_with_password(&tools,&archive,&out,password);
+                assert_eq!(result.is_ok(),success);
+                if success {assert_eq!(fs::read(out.join("content/payload.txt")).unwrap(),b"encrypted fixture");}
+            }
+        }
+    }
+
 }

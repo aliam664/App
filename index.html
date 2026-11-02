@@ -13,6 +13,16 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // A branch-based Pages deployment cannot execute TypeScript. Use the compiled
+      // preview generated from this exact source instead of leaving a white screen.
+      setTimeout(function () {
+        var source = document.querySelector('script[src$="/apps/web/src/main.ts"]');
+        if (source && location.hostname.endsWith('.github.io')) {
+          location.replace(new URL('./pages-preview/' + location.hash, location.href));
+        }
+      }, 50);
+    </script>
     <script type="module" src="/apps/web/src/main.ts"></script>
   </body>
 </html>

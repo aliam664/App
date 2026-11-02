@@ -1,3 +1,5 @@
+import { recordEvent, flushEvents, pendingEvents } from './outbox';
+import { licenseAdminSession } from './license-admin';
 import { assetUrl, modeUrl, isAdminRoute, staticPreview, buildRevision } from './runtime';
 import { localStore, sessionStore } from './storage';
 import './style.css';
@@ -38,6 +40,7 @@ type Task = {
 document.documentElement.dataset.theme =
   localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
 const app = document.querySelector<HTMLDivElement>('#app')!;
+let serviceMessage = '';
 let demo = false,
   online = true,
   page = 'discover',
@@ -78,6 +81,10 @@ const adminNav = [
   ['packages', 'package', 'پکیج‌ها'],
   ['versions', 'git-branch', 'نسخه‌ها'],
   ['devices', 'monitor', 'دستگاه‌ها'],
+  ['analytics', 'layout-dashboard', 'تحلیل عملکرد'],
+  ['errors', 'triangle-alert', 'مرکز خطاها'],
+  ['team', 'shield-check', 'تیم و دسترسی‌ها'],
+  ['service', 'radio', 'کنترل سرویس'],
   ['logs', 'shield-check', 'رویدادها'],
 ];
 
@@ -93,10 +100,10 @@ function footerMarkup() {
   return `<footer class="site-footer"><div class="footer-identity"><img src="${assetUrl('/brand/logo.png')}" alt=""><div><b>UHM GRAPHICS PACK</b>${staticPreview ? `<small class="build-revision" dir="ltr">PREVIEW / ${esc(buildRevision.slice(0, 7))}</small>` : ''}<span>ساخته‌شده توسط Ali369 · برای جامعهٔ Assetto Corsa</span></div></div><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل به سرویس' : 'حالت آفلاین'}</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer>`;
 }
 function launcherShell(nav: string[][]) {
-  return `<div class="launcher-shell"><div class="reference-header"><header class="container nav">${brandMarkup()}<nav class="nav-links" aria-label="ناوبری اصلی">${nav.map(([id, , t]) => `<button class="${page === id ? 'current' : ''}" data-nav="${id}">${t}${id === 'downloads' && tasks.length ? ` <b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}<button data-nav="settings">تنظیمات</button></nav><div class="nav-actions"><button class="profile language-toggle" id="profile" aria-label="${license ? 'مدیریت اشتراک' : 'اشتراک و فعال‌سازی'}"><span class="language-orbit">${icon('key-round')}</span><span>${license ? license.tier.toUpperCase() + ' MEMBER' : 'لایسنس'}</span><span class="language-chevron">↗</span></button><button class="icon" id="theme" aria-label="تغییر تم">◐</button><button class="icon notification-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="menu-btn" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')} منو</button></div></header></div>${demoStrip()}<main class="launcher-content ${page === 'discover' ? 'is-discover' : ''}" id="content" tabindex="-1"></main>${footerMarkup()}<button class="mode-switch-access" id="switch-mode">${icon('sliders-horizontal')}پنل مدیریت</button></div><div id="toasts" aria-live="polite"></div>`;
+  return `<div class="launcher-shell"><div class="reference-header"><header class="container nav">${brandMarkup()}<nav class="nav-links" aria-label="ناوبری اصلی">${nav.map(([id, , t]) => `<button class="${page === id ? 'current' : ''}" data-nav="${id}">${t}${id === 'downloads' && tasks.length ? ` <b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}<button data-nav="settings">تنظیمات</button></nav><div class="nav-actions"><button class="profile language-toggle" id="profile" aria-label="${license ? 'مدیریت اشتراک' : 'اشتراک و فعال‌سازی'}"><span class="language-orbit">${icon('key-round')}</span><span>${license ? license.tier.toUpperCase() + ' MEMBER' : 'لایسنس'}</span><span class="language-chevron">↗</span></button><button class="icon" id="theme" aria-label="تغییر تم">◐</button><button class="icon notification-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="menu-btn" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')} منو</button></div></header></div>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main class="launcher-content ${page === 'discover' ? 'is-discover' : ''}" id="content" tabindex="-1"></main>${footerMarkup()}<button class="mode-switch-access" id="switch-mode">${icon('sliders-horizontal')}پنل مدیریت</button></div><div id="toasts" aria-live="polite"></div>`;
 }
 function adminShell(nav: string[][]) {
-  return `<div class="app-shell admin-shell"><aside class="sidebar">${brandMarkup()}<div class="workspace-label">اتاق کنترل<span>CONTROL ROOM</span></div><nav aria-label="منوی اصلی">${nav.map(([id, i, t]) => `<button class="nav-item ${page === id ? 'active' : ''}" data-nav="${id}">${icon(i)}<span>${t}</span></button>`).join('')}</nav><div class="sidebar-bottom"><button class="nav-item" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon('arrow-up-right')}بازگشت به لانچر</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon('sliders-horizontal')}<span>مدیریت سیستم / ${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</span></div><div class="topbar-actions"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')}</button><button class="icon-button" id="theme" aria-label="تغییر تم">◐</button><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile"><span class="avatar">A</span><span>مدیریت<small>CONTROL PANEL</small></span>${icon('chevron-down')}</button></div></header>${demoStrip()}<main id="content" tabindex="-1"></main>${footerMarkup()}</div></div><div id="toasts" aria-live="polite"></div>`;
+  return `<div class="app-shell admin-shell"><aside class="sidebar">${brandMarkup()}<div class="workspace-label">اتاق کنترل<span>CONTROL ROOM</span></div><nav aria-label="منوی اصلی">${nav.map(([id, i, t]) => `<button class="nav-item ${page === id ? 'active' : ''}" data-nav="${id}">${icon(i)}<span>${t}</span></button>`).join('')}</nav><div class="sidebar-bottom"><button class="nav-item" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon('arrow-up-right')}بازگشت به لانچر</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon('sliders-horizontal')}<span>مدیریت سیستم / ${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</span></div><div class="topbar-actions"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')}</button><button class="icon-button" id="theme" aria-label="تغییر تم">◐</button><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile"><span class="avatar">A</span><span>مدیریت<small>CONTROL PANEL</small></span>${icon('chevron-down')}</button></div></header>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main id="content" tabindex="-1"></main>${footerMarkup()}</div></div><div id="toasts" aria-live="polite"></div>`;
 }
 function shell() {
   document.documentElement.lang = language;
@@ -215,6 +222,11 @@ async function render() {
     else if (page === 'library') library(content);
     else downloads(content);
   } catch (e) {
+    if (e instanceof ApiError && ['ADMIN_REQUIRED', 'ADMIN_LICENSE_DENIED'].includes(e.code)) {
+      adminToken = '';
+      sessionStore.removeItem('uhm-admin');
+      sessionStore.removeItem('uhm-admin-mode');
+    }
     content.innerHTML = empty(
       'دریافت اطلاعات ممکن نشد',
       'اتصال یا نشست خود را بررسی کنید.',
@@ -382,6 +394,11 @@ function details(p: CatalogItem) {
 }
 async function persistLicense(result: { license: PublicLicense; grant: string }) {
   if (native) await invoke('verify_offline_grant', { grant: result.grant });
+  if (license?.id !== result.license.id && sessionStore.getItem('uhm-admin-mode') === 'license') {
+    adminToken = '';
+    sessionStore.removeItem('uhm-admin');
+    sessionStore.removeItem('uhm-admin-mode');
+  }
   license = result.license;
   grant = result.grant;
   localStore.setItem('uhm-license', JSON.stringify(license));
@@ -423,6 +440,10 @@ async function refreshDueLicense() {
   }
 }
 function activateDialog() {
+  if (installing) {
+    toast('تا پایان نصب، لایسنس را تغییر ندهید.', true);
+    return;
+  }
   const d = modal(
     license ? 'اشتراک و مجوز دستگاه' : 'کلید گاراژت را وارد کن',
     `${license ? `<div class="license-card">${badge(license.tier)}<strong>عضویت ${license.tier.toUpperCase()}</strong><p>معتبر تا ${date(license.expires_at)}</p><small>مجوز آفلاین: ${offlineRemaining()}</small></div><button class="button full" id="refresh-license">${icon('refresh-cw')}تمدید مجوز آنلاین</button><div class="divider"></div>` : ''}<form id="activate-form">${field('کد لایسنس', '<input name="code" required minlength="16" maxlength="100" dir="ltr" autocomplete="off" placeholder="UHM-…">')}<button class="button full" type="submit">فعال‌سازی روی این دستگاه ${icon('arrow-left')}</button></form>${demo ? '<button class="text-button demo-activate" id="demo-license">استفاده از لایسنس آزمایشی Pro</button>' : ''}<p class="fine-print">فعال‌سازی اولیه آنلاین است. کد فقط به یک کلید دستگاه متصل می‌شود. تغییر دستگاه از طریق مدیر انجام می‌شود.</p>`,
@@ -430,7 +451,14 @@ function activateDialog() {
   async function save(result: any) {
     await persistLicense(result);
     d.close();
-    toast('مجوز دستگاه با موفقیت ثبت شد.');
+    void recordEvent('app_open', { stage: 'app' });
+    try {
+      adminToken = await licenseAdminSession();
+      toast('لایسنس فعال شد؛ دسترسی مدیریت این دستگاه هم تأیید شد.');
+    } catch {
+      toast('مجوز دستگاه با موفقیت ثبت شد.');
+    }
+
     await render();
   }
   d.querySelector<HTMLFormElement>('#activate-form')!.onsubmit = (e) => {
@@ -536,6 +564,21 @@ function settings(el: HTMLElement) {
       toast(`${fa(count)} نصب نیمه‌تمام بازیابی شد.`);
     });
   });
+  el.insertAdjacentHTML(
+    'beforeend',
+    '<section class="panel sync-panel"><h3>همگام‌سازی گزارش‌ها</h3><p id="queue-state">در حال بررسی صف پایدار…</p><button class="button secondary" id="sync-now">ارسال گزارش‌های ذخیره‌شده</button><small class="muted">گزارش‌های آفلاین پس از اتصال ارسال می‌شوند؛ رمز، مسیر شخصی و لینک کامل ثبت نمی‌شود.</small></section>',
+  );
+  void pendingEvents().then((rows) => {
+    const target = el.querySelector('#queue-state');
+    if (target) target.textContent = `${fa(rows.length)} رویداد در انتظار تأیید سرور`;
+  });
+  el.querySelector('#sync-now')!.addEventListener(
+    'click',
+    () =>
+      void flushEvents().then(() =>
+        toast('تلاش برای همگام‌سازی انجام شد؛ موارد تأییدنشده در صف می‌مانند.'),
+      ),
+  );
   el.querySelector('#check-api')!.addEventListener(
     'click',
     () =>
@@ -553,6 +596,7 @@ function logoutDialog() {
   d.querySelector('#logout')!.addEventListener('click', () => {
     adminToken = '';
     sessionStore.removeItem('uhm-admin');
+    sessionStore.removeItem('uhm-admin-mode');
     void supabase?.auth.signOut();
     adminMode = false;
     page = 'discover';
@@ -567,6 +611,14 @@ async function boot() {
   try {
     const health = await api('/health');
     demo = health.mode === 'demo';
+    const service = await api('/service/status');
+    if (
+      service.settings.maintenance ||
+      service.settings.downloads_paused ||
+      service.settings.activation_paused
+    )
+      serviceMessage =
+        service.settings.message || 'بعضی عملیات برای نگهداری سرویس موقتاً متوقف است.';
     catalog = (await api('/catalog')).packages;
     localStore.setItem('uhm-catalog', JSON.stringify(catalog));
   } catch {
@@ -592,6 +644,10 @@ async function boot() {
         handleError(e);
       }
     }
+    await listen<any>('client-activity', (event) => {
+      const { type, ...fields } = event.payload;
+      void recordEvent(type, fields);
+    });
     await listen<{
       package_id: string;
       phase: string;
@@ -613,20 +669,35 @@ async function boot() {
     });
   }
   await refreshDueLicense();
+  void recordEvent('app_open', { stage: 'app' });
+  void flushEvents();
   if (adminMode) page = 'dashboard';
   await render();
 }
+window.addEventListener('license-activated', () => {
+  license = JSON.parse(localStore.getItem('uhm-license') || 'null');
+  grant = localStore.getItem('uhm-grant') || '';
+  void recordEvent('app_open', { stage: 'app' });
+});
 window.addEventListener('popstate', () => {
   adminMode = isAdminRoute();
   page = adminMode ? 'dashboard' : 'discover';
   void render();
 });
+window.addEventListener('outbox-error', () =>
+  toast('ذخیره گزارش‌ها ممکن نشد؛ فضای ذخیره‌سازی برنامه را بررسی کنید.', true),
+);
 window.addEventListener('unhandledrejection', (e) => {
   e.preventDefault();
+  if (e.reason instanceof Error && !(e.reason instanceof ApiError))
+    void recordEvent('app_error', { error_code: 'APP_RUNTIME_ERROR', stage: 'app' }).catch(
+      () => {},
+    );
   handleError(e.reason);
 });
 window.addEventListener('online', () => {
   online = true;
+  void flushEvents();
   void refreshDueLicense().then(render);
 });
 window.addEventListener('offline', () => {

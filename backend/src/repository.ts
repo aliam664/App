@@ -16,5 +16,30 @@ export interface Repository {
   consumeChallenge(id: string, thumb: string, now: string): Promise<boolean>;
   rateLimit(key: string, limit: number, seconds: number): Promise<boolean>;
   admin(token: string): Promise<Admin | null>;
+  errorsPage(
+    status: 'open' | 'all' | 'resolved',
+    before?: { at: string; id: string },
+  ): Promise<import('../../packages/contracts/src/index.ts').TelemetryEvent[]>;
+  licenseStats(id: string): Promise<{
+    totals: { type: string; count: number }[];
+    first_seen: string | null;
+    last_seen: string | null;
+  }>;
+  auditPage(
+    id: string,
+    before?: { at: string; id: string },
+  ): Promise<import('../../packages/contracts/src/index.ts').AuditEvent[]>;
+  analytics(since: string): Promise<ReturnType<typeof import('./analytics.ts').summarizeEvents>>;
+  eventsPage(
+    licenseId: string,
+    before?: { at: string; id: string },
+  ): Promise<import('../../packages/contracts/src/index.ts').TelemetryEvent[]>;
+  saveAccess(
+    access: import('../../packages/contracts/src/index.ts').AdminAccess,
+    actor: string,
+  ): Promise<void>;
+  ingestEvents(
+    events: import('../../packages/contracts/src/index.ts').TelemetryEvent[],
+  ): Promise<void>;
   mutateLicense(id: string, action: string, actor: string, days?: number): Promise<void>;
 }

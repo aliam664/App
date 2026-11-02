@@ -1,3 +1,4 @@
+import { sessionStore } from './storage';
 import { staticPreview } from './runtime';
 import { isTauri } from '@tauri-apps/api/core';
 import { createClient } from '@supabase/supabase-js';
@@ -18,26 +19,46 @@ export class ApiError extends Error {
 }
 let sandbox:
   Promise<Awaited<ReturnType<typeof import('./static-preview').createStaticPreview>>> | undefined;
+let adminRenewer: (() => Promise<string>) | undefined;
+export function setAdminRenewer(renew: () => Promise<string>) {
+  adminRenewer = renew;
+}
 export async function api<T = any>(path: string, body?: unknown, token?: string): Promise<T> {
-  const result =
-    staticPreview && !isTauri()
-      ? await (
-          await (sandbox ??= import('./static-preview').then((m) => m.createStaticPreview()))
-        )(path, body, token)
-      : await fetch(`${base}${path}`, {
-          method: body === undefined ? 'GET' : 'POST',
-          headers: {
-            ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(20000),
-        });
+  const isAdmin = path.startsWith('/admin/') && path !== '/admin/license-session';
+  const licenseMode = isAdmin && !!token && sessionStore.getItem('uhm-admin-mode') === 'license';
+  if (licenseMode) token = sessionStore.getItem('uhm-admin') || token;
+  const send = async (bearer?: string) => {
+    const result =
+      staticPreview && !isTauri()
+        ? await (
+            await (sandbox ??= import('./static-preview').then((m) => m.createStaticPreview()))
+          )(path, body, bearer)
+        : await fetch(`${base}${path}`, {
+            method: body === undefined ? 'GET' : 'POST',
+            headers: {
+              ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+              ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+            },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(20000),
+          });
+    return result;
+  };
+  let result = await send(token);
+  if (result.status === 401 && licenseMode && adminRenewer) {
+    try {
+      result = await send(await adminRenewer());
+    } catch {
+      /* Surface original authorization failure. */
+    }
+  }
   const data = await result.json();
   if (!result.ok)
     throw new ApiError(
       data.error || 'NETWORK_ERROR',
-      data.issues?.map((i: any) => `${i.path.join('.')}: ${i.message}`).join(' / '),
+      data.issues?.map((i: any) => `${i.path.join('.')}: ${i.message}`).join(' / ') ||
+        data.message ||
+        '',
     );
   return data;
 }
@@ -52,6 +73,10 @@ export const messages: Record<string, string> = {
   ROLE_DENIED: 'نقش شما اجازه این عملیات را ندارد.',
   MFA_REQUIRED: 'برای این عملیات تأیید دومرحله‌ای لازم است.',
   ADMIN_REQUIRED: 'ابتدا وارد پنل شوید.',
+  ADMIN_LICENSE_DENIED: 'این لایسنس دسترسی مدیریت فعال ندارد یا به دستگاه دیگری متصل است.',
+  SELF_ACCESS_CHANGE: 'تغییر دسترسی یا تعلیق حساب مدیریتی خودتان مجاز نیست.',
+  LAST_OWNER: 'آخرین مالک را نمی‌توان حذف یا تنزل داد.',
+  SERVICE_PAUSED: 'این عملیات موقتاً در حالت نگهداری متوقف است.',
   RATE_LIMITED: 'درخواست‌ها زیاد است؛ کمی بعد دوباره تلاش کنید.',
   EMPTY_INSTALL_PLAN: 'پیش از انتشار، فایل و مرحله نصب را تعریف کنید.',
   DEPENDENCY_CYCLE: 'چرخه در پیش‌نیازها شناسایی شد.',
