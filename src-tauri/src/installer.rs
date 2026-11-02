@@ -388,8 +388,8 @@ fn extract_zip(source: &Path, destination: &Path) -> Result<Vec<PathBuf>, String
             .open(&target)
             .map_err(|e| e.to_string())?;
         let expected = f.size();
-        let actual = std::io::copy(&mut (&mut f).take(expected + 1), &mut writer)
-            .map_err(|_| "ZIP extraction or checksum failed")?;
+        let mut reader=(&mut f).take(expected+1);let mut actual=0u64;let mut buffer=[0u8;65536];
+        loop {crate::jobs::checkpoint()?;let n=reader.read(&mut buffer).map_err(|_|"ZIP extraction or checksum failed")?;if n==0{break;}writer.write_all(&buffer[..n]).map_err(|e|e.to_string())?;actual+=n as u64;}
         if actual != expected {
             return Err("ZIP expanded size mismatch".into());
         }
@@ -442,9 +442,6 @@ fn run_extractor(exe: &Path, args: &[String], log: &Path) -> Result<String, Stri
     }
     fs::read_to_string(log).map_err(|_| "Unsupported archive filename encoding".into())
 }
-fn extract_external(
-    app: &AppHandle, source: &Path, destination: &Path,
-) -> Result<Vec<PathBuf>, String> { extract_external_password(app, source, destination, None) }
 fn extract_external_password(
     app: &AppHandle, source: &Path, destination: &Path, password: Option<&str>,
 ) -> Result<Vec<PathBuf>, String> {
@@ -804,8 +801,8 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                         .and_then(|f| f.sync_all())
                         .map_err(|e| e.to_string())?;
                 }
-                journal.entries.last_mut().unwrap().ready = true;
-                save_journal(&dir, &journal)?;
+                crate::jobs::checkpoint()?;
+                if existed && Some(sha256_file(&dir.join(&backup))?)!=fingerprints[index]{return Err("Target changed during backup; approved files were not modified".into());}
                 if let Some(parent) = target.parent() {
                     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
                 }
@@ -816,6 +813,11 @@ pub fn install(app: &AppHandle, root: &Path, packages: Vec<Package>, cache: &Pat
                     .open(&temp)
                     .and_then(|f| f.sync_all())
                     .map_err(|e| e.to_string())?;
+                crate::jobs::checkpoint()?;
+                let latest=if target.exists(){Some(sha256_file(&target)?)}else{None};
+                if latest!=fingerprints[index]{return Err("Target changed before replacement; apply cancelled".into());}
+                journal.entries.last_mut().unwrap().ready = true;
+                save_journal(&dir, &journal)?;
                 // Source and destination share the game filesystem; replacement is atomic on Windows.
                 replace_file(&temp, &target)?;
                 if sha256_file(&target)? != sha256_file(source)? {

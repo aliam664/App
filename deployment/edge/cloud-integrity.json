@@ -1,7 +1,7 @@
 {
   "api": {
-    "sha256": "6b2c3247916d4bfb87bab5d5dc66682eaa89217b8804a3548aad4b32b8e73ab5",
-    "bytes": 31212
+    "sha256": "5d2acced6b20c41f7e80d0b2dc06177cef228cc3764f0cd68627149eafb85c5e",
+    "bytes": 31249
   },
   "npm": {
     "zod": "npm:zod@4.6.7",

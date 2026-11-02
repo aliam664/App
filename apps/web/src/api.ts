@@ -87,3 +87,11 @@ export const messages: Record<string, string> = {
   DATABASE_ERROR: 'ارتباط با پایگاه داده یا اجرای عملیات ناموفق بود. با مدیر سیستم تماس بگیرید.',
   INVALID_ACTION: 'این تغییر برای وضعیت فعلی مجاز نیست.',
 };
+
+export async function requireContentV2() {
+  const health = await api<{ capabilities?: string[] }>('/health');
+  if (!health.capabilities?.includes('content-packages-v2'))
+    throw new Error(
+      'این سرور هنوز API و migration جدید مدیریت محتوا را ندارد؛ برای جلوگیری از حذف بی‌صدای تنظیمات، ابتدا استقرار نسخه جدید سرور لازم است.',
+    );
+}

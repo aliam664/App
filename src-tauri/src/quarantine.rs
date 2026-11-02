@@ -135,6 +135,8 @@ pub fn restore(root:&Path,id:&str)->Result<Value,String> {
     let p=preview(d.path(),"content/cars/test").unwrap();let id=p["id"].as_str().unwrap();let selected=vec!["content/cars/test/a.kn5".into()];
     assert!(apply(d.path(),id,&selected,false).is_err());apply(d.path(),id,&selected,true).unwrap();
     assert!(!d.path().join(&selected[0]).exists());
+    assert!(!d.path().join("content/cars/test").exists());
+    fs::create_dir_all(d.path().join("content/cars/test")).unwrap();
     fs::write(d.path().join(&selected[0]),b"new").unwrap();assert!(restore(d.path(),id).is_err());
     fs::remove_file(d.path().join(&selected[0])).unwrap();restore(d.path(),id).unwrap();
     assert_eq!(fs::read(d.path().join(&selected[0])).unwrap(),b"original");

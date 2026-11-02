@@ -10,7 +10,7 @@ import {
   type ServiceSettings,
 } from '../../../packages/contracts/src/index';
 import { assetUrl } from './runtime';
-import { api, supabase } from './api';
+import { api, supabase, requireContentV2 } from './api';
 import {
   esc,
   icon,
@@ -432,6 +432,19 @@ function editPackage(existing?: PackageSpec) {
         status: 'draft',
         released_at: null,
       });
+      const advanced = Boolean(
+        pkg.short_description ||
+        pkg.author ||
+        pkg.brand ||
+        (pkg.content_type && pkg.content_type !== 'pack') ||
+        pkg.tags?.length ||
+        pkg.images?.length ||
+        pkg.scheduled_at ||
+        pkg.channel === 'test' ||
+        pkg.files.some((f) => f.mirrors?.length) ||
+        pkg.steps.some((s) => s.source_subdir || s.depends_on?.length),
+      );
+      if (advanced) await requireContentV2();
       await api('/admin/packages', pkg, token);
       d.close();
       toast('پیش‌نویس ذخیره شد؛ برای انتشار دوباره آن را باز کنید.');
@@ -463,6 +476,7 @@ function editPackage(existing?: PackageSpec) {
   });
   d.querySelector<HTMLButtonElement>('#validate-package')?.addEventListener('click', function () {
     void busy(this, async () => {
+      await requireContentV2();
       const result = await api(`/admin/packages/${p.id}/validate`, {}, token);
       toast(
         `ساختار ذخیره‌شده معتبر است؛ ${result.files} فایل و ${result.steps} مرحله. این آزمون، نصب واقعی نیست.`,

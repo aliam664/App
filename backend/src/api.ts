@@ -81,6 +81,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
       if (request.method === 'GET' && path === '/health')
         return reply({
           mode: config.mode,
+          capabilities: ['content-packages-v2'],
           version: '0.1.0',
           public_key: config.publicJwk,
           issuer: config.issuer,
