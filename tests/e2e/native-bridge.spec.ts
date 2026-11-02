@@ -27,6 +27,15 @@ async function bridge(page: Page) {
           (listeners[args.event] ||= []).push(args.handler);
           return next;
         }
+        if (cmd === 'updater_status')
+          return {
+            phase: 'current',
+            current_version: '0.1.0',
+            available_version: null,
+            downloaded: 0,
+            total: null,
+            error: null,
+          };
         if (cmd === 'get_settings')
           return {
             game_path: 'C:\\Games\\AC',

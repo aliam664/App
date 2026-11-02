@@ -1,3 +1,4 @@
+import { updateStatusPanel } from './update-status';
 import { recordEvent, flushEvents, pendingEvents } from './outbox';
 import { licenseAdminSession } from './license-admin';
 import { assetUrl, modeUrl, isAdminRoute, staticPreview, buildRevision } from './runtime';
@@ -601,6 +602,7 @@ function settings(el: HTMLElement) {
   // Native settings are loaded asynchronously; no browser filesystem simulation.
   queueMicrotask(() => {
     void downloadPreferences(el).catch(handleError);
+    void updateStatusPanel(el).catch(handleError);
   });
   el.innerHTML = `<div class="page-title"><div><p class="eyebrow">PREFERENCES / 04</p><h1>گاراژ، به سلیقهٔ تو.</h1><p class="muted">مسیر بازی، نمایش و اطلاعات اتصال را مدیریت کن.</p></div></div><div class="settings-layout"><section class="panel"><div class="section-heading"><h2>محل نصب بازی</h2>${icon('folder-open')}</div><p class="muted">پوشه‌ای را انتخاب کن که فایل acs.exe و پوشه content در آن قرار دارند.</p><div class="path-box"><code dir="ltr" id="game-path">${esc(gamePath || 'هنوز مسیری انتخاب نشده')}</code><button class="button secondary" id="choose-path">${icon('folder')}انتخاب پوشه</button></div><div class="notice">${icon('shield-check')}${native ? 'اعتبار مسیر در لایه Native بررسی می‌شود.' : 'در پیش‌نمایش مرورگر امکان دسترسی به پوشه بازی وجود ندارد.'}</div></section><section class="panel"><div class="section-heading"><h2>نمایش و دسترس‌پذیری</h2>${icon('sliders-horizontal')}</div><label class="setting-row"><div><b>چیدمان فشرده</b><p>فاصله‌های کمتر برای پنجره‌های کوچک‌تر</p></div><input id="compact" type="checkbox" ${compact ? 'checked' : ''}></label><label class="setting-row"><div><b>جهت نمایش</b><p>محتوا در این نسخه فارسی است؛ تغییر جهت برای بررسی چیدمان</p></div><select id="language"><option value="fa" ${language === 'fa' ? 'selected' : ''}>راست به چپ</option><option value="en" ${language === 'en' ? 'selected' : ''}>چپ به راست</option></select></label></section><section class="panel"><div class="section-heading"><h2>وضعیت اتصال</h2>${icon('radio')}</div><dl class="definition"><dt>محیط</dt><dd>${demo ? 'توسعه / داده محلی' : 'API عملیاتی'}</dd><dt>اجرای برنامه</dt><dd>${native ? 'دسکتاپ Tauri' : 'مرورگر / پیش‌نمایش'}</dd><dt>کلید خصوصی</dt><dd>${native ? 'محافظت‌شده توسط ویندوز' : 'WebCrypto آزمایشی در همین مرورگر'}</dd><dt>نسخه</dt><dd><code>0.1.0</code></dd></dl><button class="text-button" id="recover">${icon('folder-check')}بررسی و بازیابی نصب نیمه‌تمام</button><br><button class="text-button" id="check-api">${icon('refresh-cw')}بررسی اتصال</button></section></div>`;
   el.querySelector<HTMLButtonElement>('#choose-path')!.onclick = function () {
@@ -717,6 +719,7 @@ async function boot() {
         handleError(e);
       }
     }
+    await listen<string>('launcher:close-blocked', (event) => toast(event.payload));
     await listen<any>('client-activity', (event) => {
       const { type, ...fields } = event.payload;
       void recordEvent(type, fields);

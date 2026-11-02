@@ -10,6 +10,7 @@ fn main() {
     }
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "updater_status",
             "device_identity",
             "sign_challenge",
             "get_settings",

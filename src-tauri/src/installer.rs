@@ -211,6 +211,7 @@ fn recover_locked(root: &Path, control: &Path) -> Result<usize, String> {
     Ok(count)
 }
 pub fn recover(root: &Path) -> Result<usize, String> {
+    let _lifecycle = crate::lifecycle::operation()?;
     let control = regular_control(root)?;
     let lock = fs::OpenOptions::new()
         .create(true)

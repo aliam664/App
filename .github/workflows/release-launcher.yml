@@ -1,0 +1,92 @@
+name: Sign verified launcher candidate
+on:
+  push:
+    branches: [arena/37af8e92-app]
+    paths: [.github/release-request.json]
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Successful Platform checks run with the matching application source
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: uhm-signed-candidate
+  cancel-in-progress: false
+jobs:
+  sign:
+    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: ${{ inputs.build_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Load trusted branch release request
+        if: github.event_name == 'push'
+        run: |
+          node -e 'const id=require("./.github/release-request.json").build_run; if(!/^[0-9]{1,20}$/.test(id)) throw Error("Invalid run"); require("fs").appendFileSync(process.env.GITHUB_ENV, `BUILD_RUN=${id}\n`)'
+      - name: Verify source and successful installer build
+        shell: bash
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]{1,20}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > "$RUNNER_TEMP/build-run.json"
+          jq -e '.status == "completed" and .conclusion == "success" and .path == ".github/workflows/quality.yml" and .head_branch == "arena/37af8e92-app" and .event == "push"' "$RUNNER_TEMP/build-run.json"
+          built_sha=$(jq -r .head_sha "$RUNNER_TEMP/build-run.json")
+          git diff --name-only "$built_sha" HEAD > "$RUNNER_TEMP/source-diff.txt"
+          if grep -Ev '^(docs/|pages-preview/|README\.md$|\.github/release-request\.json$)' "$RUNNER_TEMP/source-diff.txt"; then
+            echo 'Application or release workflow changed since this build.'
+            exit 1
+          fi
+          echo "BUILT_SHA=$built_sha" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$(node -p 'JSON.parse(require("fs").readFileSync("src-tauri/tauri.conf.json")).version')" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: uhm-windows-production-unsigned
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+          path: release-assets
+      - name: Obtain short-lived release credential using GitHub OIDC
+        run: npx tsx scripts/request-update-key.ts
+      - name: Sign installer and bind its version
+        shell: bash
+        run: |
+          mapfile -d '' files < <(find release-assets -type f -name '*.exe' -print0)
+          test "${#files[@]}" = 1
+          output="release-assets/UHM-Launcher-${APP_VERSION}-x64-setup.exe"
+          if [ "${files[0]}" != "$output" ]; then mv "${files[0]}" "$output"; fi
+          npx --no-install tauri signer sign --private-key-path "$RUNNER_TEMP/uhm-updater.key" --password '' --app-version "$APP_VERSION" "$output"
+          node --input-type=module - <<'JS'
+          import { readFile, writeFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          const version = process.env.APP_VERSION;
+          const file = `UHM-Launcher-${version}-x64-setup.exe`;
+          const data = await readFile(`release-assets/${file}`);
+          const signature = (await readFile(`release-assets/${file}.sig`, 'utf8')).trim();
+          const signedText = Buffer.from(signature, 'base64').toString('utf8');
+          if (!signedText.includes(`version:${version}`)) throw Error('Missing signed version binding');
+          await writeFile('release-assets/SHA256SUMS.txt', `${createHash('sha256').update(data).digest('hex')}  ${file}\n`);
+          await writeFile('release-assets/latest.json', JSON.stringify({
+            version, notes: 'Signed UHM Launcher update', pub_date: new Date().toISOString(),
+            platforms: {'windows-x86_64': {signature, url: `https://github.com/aliam664/App/releases/download/uhm-launcher-v${version}/${file}`}}
+          }, null, 2) + '\n');
+          JS
+      - name: Remove ephemeral private key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/uhm-updater.key"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uhm-windows-signed-update-candidate
+          path: release-assets/*
+          if-no-files-found: error

@@ -3,6 +3,10 @@
     "sha256": "5d2acced6b20c41f7e80d0b2dc06177cef228cc3764f0cd68627149eafb85c5e",
     "bytes": 31249
   },
+  "updateKeyBroker": {
+    "sha256": "3394d07fd69e41397b91584ff1474b43761571288320ed6409c5c292c02afe9b",
+    "bytes": 3976
+  },
   "npm": {
     "zod": "npm:zod@4.6.7",
     "jose": "npm:jose@6.2.14",

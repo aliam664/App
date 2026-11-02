@@ -58,3 +58,23 @@ it('combines type/origin filters and sorts by real directory bytes without mutat
   ]);
   expect(fixture[0].id).toBe('car:a');
 });
+
+import { updateStatusText } from '../apps/web/src/update-status';
+it('renders native updater phases without treating failures as current or fabricating progress', () => {
+  const status = {
+    phase: 'error',
+    current_version: '0.1.0',
+    available_version: null,
+    downloaded: 0,
+    total: null,
+    error: 'network',
+  };
+  expect(updateStatusText(status)).toContain('ممکن نشد');
+  expect(updateStatusText({ ...status, phase: 'current' })).toContain('به‌روز است');
+  expect(updateStatusText({ ...status, phase: 'ready', available_version: '0.2.0' })).toContain(
+    'امضایش تأیید شد',
+  );
+  expect(updateStatusText({ ...status, phase: 'downloading', downloaded: 10 })).not.toContain(
+    '100%',
+  );
+});

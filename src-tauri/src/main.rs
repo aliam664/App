@@ -4,8 +4,10 @@ mod content_rules;
 mod discovery;
 mod installer;
 mod jobs;
+mod lifecycle;
 mod quarantine;
 mod security;
+mod updater;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -342,11 +344,34 @@ async fn install_plan(
     .await
     .map_err(|e| e.to_string())?
 }
+#[tauri::command]
+fn updater_status() -> Result<updater::Status, String> {
+    updater::status()
+}
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(IdentityLock::default())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            updater::start(app.handle().clone());
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if updater::closing(window.app_handle().clone()) {
+                    api.prevent_close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            updater_status,
             device_identity,
             sign_challenge,
             get_settings,

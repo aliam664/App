@@ -26,6 +26,7 @@
     "allow-restore-quarantine",
     "allow-control-job",
     "allow-set-download-preferences",
-    "allow-download-cache-status"
+    "allow-download-cache-status",
+    "allow-updater-status"
   ]
 }

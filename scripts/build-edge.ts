@@ -69,9 +69,13 @@ async function cloudEntry(source: string, output: string, suffix = '') {
   };
 }
 const api = await cloudEntry('supabase/functions/api/index.ts', 'deployment/edge/api.js');
+const updateKeyBroker = await cloudEntry(
+  'supabase/functions/update-key-broker/index.ts',
+  'deployment/edge/update-key-broker.js',
+);
 await writeFile(
   'deployment/edge/cloud-integrity.json',
-  JSON.stringify({ api, npm: npmImports }, null, 2) + '\n',
+  JSON.stringify({ api, updateKeyBroker, npm: npmImports }, null, 2) + '\n',
 );
 // Test export only; temporary cloud runners must be removed after commissioning.
 await cloudEntry('supabase/functions/commissioning/index.ts', 'deployment/edge/commissioning.js');
