@@ -1,0 +1,11 @@
+{
+  "api": {
+    "sha256": "fbdabd834942cab286644794c91c0459ccb865d8051c020ca4be4c76d53b584b",
+    "bytes": 29306
+  },
+  "npm": {
+    "zod": "npm:zod@4.6.7",
+    "jose": "npm:jose@6.2.14",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0"
+  }
+}

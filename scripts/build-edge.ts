@@ -34,3 +34,44 @@ await build({
   minify: true,
   legalComments: 'eof',
 });
+
+// The body-only cloud connector cannot package relative/HTTPS imports. Flatten only
+// application modules; Deno resolves these three exact npm versions itself.
+const npmImports: Record<string, string> = {
+  zod: 'npm:zod@4.6.7',
+  jose: 'npm:jose@6.2.14',
+  '@supabase/supabase-js': 'npm:@supabase/supabase-js@2.118.0',
+};
+async function cloudEntry(source: string, output: string, suffix = '') {
+  const result = await build({
+    entryPoints: [source],
+    bundle: true,
+    platform: 'browser',
+    format: 'esm',
+    target: 'es2022',
+    minifyWhitespace: true,
+    minifySyntax: true,
+    minifyIdentifiers: source !== 'scripts/live-smoke.ts',
+    legalComments: 'eof',
+    write: false,
+    external: Object.keys(npmImports),
+  });
+  let text = result.outputFiles[0].text;
+  for (const [name, specifier] of Object.entries(npmImports)) {
+    text = text.replaceAll(`from"${name}"`, `from"${specifier}"`);
+  }
+  await writeFile(output, text + suffix);
+  return {
+    sha256: createHash('sha256')
+      .update(text + suffix)
+      .digest('hex'),
+    bytes: Buffer.byteLength(text + suffix),
+  };
+}
+const api = await cloudEntry('supabase/functions/api/index.ts', 'deployment/edge/api.js');
+await writeFile(
+  'deployment/edge/cloud-integrity.json',
+  JSON.stringify({ api, npm: npmImports }, null, 2) + '\n',
+);
+// Test export only; temporary cloud runners must be removed after commissioning.
+await cloudEntry('supabase/functions/commissioning/index.ts', 'deployment/edge/commissioning.js');

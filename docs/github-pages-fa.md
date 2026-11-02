@@ -1,58 +1,34 @@
-> **اصلاح صفحه سفید:** تنظیم فعلی مخزن روی انتشار از ریشه شاخه بود. اکنون ریشه، مرورگر GitHub Pages را به `pages-preview/` هدایت می‌کند؛ این پوشه خروجی کامپایل‌شده همان سورس است، نه UI جدا. `.nojekyll` ریشه اضافه شده است. تصاویر و فونت‌ها بدون کپی دوباره از `public/` خوانده می‌شوند. workflow «Refresh compiled branch preview» پس از push خروجی را بازسازی و روی همین شاخه ذخیره می‌کند و برای منبع legacy درخواست build می‌دهد. این فایل‌های generated را دستی ویرایش نکنید. در حالت GitHub Actions نیز workflow انتشار اصلی همان `dist-pages/` را منتشر می‌کند.
->
-> این راه جایگزین برای تنظیم فعلی اضافه شده است؛ توضیح قدیمی زیر درباره کافی‌نبودن HTML TypeScript به‌تنهایی همچنان درست است. حالا اگر ریشه شاخه انتخاب شده باشد، fallback کامپایل‌شده مانع صفحه سفید می‌شود.
+# سایت زنده و سورس مشترک برنامه
 
-# سایت GitHub Pages با همان کد رابط برنامه
+سایت **https://aliam664.github.io/App/** و پنل **https://aliam664.github.io/App/#/admin** اکنون به API واقعی UHM متصل‌اند؛ ورود نمایشی عمومی ندارند. برای شروع، [راهنمای عملیات](operations-fa.md) را بخوانید.
 
-## یک ورودی، نه دو رابط جدا
+## یک UI، دو مقصد اجرا
 
-فایل **`index.html` در ریشه مخزن** ورودی مشترک وب و Tauri است. هر دو، مستقیماً `apps/web/src/main.ts` و همان CSS/کامپوننت‌ها را build می‌کنند. فایل HTML قدیمی داخل `apps/web` حذف/منتقل شده تا دو نسخه مستقل از UI وجود نداشته باشد.
+`index.html` ریشه، همان `apps/web/src/main.ts` و CSS/کامپوننت‌ها را برای مرورگر و Tauri build می‌کند. طراحی دوم وجود ندارد. GitHub Pages فقط UI را سرو می‌کند؛ API در Supabase و نصب واقعی بازی فقط در Windows اجرا می‌شوند.
 
-| کار | فرمان / محل |
-|---|---|
-| تغییر طراحی و رابط هر دو نسخه | `apps/web/src/` |
-| ورودی مشترک | `index.html` |
-| توسعه با API محلی | `npm run dev` |
-| خروجی معمولی برنامه | `npm run build` → `dist/` |
-| خروجی GitHub Pages | `npm run build:pages` → `dist-pages/` |
-| دیدن خروجی Pages روی دستگاه | `npm run preview:pages` → `http://localhost:5181/App/` |
-| تست مرورگر Pages بدون backend | `npm run test:pages` |
+| مقصد | فرمان | خروجی |
+| --- | --- | --- |
+| توسعه با API و داده محلی | `npm run dev` | توسعه محلی |
+| UI production معمولی/دسکتاپ | `npm run build` | `dist/` |
+| سایت متصل برای Pages Actions | `npm run build:live-pages` | `dist-pages/` |
+| fallback متصل روی شاخه | `npm run build:live-branch` | `pages-preview/` |
+| sandbox برای آزمون بدون backend | `npm run build:pages` و `npm run build:branch` | همان مسیرهای build، ولی mode نمایشی |
 
-بازکردن مستقیم HTML سورس با `file://` یا انتخاب **Deploy from a branch / root** درست نیست؛ HTML به TypeScript اشاره می‌کند و باید build شود. workflow این کار را خودکار انجام می‌دهد، نیازی به کپی دستی فایل‌ها نیست.
+نام `pages-preview` تاریخی است؛ خروجی منتشرشده اکنون `connected-production` است. خود فرمان‌های sandbox عمداً تغییر معنا نداده‌اند تا تستِ بدون سرور معتبر بماند. کدهای sandbox در سرور واقعی اعتبار ندارند.
 
-## فعال‌سازی یک‌باره در GitHub
+## صفحه سفید و تنظیم فعلی
 
-اتصال فعلی این محیط برای ایجاد Pages مجوز کافی ندارد (`403 Resource not accessible by integration`). هیچ Pages یا سرویس پولی از این محیط ایجاد نشده است.
+تنظیم موجود Pages روی legacy source از ریشه همین شاخه است. ریشه TypeScript کامپایل‌نشده را به مرورگر نمی‌دهد؛ redirect به خروجی کامپایل‌شده `pages-preview/`، hash پنل را حفظ می‌کند. فونت‌ها، تصویر و ویدیو از `public/` مشترک خوانده می‌شوند. `.nojekyll` فعال است. تغییر دستی Settings برای مشاهده سایت لازم نیست. مجوز اتصال برای تغییر نوع Pages کافی نبود؛ تنظیم قبلی حفظ و مسیر انتشار موجود تعمیر شد. `/Uhm/` تغییر نکرد.
 
-۱. مخزن **aliam664/App** را باز کنید.
-۲. **Settings → Pages → Build and deployment → Source → GitHub Actions** را انتخاب کنید.
-۳. در **Actions**، workflow با نام **Publish shared app UI to GitHub Pages** را باز کنید. اگر اجرای قبلی به‌خاطر تنظیم‌نبودن Pages ناموفق بود، آن را **Re-run all jobs** کنید؛ یا اگر workflow روی شاخه پیش‌فرض هم موجود بود، از **Run workflow** شاخه `arena/37af8e92-app` را انتخاب کنید.
-۴. پس از موفقیت job `deploy`، نشانی خروجی معمولاً **https://aliam664.github.io/App/** خواهد بود؛ URL قطعی در همان deployment نمایش داده می‌شود.
+با push به شاخه فعال، workflow «Refresh compiled branch preview» ابتدا sandbox را build و چهار تست استاتیک را اجرا می‌کند، سپس `build:live-branch` را می‌سازد و generatedها را با bot روی **همان شاخه** ثبت می‌کند. درخواست legacy build داده می‌شود. workflow اصلی نیز پس از تست، `build:live-pages` می‌سازد؛ اگر بعدها Pages رسماً روی Actions تنظیم شود، همان artifact را deploy می‌کند.
 
-سایت قبلی **/Uhm/** دست‌نخورده است؛ انتشار جدید مربوط به **/App/** است. اگر محیط `github-pages` انتشار را فقط به `main` محدود کرده باشد، در Settings → Environments → github-pages اجازه همین شاخه را هم بدهید یا تغییرات را بعداً با روال خودتان merge کنید.
+خروجی generated را دستی ویرایش نکنید. `build-info.json` mode، revision و ورودی مشترک را ثبت می‌کند. برای legacy آن را در `/App/pages-preview/build-info.json` بخوانید؛ برای Actions در `/App/build-info.json`. نمایش تغییر پس از push، پایان workflow و build/CDN است، نه هم‌زمان با تایپ.
 
-## تغییرات بعدی چگونه روی سایت دیده می‌شوند؟
+## مسیر و امنیت
 
-با هر push روی `arena/37af8e92-app` یا `main`، workflow:
-
-- همان رابط برنامه را build می‌کند؛
-- خروجی کامپایل‌شده را در مسیر `/App/` تست می‌کند؛
-- HTML، JS، CSS، فونت‌ها، تصاویر و ویدیو را به Pages منتشر می‌کند.
-
-نیازی به نگهداری قالب دوم یا ویرایش خروجی build نیست. هفت کاراکتر اول commit در پایین پیش‌نمایش و SHA کامل در `/App/build-info.json` ثبت می‌شود تا معلوم باشد دقیقاً چه نسخه‌ای منتشر شده است. داده آزمایشی هر build جداست تا seed/تغییرات جدید پشت cache نسخه قبلی پنهان نشود. به‌روزرسانی پس از **push و موفقیت deploy** دیده می‌شود، نه هم‌زمان با تایپ یا commit محلی.
-
-## تفاوت محیط، نه تفاوت کد طراحی
-
-GitHub Pages فقط فایل استاتیک ارائه می‌کند؛ نمی‌تواند Node، Supabase service-role، DPAPI یا موتور نصب Rust را اجرا کند.
-
-برای مشاهده عملی رابط بدون استقرار backend، فقط build با mode `pages` یک **sandbox محلی مرورگر** بارگذاری می‌کند. این sandbox از همان API توسعه و repository مشترک استفاده می‌کند؛ ورود نمایشی، تولید کد، فعال‌سازی آزمایشی، فرم‌های پنل و داده‌ها فقط در مرورگر همان بازدیدکننده‌اند. نشست و داده آن با نسخه معمولی namespace جدا دارد. کلیدهای runtime تولیدشده نیز فقط آزمایشی‌اند و هیچ اعتباری در سرور عملیاتی یا installer ویندوز ندارند.
-
-این **سامانه فروش/لایسنس عملیاتی روی Pages نیست**. UI و CSS یکسان‌اند، اما نصب واقعی فقط در برنامه Windows و عملیات عملیاتی فقط با backend معتبر انجام می‌شوند. build معمولی/Tauri این adapter آزمایشی را در خروجی ندارد؛ این جداسازی خودکار بررسی می‌شود. هیچ private key، service-role یا pepper واقعی نباید در تنظیمات Pages یا `VITE_*` قرار گیرد.
-
-## مسیرها
-
-- `assetUrl` تصویرهای runtime را با base درست نمایش می‌دهد؛ داده اصلی پکیج همچنان `/images/...` است.
-- Vite مسیر فونت، favicon و فایل‌های build را برای `/App/` بازنویسی می‌کند.
-- پنل با `/App/#/admin` کار می‌کند؛ refresh باعث 404 نمی‌شود.
-- `404.html` از خروجی همان index ساخته می‌شود و `.nojekyll` نیز اضافه می‌شود.
-- خروجی‌های `dist/` و `dist-pages/` وارد Git نمی‌شوند.
+- پنل hash route دارد؛ refresh/redirect مسیر را حفظ می‌کند.
+- `assetUrl` و base Vite تصاویر، فونت‌ها و JS را به مسیر درست اشاره می‌دهند.
+- در Actions، `404.html` از index همان build و `.nojekyll` ساخته می‌شود.
+- GitHub Pages `_headers` و `_redirects` را به‌عنوان تنظیم سرور اجرا نمی‌کند؛ کنترل اصلی داده در API است.
+- هیچ service-role، private JWK، pepper یا کد مالک در سایت/متغیرهای Vite قرار نمی‌گیرد.
+- کلید مرورگر و کلید Windows یکی نیستند؛ برای استفاده در هر دو محیط مستقل، دو لایسنس مدیریتی صادر کنید.

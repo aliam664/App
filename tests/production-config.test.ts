@@ -28,3 +28,11 @@ it('records the exact secret-free standalone Edge artifact digest', () => {
   expect(bundle.length).toBe(integrity.bytes);
   expect(bundle.toString()).not.toMatch(/from ["'](?:\.\.|https?:|npm:)/);
 });
+it('pins the exact body-only cloud entry without relative or HTTPS module imports', () => {
+  const body = readFileSync('deployment/edge/api.js');
+  const record = JSON.parse(readFileSync('deployment/edge/cloud-integrity.json', 'utf8'));
+  expect(createHash('sha256').update(body).digest('hex')).toBe(record.api.sha256);
+  expect(body.length).toBe(record.api.bytes);
+  expect(body.toString()).not.toMatch(/from["'](?:\.\.|https?:)/);
+  for (const specifier of Object.values(record.npm)) expect(body.toString()).toContain(specifier);
+});
