@@ -9,8 +9,12 @@ on:
         description: Successful Platform checks run with the matching application source
         required: true
         type: string
+      publish_candidate:
+        description: Publish an explicit prerelease and update the dedicated signed feed (never legacy latest)
+        type: boolean
+        default: false
 permissions:
-  contents: read
+  contents: write
   actions: read
   id-token: write
 concurrency:
@@ -23,6 +27,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BUILD_RUN: ${{ inputs.build_run }}
+      PUBLISH_CANDIDATE: ${{ inputs.publish_candidate && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +40,7 @@ jobs:
       - name: Load trusted branch release request
         if: github.event_name == 'push'
         run: |
-          node -e 'const id=require("./.github/release-request.json").build_run; if(!/^[0-9]{1,20}$/.test(id)) throw Error("Invalid run"); require("fs").appendFileSync(process.env.GITHUB_ENV, `BUILD_RUN=${id}\n`)'
+          node -e 'const request=require("./.github/release-request.json"); const id=request.build_run; if(!/^[0-9]{1,20}$/.test(id) || typeof request.publish_candidate!=="boolean") throw Error("Invalid release request"); require("fs").appendFileSync(process.env.GITHUB_ENV, `BUILD_RUN=${id}\nPUBLISH_CANDIDATE=${request.publish_candidate}\n`)'
       - name: Verify source and successful installer build
         shell: bash
         run: |
@@ -93,3 +98,22 @@ jobs:
           name: uhm-windows-signed-update-candidate
           path: release-assets/*
           if-no-files-found: error
+
+      - name: Publish explicit signed prerelease and dedicated update feed
+        if: env.PUBLISH_CANDIDATE == 'true'
+        shell: bash
+        run: |
+          tag="uhm-launcher-v${APP_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Refusing to replace an immutable version; bump the app version for a new build.'
+            exit 1
+          fi
+          gh release create "$tag" release-assets/* --target "$BUILT_SHA" --prerelease --latest=false --title "UHM Launcher ${APP_VERSION} — signed update candidate" --notes 'Candidate with signed automatic updater. Windows Authenticode signing and real game/GUI rollout validation are not claimed. License trust is unchanged.'
+          if ! gh release view uhm-launcher-updates >/dev/null 2>&1; then
+            gh release create uhm-launcher-updates release-assets/latest.json --target "$BUILT_SHA" --prerelease --latest=false --title 'UHM Launcher update feed' --notes 'Mutable signed-version metadata only. Immutable installers live in versioned candidate releases. This feed does not replace the legacy latest release.'
+          else
+            gh release upload uhm-launcher-updates release-assets/latest.json --clobber
+          fi
+      - name: Verify the real remote feed and installer bytes after publication
+        if: env.PUBLISH_CANDIDATE == 'true'
+        run: npx tsx scripts/check-release-feed.ts

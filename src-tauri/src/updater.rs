@@ -11,7 +11,8 @@ use std::{
 use tauri::{Emitter, Wry};
 use tauri_plugin_updater::{Update, UpdaterExt};
 const MAX_BYTES: u64 = 128 * 1024 * 1024;
-const FEED: &str = "https://github.com/aliam664/App/releases/latest/download/latest.json";
+const FEED: &str =
+    "https://github.com/aliam664/App/releases/download/uhm-launcher-updates/latest.json";
 #[derive(Clone, Serialize)]
 pub struct Status {
     phase: String,

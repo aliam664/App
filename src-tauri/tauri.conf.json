@@ -53,7 +53,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBQ0JBOTFENDAwODI1NTYKUldSV0pRaEFIYW5MZWp3Zmc2R0FaZDJ4Vk5tU20xc3BFeEpnNXVoTWwzY1ZlWmdpZWFFREZkU2wK",
       "endpoints": [
-        "https://github.com/aliam664/App/releases/latest/download/latest.json"
+        "https://github.com/aliam664/App/releases/download/uhm-launcher-updates/latest.json"
       ],
       "requireSignedVersion": true,
       "allowDowngrades": false,
