@@ -425,7 +425,9 @@ mod tests {
             .unwrap()
             .unwrap();
         let bytes = include_bytes!("../tests/fixtures/updater-payload.txt");
-        assert!(update.verify(bytes).is_ok());
+        update
+            .verify(bytes)
+            .expect("Actual signed fixture must verify byte-for-byte on Windows");
         let mut changed = bytes.to_vec();
         changed[0] ^= 1;
         assert!(update.verify(&changed).is_err());
