@@ -1,5 +1,5 @@
 {
-  "revision": "ec81c0e1d6e003946f168b1ea634db894ced46d4",
+  "revision": "local",
   "source": "index.html + apps/web/src/main.ts",
   "mode": "branch-preview"
 }

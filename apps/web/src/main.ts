@@ -454,6 +454,9 @@ function activateDialog() {
     void recordEvent('app_open', { stage: 'app' });
     try {
       adminToken = await licenseAdminSession();
+      adminMode = true;
+      page = 'dashboard';
+      history.pushState({}, '', modeUrl(true));
       toast('لایسنس فعال شد؛ دسترسی مدیریت این دستگاه هم تأیید شد.');
     } catch {
       toast('مجوز دستگاه با موفقیت ثبت شد.');

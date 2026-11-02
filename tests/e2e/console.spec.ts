@@ -225,3 +225,28 @@ test('reported client errors can be reviewed and resolved in the professional in
   await page.locator('#error-status').selectOption('resolved');
   await expect(page.locator('#incident-list')).toContainText('APP_RUNTIME_ERROR');
 });
+
+test('first launcher activation of an assigned staff license opens the dashboard automatically', async ({
+  page,
+  request,
+}) => {
+  const token = await owner(request);
+  const created = await (
+    await request.post('/api/admin/licenses', {
+      data: { tier: 'pro', count: 1, duration_days: 30 },
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  ).json();
+  await request.post(`/api/admin/team/${created.licenses[0].id}`, {
+    data: { role: 'viewer', permissions: ['analytics.read', 'content.read'], enabled: true },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'فعال‌سازی لایسنس', exact: true }).click();
+  await page.locator('#activate-form [name=code]').fill(created.codes[0]);
+  await page.locator('#activate-form button[type=submit]').click();
+  await expect(page).toHaveURL(/#\/admin$/);
+  await expect(page.getByRole('heading', { name: 'همه‌چیز، زیر کنترل.' })).toBeVisible();
+  await page.getByRole('button', { name: 'بازگشت به لانچر', exact: true }).click();
+  await expect(page.locator('.profile')).toContainText('PRO MEMBER');
+});
