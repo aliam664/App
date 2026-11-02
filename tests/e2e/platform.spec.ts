@@ -110,3 +110,23 @@ test('UHM reference identity, original media and persistent theme work together'
   await expect(page.getByRole('heading', { name: 'هنوز اولین دور را شروع نکردی' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
+
+test('moving the HTML entry to the repository root does not expose local secrets', async ({
+  request,
+}) => {
+  const { mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { resolve } = await import('node:path');
+  const file = resolve('.local/fs-deny-probe.txt');
+  const marker = 'private-local-data-must-not-be-served';
+  await mkdir('.local', { recursive: true });
+  await writeFile(file, marker);
+  try {
+    for (const path of ['/.local/fs-deny-probe.txt', `/@fs${file}`]) {
+      const result = await request.get(path);
+      expect(result.status()).toBe(403);
+      expect(await result.text()).not.toContain(marker);
+    }
+  } finally {
+    await rm(file, { force: true });
+  }
+});

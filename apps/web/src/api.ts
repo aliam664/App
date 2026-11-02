@@ -1,7 +1,11 @@
+import { staticPreview } from './runtime';
+import { isTauri } from '@tauri-apps/api/core';
 import { createClient } from '@supabase/supabase-js';
 export const base = import.meta.env.VITE_API_BASE || '/api';
 export const supabase =
-  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  !staticPreview &&
+  import.meta.env.VITE_SUPABASE_URL &&
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
     ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
     : null;
 export class ApiError extends Error {
@@ -12,16 +16,23 @@ export class ApiError extends Error {
     super(code);
   }
 }
+let sandbox:
+  Promise<Awaited<ReturnType<typeof import('./static-preview').createStaticPreview>>> | undefined;
 export async function api<T = any>(path: string, body?: unknown, token?: string): Promise<T> {
-  const result = await fetch(`${base}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(20000),
-  });
+  const result =
+    staticPreview && !isTauri()
+      ? await (
+          await (sandbox ??= import('./static-preview').then((m) => m.createStaticPreview()))
+        )(path, body, token)
+      : await fetch(`${base}${path}`, {
+          method: body === undefined ? 'GET' : 'POST',
+          headers: {
+            ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(20000),
+        });
   const data = await result.json();
   if (!result.ok)
     throw new ApiError(

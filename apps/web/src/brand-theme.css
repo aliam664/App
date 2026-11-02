@@ -916,3 +916,10 @@ tbody tr:hover {
 #showcase {
   scroll-margin-top: 96px;
 }
+.build-revision {
+  display: block;
+  font: 600 10px 'UHM Outfit';
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 5px;
+}

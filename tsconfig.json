@@ -18,6 +18,8 @@
     "packages/**/*.ts",
     "tests/**/*.ts",
     "vite.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.pages.config.ts",
+    "scripts/**/*.ts"
   ]
 }

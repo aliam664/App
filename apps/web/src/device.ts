@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { staticPreview } from './runtime';
 import { api } from './api';
 const native = isTauri();
 const b64 = (bytes: Uint8Array) =>
@@ -10,7 +11,7 @@ let browserKey: CryptoKeyPair | null = null;
 async function keys(): Promise<CryptoKeyPair> {
   if (browserKey) return browserKey;
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const r = indexedDB.open('uhm-device-preview', 1);
+    const r = indexedDB.open(staticPreview ? 'uhm-pages-device-preview' : 'uhm-device-preview', 1);
     r.onupgradeneeded = () => r.result.createObjectStore('keys');
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);

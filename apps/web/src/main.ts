@@ -1,3 +1,5 @@
+import { assetUrl, modeUrl, isAdminRoute, staticPreview, buildRevision } from './runtime';
+import { localStore, sessionStore } from './storage';
 import './style.css';
 import './reference.css';
 import './brand-theme.css';
@@ -34,20 +36,20 @@ type Task = {
   error?: string;
 };
 document.documentElement.dataset.theme =
-  localStorage.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
+  localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 let demo = false,
   online = true,
   page = 'discover',
-  adminMode = location.pathname.startsWith('/admin'),
-  adminToken = sessionStorage.getItem('uhm-admin') || '';
+  adminMode = isAdminRoute(),
+  adminToken = sessionStore.getItem('uhm-admin') || '';
 let catalog: CatalogItem[] = [],
   activeCategory = 'all',
   query = '',
   tierFilter = 'all';
 let license: PublicLicense | null = null;
 try {
-  const cached = JSON.parse(localStorage.getItem('uhm-license') || 'null');
+  const cached = JSON.parse(localStore.getItem('uhm-license') || 'null');
   if (
     cached &&
     ['normal', 'pro', 'vip'].includes(cached.tier) &&
@@ -56,15 +58,15 @@ try {
   )
     license = cached;
 } catch {
-  localStorage.removeItem('uhm-license');
+  localStore.removeItem('uhm-license');
 }
-let grant = localStorage.getItem('uhm-grant') || '';
-let gamePath = localStorage.getItem('uhm-game-path') || '';
+let grant = localStore.getItem('uhm-grant') || '';
+let gamePath = localStore.getItem('uhm-game-path') || '';
 let installed: Record<string, { version: string; installed_at: string }> = {};
 let tasks: Task[] = [];
 let installing = false;
-let language = localStorage.getItem('uhm-language') || 'fa';
-let compact = localStorage.getItem('uhm-compact') === 'true';
+let language = localStore.getItem('uhm-language') || 'fa';
+let compact = localStore.getItem('uhm-compact') === 'true';
 const launcherNav = [
   ['discover', 'compass', 'کشف پکیج‌ها'],
   ['library', 'layers-2', 'کتابخانه من'],
@@ -80,15 +82,15 @@ const adminNav = [
 ];
 
 function brandMarkup() {
-  return `<a class="brand" href="/" aria-label="UHM Launcher"><img src="/brand/logo.png" alt="لوگوی UHM"> UHM <small>v0.1</small></a>`;
+  return `<a class="brand" href="${modeUrl()}" aria-label="UHM Launcher"><img src="${assetUrl('/brand/logo.png')}" alt="لوگوی UHM"> UHM <small>v0.1</small></a>`;
 }
 function demoStrip() {
   return demo
-    ? `<div class="demo-strip">${icon('flask-conical')}محیط پیش‌نمایش · داده‌های محلی و ورود نمایشی · نصب واقعی فقط در نسخهٔ ویندوز <span>DEVELOPMENT</span></div>`
+    ? `<div class="demo-strip">${icon('flask-conical')}${staticPreview ? 'پیش‌نمایش GitHub Pages · داده‌های آزمایشی فقط در مرورگر شما' : 'محیط پیش‌نمایش · داده‌های محلی و ورود نمایشی'} · نصب واقعی فقط در نسخهٔ ویندوز <span>DEVELOPMENT</span></div>`
     : '';
 }
 function footerMarkup() {
-  return `<footer class="site-footer"><div class="footer-identity"><img src="/brand/logo.png" alt=""><div><b>UHM GRAPHICS PACK</b><span>ساخته‌شده توسط Ali369 · برای جامعهٔ Assetto Corsa</span></div></div><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل به سرویس' : 'حالت آفلاین'}</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer>`;
+  return `<footer class="site-footer"><div class="footer-identity"><img src="${assetUrl('/brand/logo.png')}" alt=""><div><b>UHM GRAPHICS PACK</b>${staticPreview ? `<small class="build-revision" dir="ltr">PREVIEW / ${esc(buildRevision.slice(0, 7))}</small>` : ''}<span>ساخته‌شده توسط Ali369 · برای جامعهٔ Assetto Corsa</span></div></div><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل به سرویس' : 'حالت آفلاین'}</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer>`;
 }
 function launcherShell(nav: string[][]) {
   return `<div class="launcher-shell"><div class="reference-header"><header class="container nav">${brandMarkup()}<nav class="nav-links" aria-label="ناوبری اصلی">${nav.map(([id, , t]) => `<button class="${page === id ? 'current' : ''}" data-nav="${id}">${t}${id === 'downloads' && tasks.length ? ` <b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}<button data-nav="settings">تنظیمات</button></nav><div class="nav-actions"><button class="profile language-toggle" id="profile" aria-label="${license ? 'مدیریت اشتراک' : 'اشتراک و فعال‌سازی'}"><span class="language-orbit">${icon('key-round')}</span><span>${license ? license.tier.toUpperCase() + ' MEMBER' : 'لایسنس'}</span><span class="language-chevron">↗</span></button><button class="icon" id="theme" aria-label="تغییر تم">◐</button><button class="icon notification-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="menu-btn" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')} منو</button></div></header></div>${demoStrip()}<main class="launcher-content ${page === 'discover' ? 'is-discover' : ''}" id="content" tabindex="-1"></main>${footerMarkup()}<button class="mode-switch-access" id="switch-mode">${icon('sliders-horizontal')}پنل مدیریت</button></div><div id="toasts" aria-live="polite"></div>`;
@@ -103,11 +105,11 @@ function shell() {
   const nav = adminMode ? adminNav : launcherNav;
   app.innerHTML = adminMode ? adminShell(nav) : launcherShell(nav);
   document.documentElement.dataset.theme =
-    localStorage.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
+    localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
   document.querySelector('#theme')?.addEventListener('click', () => {
     const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('uhm-theme', theme);
+    localStore.setItem('uhm-theme', theme);
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach(
@@ -128,7 +130,7 @@ function shell() {
     d.addEventListener('close', () => menuButton.setAttribute('aria-expanded', 'false'));
     d.setAttribute('aria-label', 'منوی بخش‌های UHM');
     d.querySelector('.modal-head h2')!.innerHTML =
-      '<img src="/brand/logo.png" alt=""> UHM <small>NAVIGATION</small>';
+      `<img src="${assetUrl('/brand/logo.png')}" alt=""> UHM <small>NAVIGATION</small>`;
     d.querySelectorAll<HTMLButtonElement>('[data-mobile-nav]').forEach(
       (b) =>
         (b.onclick = () => {
@@ -146,17 +148,17 @@ function shell() {
     if (!adminMode && !adminToken) {
       loginDialog(demo, (t) => {
         adminToken = t;
-        sessionStorage.setItem('uhm-admin', t);
+        sessionStore.setItem('uhm-admin', t);
         adminMode = true;
         page = 'dashboard';
-        history.pushState({}, '', '/admin');
+        history.pushState({}, '', modeUrl(true));
         void render();
       });
       return;
     }
     adminMode = !adminMode;
     page = adminMode ? 'dashboard' : 'discover';
-    history.pushState({}, '', adminMode ? '/admin' : '/');
+    history.pushState({}, '', modeUrl(adminMode));
     void render();
   });
   document
@@ -170,7 +172,7 @@ function shell() {
             .slice(0, 5)
             .map(
               (p) =>
-                `<article><img src="${esc(p.image)}" alt=""><div><b>${esc(p.name)}</b><p>${esc(p.changelog)}</p><small>v${esc(p.version)} · ${date(p.released_at)}</small></div></article>`,
+                `<article><img src="${esc(assetUrl(p.image))}" alt=""><div><b>${esc(p.name)}</b><p>${esc(p.changelog)}</p><small>v${esc(p.version)} · ${date(p.released_at)}</small></div></article>`,
             )
             .join('')}</div>`
         : empty('هنوز خبری نیست', 'با انتشار پکیج، تغییرات اینجا دیده می‌شوند.'),
@@ -203,7 +205,7 @@ async function render() {
         );
         loginDialog(demo, (t) => {
           adminToken = t;
-          sessionStorage.setItem('uhm-admin', t);
+          sessionStore.setItem('uhm-admin', t);
           void render();
         });
         return;
@@ -223,8 +225,8 @@ async function render() {
   decorate();
 }
 function discover(el: HTMLElement) {
-  el.innerHTML = `<div class="reference-home"><section class="hero feature" aria-label="معرفی UHM"><video class="hero-video" preload="metadata" muted loop autoplay playsinline poster="/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg"><source src="/brand/media/uhm-showcase.mp4" type="video/mp4"></video><div class="container hero-grid"><div class="hero-copy visible"><div class="eyebrow">UHM / ASSETTO CORSA / GRAPHICS CONFIG</div><img class="logo-plate" src="/brand/logo.png" alt="UHM"><h1>گرافیک استو را<br><span class="hero-highlight">یک سطح بالاتر</span> ببر</h1><p class="hero-lead">UHM یک پکیج آمادهٔ تنظیمات بصری برای Assetto Corsa است؛ شامل Pure، CSP، PP Filter و Presetهای گرافیکی. از فعال‌سازی لایسنس تا دانلود و نصب مرحله‌ای، همه‌چیز در یک لانچر.</p><div class="hero-buttons"><button class="btn primary" id="browse-packages">↓ پکیج‌های UHM</button><button class="btn ghost" id="view-showcase">مشاهده نتیجه</button><button class="btn ghost" id="start-install">شروع نصب</button></div><div class="home-proof"><span>ASSETTO CORSA</span><span>PURE + CSP + PP FILTER</span><span>READY-TO-CONFIG</span></div><div class="stats"><div class="stat"><b>${fa(catalog.length)}</b><span>پکیج در کاتالوگ</span></div><div class="stat"><b>3</b><span>سطح اشتراک</span></div><div class="stat"><b>ZIP / RAR / 7z</b><span>فرمت‌های نصب</span></div></div></div><div class="hero-rail reveal visible"><img src="/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg" alt="نمای واقعی گرافیک UHM در Assetto Corsa"><small>REAL GAMEPLAY / ASSETTO CORSA</small></div></div><button class="hero-scroll" id="hero-scroll"><span>SCROLL TO EXPLORE</span><i aria-hidden="true">↓</i></button><div class="ticker" aria-hidden="true"><span>UHM GRAPHICS PACK <i>✦</i> PURE READY <i>✦</i> CONTENT MANAGER <i>✦</i> ALI369 <i>✦</i> UHM GRAPHICS PACK <i>✦</i></span></div></section>
-  <section id="showcase" class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">SHOWCASE</div><h2>ببین، بعد نصب کن.</h2></div><p>نمای واقعی پک UHM؛ همان ویدیو و همان تجربه‌ای که در سایت می‌بینی.</p></div><div class="video-shell"><video controls preload="none" poster="/brand/images/830c39f4-b1ff-4d2b-94a0-7ea5549e7f28.jpg"><source src="/brand/media/uhm-showcase.mp4" type="video/mp4"></video><div class="video-caption"><span><b>UHM / Showcase</b><br><small>Gameplay capture · Assetto Corsa</small></span><button class="btn ghost" id="showcase-packages">مشاهده پکیج‌ها ←</button></div></div></div></section>
+  el.innerHTML = `<div class="reference-home"><section class="hero feature" aria-label="معرفی UHM"><video class="hero-video" preload="metadata" muted loop autoplay playsinline poster="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="container hero-grid"><div class="hero-copy visible"><div class="eyebrow">UHM / ASSETTO CORSA / GRAPHICS CONFIG</div><img class="logo-plate" src="${assetUrl('/brand/logo.png')}" alt="UHM"><h1>گرافیک استو را<br><span class="hero-highlight">یک سطح بالاتر</span> ببر</h1><p class="hero-lead">UHM یک پکیج آمادهٔ تنظیمات بصری برای Assetto Corsa است؛ شامل Pure، CSP، PP Filter و Presetهای گرافیکی. از فعال‌سازی لایسنس تا دانلود و نصب مرحله‌ای، همه‌چیز در یک لانچر.</p><div class="hero-buttons"><button class="btn primary" id="browse-packages">↓ پکیج‌های UHM</button><button class="btn ghost" id="view-showcase">مشاهده نتیجه</button><button class="btn ghost" id="start-install">شروع نصب</button></div><div class="home-proof"><span>ASSETTO CORSA</span><span>PURE + CSP + PP FILTER</span><span>READY-TO-CONFIG</span></div><div class="stats"><div class="stat"><b>${fa(catalog.length)}</b><span>پکیج در کاتالوگ</span></div><div class="stat"><b>3</b><span>سطح اشتراک</span></div><div class="stat"><b>ZIP / RAR / 7z</b><span>فرمت‌های نصب</span></div></div></div><div class="hero-rail reveal visible"><img src="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}" alt="نمای واقعی گرافیک UHM در Assetto Corsa"><small>REAL GAMEPLAY / ASSETTO CORSA</small></div></div><button class="hero-scroll" id="hero-scroll"><span>SCROLL TO EXPLORE</span><i aria-hidden="true">↓</i></button><div class="ticker" aria-hidden="true"><span>UHM GRAPHICS PACK <i>✦</i> PURE READY <i>✦</i> CONTENT MANAGER <i>✦</i> ALI369 <i>✦</i> UHM GRAPHICS PACK <i>✦</i></span></div></section>
+  <section id="showcase" class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">SHOWCASE</div><h2>ببین، بعد نصب کن.</h2></div><p>نمای واقعی پک UHM؛ همان ویدیو و همان تجربه‌ای که در سایت می‌بینی.</p></div><div class="video-shell"><video controls preload="none" poster="${assetUrl('/brand/images/830c39f4-b1ff-4d2b-94a0-7ea5549e7f28.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="video-caption"><span><b>UHM / Showcase</b><br><small>Gameplay capture · Assetto Corsa</small></span><button class="btn ghost" id="showcase-packages">مشاهده پکیج‌ها ←</button></div></div></div></section>
   <section class="catalog-section section" id="package-catalog"><div class="container"><div class="section-head"><div><div class="eyebrow">UHM / COLLECTION</div><h2>پکیج‌های گرافیک و تجربهٔ رانندگی</h2></div><span class="count" id="result-count">${fa(catalog.length)} پکیج</span></div><div class="catalog-controls"><div class="tabs" role="tablist" aria-label="دسته‌بندی پکیج‌ها">${[['all', 'همه پکیج‌ها'], ...Object.entries(category)].map(([v, l]) => `<button role="tab" aria-selected="${activeCategory === v}" class="tab ${activeCategory === v ? 'selected' : ''}" data-category="${v}">${l}</button>`).join('')}</div><div class="catalog-search"><label class="search">${icon('search')}<input id="package-search" placeholder="پکیج مورد نظرت را پیدا کن…" value="${esc(query)}" aria-label="جست‌وجوی پکیج"></label><select id="tier-filter" aria-label="فیلتر سطح اشتراک"><option value="all">همه سطح‌ها</option>${['normal', 'pro', 'vip'].map((t) => `<option value="${t}" ${tierFilter === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select></div></div><div class="package-grid" id="packages"></div></div></section>
   <section class="section membership-section"><div class="container"><div class="download"><div><div class="eyebrow">YOUR ACCESS / UHM</div><h2>${license ? 'اشتراک تو، مسیرهای بیشتر.' : 'کلید گاراژت را فعال کن.'}</h2><p>${license ? 'وضعیت مجوز و زمان تمدید را در بخش اشتراک ببین.' : 'یک لایسنس، یک دستگاه؛ بدون ساخت حساب کاربری.'}</p><div class="home-proof"><span>NORMAL</span><span>PRO</span><span>VIP</span></div></div><button class="btn primary" id="membership">${license ? 'مدیریت اشتراک' : 'فعال‌سازی لایسنس'} ${icon('arrow-left')}</button></div></div></section>
   <section class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">IN-GAME LOOKS</div><h2>نمای واقعی، بدون عکس استوک.</h2></div><p>تصاویر اصلی سایت UHM؛ ثبت‌شده در Assetto Corsa.</p></div><div class="looks">${[
@@ -235,7 +237,7 @@ function discover(el: HTMLElement) {
   ]
     .map(
       ([image, label]) =>
-        `<figure><img src="/brand/images/${image}.jpg" alt="نمای ${label} در Assetto Corsa" loading="lazy"><figcaption>UHM / ${label}</figcaption></figure>`,
+        `<figure><img src="${assetUrl(`/brand/images/${image}.jpg`)}" alt="نمای ${label} در Assetto Corsa" loading="lazy"><figcaption>UHM / ${label}</figcaption></figure>`,
     )
     .join('')}</div></div></section></div>`;
   const list = () => {
@@ -296,13 +298,13 @@ function discover(el: HTMLElement) {
 }
 function card(p: CatalogItem) {
   const locked = !license || ranks[license.tier] < ranks[p.tier];
-  return `<article class="package-card"><button class="card-image" data-package="${p.id}" aria-label="مشاهده ${esc(p.name)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">${badge(p.tier)}${installed[p.id] ? `<span class="installed-tag">${icon('check')}نصب‌شده</span>` : ''}<span class="card-open">${icon('arrow-up-left')}</span></button><div class="card-content"><div class="card-meta"><span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><button class="card-title" data-package="${p.id}">${esc(p.name)}</button><p>${esc(p.description)}</p><div class="card-footer"><span>${p.size ? size(p.size) : `${fa(p.dependencies.length)} پیش‌نیاز`}</span><button class="text-button" data-package="${p.id}">${locked ? icon('lock-keyhole') : icon('arrow-down-to-line')}${locked ? 'بررسی دسترسی' : 'مشاهده و نصب'}</button></div></div></article>`;
+  return `<article class="package-card"><button class="card-image" data-package="${p.id}" aria-label="مشاهده ${esc(p.name)}"><img src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}" loading="lazy">${badge(p.tier)}${installed[p.id] ? `<span class="installed-tag">${icon('check')}نصب‌شده</span>` : ''}<span class="card-open">${icon('arrow-up-left')}</span></button><div class="card-content"><div class="card-meta"><span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><button class="card-title" data-package="${p.id}">${esc(p.name)}</button><p>${esc(p.description)}</p><div class="card-footer"><span>${p.size ? size(p.size) : `${fa(p.dependencies.length)} پیش‌نیاز`}</span><button class="text-button" data-package="${p.id}">${locked ? icon('lock-keyhole') : icon('arrow-down-to-line')}${locked ? 'بررسی دسترسی' : 'مشاهده و نصب'}</button></div></div></article>`;
 }
 function details(p: CatalogItem) {
   const locked = license && ranks[license.tier] < ranks[p.tier];
   const d = modal(
     p.name,
-    `<img class="detail-image" src="${esc(p.image)}" alt="${esc(p.name)}"><div class="detail-meta">${badge(p.tier)}<span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><p class="detail-description">${esc(p.description)}</p><div class="detail-facts"><div><small>آخرین انتشار</small><b>${date(p.released_at)}</b></div><div><small>حجم دانلود</small><b dir="auto">${size(p.size)}</b></div><div><small>تعداد فایل</small><b>${fa(p.file_count)}</b></div></div><h3>قبل از شروع</h3>${
+    `<img class="detail-image" src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}"><div class="detail-meta">${badge(p.tier)}<span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><p class="detail-description">${esc(p.description)}</p><div class="detail-facts"><div><small>آخرین انتشار</small><b>${date(p.released_at)}</b></div><div><small>حجم دانلود</small><b dir="auto">${size(p.size)}</b></div><div><small>تعداد فایل</small><b>${fa(p.file_count)}</b></div></div><h3>قبل از شروع</h3>${
       p.dependencies.length
         ? `<div class="dependency-list">${p.dependencies
             .map((id) => {
@@ -382,8 +384,8 @@ async function persistLicense(result: { license: PublicLicense; grant: string })
   if (native) await invoke('verify_offline_grant', { grant: result.grant });
   license = result.license;
   grant = result.grant;
-  localStorage.setItem('uhm-license', JSON.stringify(license));
-  localStorage.setItem('uhm-grant', grant);
+  localStore.setItem('uhm-license', JSON.stringify(license));
+  localStore.setItem('uhm-grant', grant);
 }
 function grantClaims(): { refresh_after: number; offline_until: number } | null {
   try {
@@ -411,8 +413,8 @@ async function refreshDueLicense() {
     if (e instanceof ApiError && e.code === 'LICENSE_INVALID') {
       license = null;
       grant = '';
-      localStorage.removeItem('uhm-license');
-      localStorage.removeItem('uhm-grant');
+      localStore.removeItem('uhm-license');
+      localStore.removeItem('uhm-grant');
       toast('اشتراک معتبر نیست یا دستگاه توسط مدیر آزاد شده است. دوباره فعال‌سازی کنید.', true);
     }
     // A network failure does not discard a still-valid signed offline grant.
@@ -512,19 +514,19 @@ function settings(el: HTMLElement) {
       if (!path) return;
       const result = await invoke<{ path: string }>('set_game_path', { path });
       gamePath = result.path;
-      localStorage.setItem('uhm-game-path', gamePath);
+      localStore.setItem('uhm-game-path', gamePath);
       toast('مسیر بازی اعتبارسنجی و ذخیره شد.');
       await render();
     });
   };
   el.querySelector('#compact')!.addEventListener('change', (e) => {
     compact = (e.target as HTMLInputElement).checked;
-    localStorage.setItem('uhm-compact', String(compact));
+    localStore.setItem('uhm-compact', String(compact));
     document.body.classList.toggle('compact', compact);
   });
   el.querySelector('#language')!.addEventListener('change', (e) => {
     language = (e.target as HTMLSelectElement).value;
-    localStorage.setItem('uhm-language', language);
+    localStore.setItem('uhm-language', language);
     void render();
   });
   el.querySelector<HTMLButtonElement>('#recover')!.addEventListener('click', function () {
@@ -550,11 +552,11 @@ function logoutDialog() {
   );
   d.querySelector('#logout')!.addEventListener('click', () => {
     adminToken = '';
-    sessionStorage.removeItem('uhm-admin');
+    sessionStore.removeItem('uhm-admin');
     void supabase?.auth.signOut();
     adminMode = false;
     page = 'discover';
-    history.pushState({}, '', '/');
+    history.pushState({}, '', modeUrl());
     d.close();
     void render();
   });
@@ -566,11 +568,11 @@ async function boot() {
     const health = await api('/health');
     demo = health.mode === 'demo';
     catalog = (await api('/catalog')).packages;
-    localStorage.setItem('uhm-catalog', JSON.stringify(catalog));
+    localStore.setItem('uhm-catalog', JSON.stringify(catalog));
   } catch {
     online = false;
     try {
-      catalog = JSON.parse(localStorage.getItem('uhm-catalog') || '[]');
+      catalog = JSON.parse(localStore.getItem('uhm-catalog') || '[]');
     } catch {
       catalog = [];
     }
@@ -615,7 +617,7 @@ async function boot() {
   await render();
 }
 window.addEventListener('popstate', () => {
-  adminMode = location.pathname.startsWith('/admin');
+  adminMode = isAdminRoute();
   page = adminMode ? 'dashboard' : 'discover';
   void render();
 });

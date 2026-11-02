@@ -6,6 +6,14 @@
 
 [طراحی جدید مطابق سایت اصلی UHM و تصاویر اجرا](docs/design-reference-fa.md)
 
+## سایت زنده با همان کد برنامه
+
+`index.html` ریشه، ورودی واحد برنامه و سایت است؛ نسخه HTML/طراحی جداگانه نگهداری نمی‌شود. با `npm run build:pages` خروجی استاتیک برای `/App/` ساخته می‌شود و workflow انتشار با هر push روی همین شاخه یا `main` اجرا می‌شود.
+
+**یک‌بار در GitHub تنظیم کنید:** Settings → Pages → Source → **GitHub Actions**. اتصال این محیط اجازه فعال‌کردن این تنظیم را نداشت. پس از deploy موفق، سایت در `https://aliam664.github.io/App/` قابل مشاهده خواهد بود. تنظیم Pages سایت قبلی `/Uhm/` تغییری نکرده است.
+
+[راهنمای کامل انتشار، preview و تفاوت sandbox با برنامه واقعی](docs/github-pages-fa.md)
+
 ## اجرای سریع
 
 نیازمندی: Node.js 22.12 یا بالاتر.
@@ -28,6 +36,7 @@ npm run dev
 
 | مسیر | مسئولیت |
 |---|---|
+| `index.html` | ورودی مشترک سایت و برنامه |
 | `apps/web/` | رابط لانچر و پنل، فارسی/RTL و responsive |
 | `packages/contracts/` | schema، مسیر امن، tier و dependency planner |
 | `backend/src/` | API مشترک، امضا، authorization و repository عملیاتی |

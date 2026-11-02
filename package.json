@@ -16,8 +16,12 @@
     "desktop:build": "tauri build",
     "check": "npm run typecheck && npm test && npm run build",
     "keys:generate": "tsx scripts/generate-keys.ts",
-    "format": "prettier --write apps backend packages tests scripts/*.ts *.ts *.json supabase/functions",
-    "format:check": "prettier --check apps backend packages tests scripts/*.ts *.ts *.json supabase/functions"
+    "format": "prettier --write apps backend packages tests scripts/*.ts *.ts *.json supabase/functions index.html",
+    "format:check": "prettier --check apps backend packages tests scripts/*.ts *.ts *.json supabase/functions index.html",
+    "build:pages": "npm run typecheck && vite build --mode pages && tsx scripts/finish-pages.ts",
+    "preview:pages": "vite preview --mode pages --host 0.0.0.0 --port 5181",
+    "test:pages": "playwright test --config playwright.pages.config.ts",
+    "verify:builds": "tsx scripts/verify-builds.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
