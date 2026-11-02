@@ -16,6 +16,7 @@ export interface Repository {
   consumeChallenge(id: string, thumb: string, now: string): Promise<boolean>;
   rateLimit(key: string, limit: number, seconds: number): Promise<boolean>;
   admin(token: string): Promise<Admin | null>;
+  resolveError(licenseId: string, id: string, actor: string): Promise<void>;
   errorsPage(
     status: 'open' | 'all' | 'resolved',
     before?: { at: string; id: string },

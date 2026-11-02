@@ -1325,30 +1325,6 @@ tbody tr:hover {
     padding: 18px !important;
   }
 }
-@media (min-width: 701px) {
-  .admin-shell .sidebar {
-    height: 100dvh;
-    overflow: hidden;
-  }
-  .admin-shell .sidebar > nav {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
-  .admin-shell .sidebar > nav > .nav-item {
-    flex-shrink: 0;
-  }
-  .admin-shell .sidebar > .brand,
-  .admin-shell .workspace-label,
-  .admin-shell .sidebar-bottom {
-    flex-shrink: 0;
-  }
-  .admin-shell .sidebar-bottom {
-    padding-top: 12px;
-  }
-}
 @media (min-width: 641px) {
   .admin-shell .sidebar {
     height: 100dvh;
@@ -1358,6 +1334,7 @@ tbody tr:hover {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     scrollbar-width: thin;
   }
   .admin-shell .sidebar > nav > .nav-item,

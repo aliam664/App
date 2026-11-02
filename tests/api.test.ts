@@ -613,3 +613,39 @@ describe('license-bound staff and operational console', () => {
     ).toBe(409);
   });
 });
+
+it('resolves the selected license error without changing a colliding client event ID', async () => {
+  const a = repo.state.licenses[0].id;
+  const b = crypto.randomUUID();
+  repo.state.licenses.push({ ...repo.state.licenses[0], id: b, code_hash: 'other-test-hash' });
+  const eventId = crypto.randomUUID();
+  const base = {
+    id: eventId,
+    type: 'app_error' as const,
+    occurred_at: new Date().toISOString(),
+    received_at: new Date().toISOString(),
+    session_id: crypto.randomUUID(),
+    error_code: 'APP_RUNTIME_ERROR',
+    resolved_at: null,
+    resolved_by: null,
+  };
+  await repo.ingestEvents([
+    { ...base, license_id: a },
+    { ...base, license_id: b },
+  ]);
+  expect(
+    (await request(`/admin/errors/${eventId}/resolve`, { license_id: b }, repo.adminToken)).status,
+  ).toBe(200);
+  expect(repo.state.telemetry_events.find((e) => e.license_id === a)?.resolved_at).toBeNull();
+  expect(repo.state.telemetry_events.find((e) => e.license_id === b)?.resolved_at).toBeTruthy();
+});
+it('accepts real PostgreSQL timezone offsets in history cursors', async () => {
+  const id = repo.state.licenses[0].id;
+  const cursor = encodeURIComponent(
+    JSON.stringify({ at: '2026-11-02T00:00:00+00:00', id: crypto.randomUUID() }),
+  );
+  expect(
+    (await request(`/admin/licenses/${id}/activity?cursor=${cursor}`, undefined, repo.adminToken))
+      .status,
+  ).toBe(200);
+});

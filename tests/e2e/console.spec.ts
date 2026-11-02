@@ -201,3 +201,27 @@ test('owner can configure a second independent manager entirely through the team
   expect(member.permissions).toContain('content.write');
   expect(member.permissions).not.toContain('analytics.read');
 });
+
+test('reported client errors can be reviewed and resolved in the professional incident panel', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'فعال‌سازی لایسنس', exact: true }).click();
+  await page.getByRole('button', { name: 'استفاده از لایسنس آزمایشی Pro' }).click();
+  await expect(page.locator('.profile')).toContainText('PRO MEMBER');
+  const id = await page.evaluate(async () => {
+    const path = '/apps/web/src/outbox.ts';
+    const m = await import(path);
+    await m.recordEvent('app_error', { error_code: 'APP_RUNTIME_ERROR', stage: 'app' });
+    const event = (await m.pendingEvents()).find((e: any) => e.type === 'app_error');
+    await m.flushEvents();
+    return event.id;
+  });
+  await page.getByRole('button', { name: 'پنل مدیریت', exact: true }).click();
+  await page.getByRole('button', { name: 'ورود به پنل نمایشی', exact: true }).click();
+  await page.getByRole('button', { name: 'مرکز خطاها', exact: true }).click();
+  await page.locator(`[data-resolve="${id}"]`).click();
+  await expect(page.locator(`[data-resolve="${id}"]`)).toHaveCount(0);
+  await page.locator('#error-status').selectOption('resolved');
+  await expect(page.locator('#incident-list')).toContainText('APP_RUNTIME_ERROR');
+});

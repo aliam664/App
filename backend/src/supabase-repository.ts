@@ -115,6 +115,14 @@ export class SupabaseRepository implements Repository {
     if (claimsError || !claims) return null;
     return { id: user.id, role: membership.role, aal: String(claims.claims.aal || 'aal1') };
   }
+  async resolveError(licenseId: string, id: string, actor: string) {
+    const { error } = await this.db
+      .from('telemetry_events')
+      .update({ resolved_at: new Date().toISOString(), resolved_by: actor })
+      .eq('license_id', licenseId)
+      .eq('id', id);
+    this.check(error);
+  }
   async errorsPage(status: 'open' | 'all' | 'resolved', before?: { at: string; id: string }) {
     let q = this.db
       .from('telemetry_events')

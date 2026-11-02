@@ -109,7 +109,7 @@ export async function adminServices(c: {
     await requireAdmin('licenses.read');
     const raw = new URL(c.url).searchParams.get('cursor');
     const cursor = raw
-      ? z.object({ at: z.string().datetime(), id: Id }).parse(JSON.parse(raw))
+      ? z.object({ at: z.string().datetime({ offset: true }), id: Id }).parse(JSON.parse(raw))
       : undefined;
     const events = await repo.eventsPage(Id.parse(activity[1]), cursor);
     const last = events.at(-1);
@@ -135,7 +135,9 @@ export async function adminServices(c: {
     } catch {
       return fail('INVALID_CURSOR', 400);
     }
-    const cursor = raw ? z.object({ at: z.string().datetime(), id: Id }).parse(parsed) : undefined;
+    const cursor = raw
+      ? z.object({ at: z.string().datetime({ offset: true }), id: Id }).parse(parsed)
+      : undefined;
     const events = await repo.errorsPage(status, cursor);
     const last = events.at(-1);
     return reply({
@@ -151,7 +153,7 @@ export async function adminServices(c: {
     await requireAdmin('audit.read');
     const raw = new URL(c.url).searchParams.get('cursor');
     const cursor = raw
-      ? z.object({ at: z.string().datetime(), id: Id }).parse(JSON.parse(raw))
+      ? z.object({ at: z.string().datetime({ offset: true }), id: Id }).parse(JSON.parse(raw))
       : undefined;
     const events = await repo.auditPage(Id.parse(history[1]), cursor);
     const last = events.at(-1);
@@ -286,14 +288,15 @@ export async function adminServices(c: {
   if (resolve && method === 'POST') {
     const actor = await requireAdmin('errors.resolve');
     const id = Id.parse(resolve[1]);
+    const input = z.object({ license_id: Id }).strict().parse(body);
     const event = (await repo.list('telemetry_events')).find(
-      (e) => e.id === id && (e.type.endsWith('failed') || e.type === 'app_error'),
+      (e) =>
+        e.id === id &&
+        e.license_id === input.license_id &&
+        (e.type.endsWith('failed') || e.type === 'app_error'),
     );
     if (!event) return fail('NOT_FOUND', 404);
-    await repo.update('telemetry_events', id, {
-      resolved_at: new Date().toISOString(),
-      resolved_by: actor.id,
-    });
+    await repo.resolveError(input.license_id, id, actor.id);
     await audit(actor.id, 'error.resolved', id);
     return reply({ ok: true });
   }

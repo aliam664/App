@@ -375,7 +375,7 @@ async function errorCenter(el: HTMLElement, c: Context) {
       ? selected
           .map(
             (e) =>
-              `<article class="panel incident-card"><span class="event-state is-error">${esc(e.error_code || eventLabels[e.type])}</span><h3>${esc(errors[e.error_code || ''] || eventLabels[e.type])}</h3><p>${esc(c.data.packages.find((p) => p.id === e.package_id)?.name || 'برنامه')} · ${esc(e.stage || '—')} · ${esc(e.host || '')}</p><div class="incident-meta"><code>${esc(e.license_id.slice(0, 8))}</code><span>${date(e.occurred_at)}</span><span>${e.resolved_at ? 'رسیدگی‌شده' : 'جدید'}</span></div>${!e.resolved_at && can(c, 'errors.resolve') ? `<button class="button secondary" data-resolve="${e.id}">ثبت رسیدگی</button>` : ''}</article>`,
+              `<article class="panel incident-card"><span class="event-state is-error">${esc(e.error_code || eventLabels[e.type])}</span><h3>${esc(errors[e.error_code || ''] || eventLabels[e.type])}</h3><p>${esc(c.data.packages.find((p) => p.id === e.package_id)?.name || 'برنامه')} · ${esc(e.stage || '—')} · ${esc(e.host || '')}</p><div class="incident-meta"><code>${esc(e.license_id.slice(0, 8))}</code><span>${date(e.occurred_at)}</span><span>${e.resolved_at ? 'رسیدگی‌شده' : 'جدید'}</span></div>${!e.resolved_at && can(c, 'errors.resolve') ? `<button class="button secondary" data-resolve="${e.id}" data-license-id="${e.license_id}">ثبت رسیدگی</button>` : ''}</article>`,
           )
           .join('')
       : empty(
@@ -387,7 +387,11 @@ async function errorCenter(el: HTMLElement, c: Context) {
       (b) =>
         (b.onclick = () =>
           void busy(b, async () => {
-            await api(`/admin/errors/${b.dataset.resolve}/resolve`, {}, c.token);
+            await api(
+              `/admin/errors/${b.dataset.resolve}/resolve`,
+              { license_id: b.dataset.licenseId },
+              c.token,
+            );
             await c.reload();
           })),
     );

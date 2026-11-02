@@ -149,6 +149,16 @@ export class LocalRepository implements Repository {
   async admin(token: string): Promise<Admin | null> {
     return token === this.adminToken ? { id: 'demo-owner', role: 'owner', aal: 'aal2' } : null;
   }
+  async resolveError(licenseId: string, id: string, actor: string) {
+    await this.transaction(() => {
+      const event = this.state.telemetry_events.find(
+        (e) => e.id === id && e.license_id === licenseId,
+      );
+      if (!event) throw new Error('NOT_FOUND');
+      event.resolved_at = new Date().toISOString();
+      event.resolved_by = actor;
+    });
+  }
   async errorsPage(status: 'open' | 'all' | 'resolved', before?: { at: string; id: string }) {
     return (await this.list('telemetry_events'))
       .filter(
