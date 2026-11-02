@@ -383,6 +383,58 @@ pub fn start(app: tauri::AppHandle<Wry>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn verifier() -> (
+        tauri::App<tauri::test::MockRuntime>,
+        tauri_plugin_updater::Updater,
+    ) {
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().plugins.0.insert(
+            "updater".into(),
+            serde_json::json!({
+                "pubkey":include_str!("../tests/fixtures/updater-public.txt").trim(),
+                "requireSignedVersion":true,
+            }),
+        );
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .build(context)
+            .unwrap();
+        let updater = app
+            .updater_builder()
+            .target("windows-x86_64")
+            .endpoints(vec!["https://example.invalid/never-requested"
+                .parse()
+                .unwrap()])
+            .unwrap()
+            .version_comparator(|_, _| true)
+            .build()
+            .unwrap();
+        (app, updater)
+    }
+    fn fixture_manifest(version: &str) -> serde_json::Value {
+        serde_json::json!({"version":version,"platforms":{"windows-x86_64":{
+            "url":"https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.0/UHM-Launcher-0.1.0-x64-setup.exe",
+            "signature":include_str!("../tests/fixtures/updater-payload.txt.sig").trim(),
+        }}})
+    }
+    #[test]
+    fn actual_plugin_verifies_crypto_and_rejects_modified_payload_or_relabelled_version() {
+        let (_app, updater) = verifier();
+        let update = updater
+            .restore_update(fixture_manifest("0.1.0"))
+            .unwrap()
+            .unwrap();
+        let bytes = include_bytes!("../tests/fixtures/updater-payload.txt");
+        assert!(update.verify(bytes).is_ok());
+        let mut changed = bytes.to_vec();
+        changed[0] ^= 1;
+        assert!(update.verify(&changed).is_err());
+        let relabelled = updater
+            .restore_update(fixture_manifest("99.0.0"))
+            .unwrap()
+            .unwrap();
+        assert!(relabelled.verify(bytes).is_err());
+    }
     #[test]
     fn app_update_artifact_is_confined_to_exact_https_release_version() {
         let version = "1.2.3";

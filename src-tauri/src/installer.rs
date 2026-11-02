@@ -782,6 +782,7 @@ pub fn install(
     cache: &Path,
     parallel: usize,
 ) -> Result<Value, String> {
+    let _lifecycle = crate::lifecycle::operation()?;
     let control = regular_control(root)?;
     let _lock = content_lock(root)?;
     fs::create_dir_all(cache).map_err(|e| e.to_string())?;

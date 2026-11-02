@@ -30,6 +30,7 @@ tokio = { version = "1", features = ["time"] }
 windows-sys = { version = "0.59", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp"] }
 
 [dev-dependencies]
+tauri = { version = "2", features = ["test"] }
 tempfile = "3"
 
 # Reuse the released v1 size strategy, preserving unwind-based cleanup.

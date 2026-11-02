@@ -96,6 +96,7 @@ fn get_settings(app: tauri::AppHandle) -> Result<Settings, String> {
     settings(&app)
 }
 fn select_game_path(app: tauri::AppHandle, path: String) -> Result<Value, String> {
+    let _lifecycle = lifecycle::operation()?;
     if jobs::active() {
         return Err("Wait for the active content operation before changing paths".into());
     }

@@ -109,7 +109,6 @@ fn load(dir: &Path) -> Result<Manifest, String> {
     Ok(m)
 }
 pub fn preview(root: &Path, path: &str) -> Result<Value, String> {
-    let _lifecycle = crate::lifecycle::operation()?;
     let _lock = crate::installer::content_lock(root)?;
     let parts: Vec<_> = path.split('/').collect();
     let valid = parts.len() == 3 || (parts.len() == 5 && parts[1] == "cars" && parts[3] == "skins");
