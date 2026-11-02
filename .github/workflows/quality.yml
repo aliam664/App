@@ -56,7 +56,7 @@ jobs:
       - name: Native security and recovery tests
         working-directory: src-tauri
         run: |
-          cargo test 2>&1 | Tee-Object -FilePath native-test.log
+          cargo test --locked 2>&1 | Tee-Object -FilePath native-test.log
           $code = $LASTEXITCODE
           if ($code -ne 0) {
             $tail = (Get-Content native-test.log -Tail 100) -join "`n"

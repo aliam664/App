@@ -24,6 +24,10 @@ export function updateStatusText(s: UpdateStatus): string {
     case 'current':
       return `نسخه ${s.current_version} به‌روز است.`;
     default:
+      if (s.error?.includes('Insufficient space'))
+        return 'فضای کافی برای آپدیت لانچر وجود ندارد؛ پس از آزادکردن فضا دوباره تلاش می‌شود.';
+      if (s.error?.includes('signature') || s.error?.includes('signed version'))
+        return 'اعتبار امضا یا نسخه آپدیت تأیید نشد؛ فایل نصب نمی‌شود.';
       return 'بررسی یا دریافت آپدیت ممکن نشد؛ برنامه بعداً خودکار تلاش می‌کند.';
   }
 }

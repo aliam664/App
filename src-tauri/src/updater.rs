@@ -246,6 +246,15 @@ fn install_ready(restart: bool) -> Result<bool, String> {
     let Some(p) = pending.as_ref() else {
         return Ok(false);
     };
+    let executable = std::env::current_exe().map_err(|_| "Cannot locate launcher installation")?;
+    let target = executable
+        .parent()
+        .ok_or("Cannot locate launcher installation")?;
+    if fs2::available_space(target).map_err(|_| "Cannot check launcher installation space")?
+        < MAX_BYTES * 4
+    {
+        return Err("Insufficient space at the launcher installation destination".into());
+    }
     phase("installing");
     // The plugin re-verifies the signed version and bytes immediately before executing NSIS.
     crate::lifecycle::mark_exiting();

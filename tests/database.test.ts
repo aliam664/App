@@ -10,7 +10,7 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/202611010001_platform.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611010002_live_catalog.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611020003_admin_telemetry.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/202611020004_content_packages.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102201702_content_packages.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();

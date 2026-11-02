@@ -1,5 +1,7 @@
 # UHM commissioning record — 2026-11-02
 
+> Historical initial commissioning record. Current updater/custody and package-v2 deployment status: [updater-setup-fa.md](updater-setup-fa.md). API upgraded to version 10; migration `20261102201702` applied; 14 RLS tables. Owner was read-only checked active/bound (activation_count=1), not unused. No owner reset/rotation was performed. Later CI/signing results supersede the initial counts below.
+
 ## Live destination
 
 - Separate **free-plan** project `ewjvnqlqacljflvjbpbv` — UHM Launcher, us-east-1. The unrelated TikTacProject was not changed.
@@ -22,7 +24,7 @@
 
 ## Installer and boundaries
 
-The installer artifact is `uhm-windows-production-unsigned` from run 41474918733. Stable pilot release: **uhm-platform-v0.1.0-pilot.1** (published by the dedicated provenance-checked release workflow). [Release workflow 41477227219](https://github.com/aliam664/App/actions/runs/41477227219) SUCCESS; release and both assets confirmed published at 2026-11-02T16:00:59Z. Installer SHA-256: `eac1696ac94016ff8ceca9d78197afa0d6900cc3cf72f727506d8ec5c4c79aae` (17,031,227 bytes). The older Electron release v1.0.0 is not replaced.
+The installer artifact is `uhm-windows-production-unsigned` from run 41474918733. Stable pilot release: **uhm-platform-v0.1.0-pilot.1** (published by the dedicated provenance-checked release workflow). [Release workflow 41477227219](https://github.com/aliam664/App/actions/runs/41477227219) SUCCESS; release and both assets confirmed published at 2026-11-02T16:00:59Z. Installer SHA-256: `eac1696ac94016ff8ceca9d78197afa0d6900cc3cf72f727506d8ec5c4c79aae` (17,031,227 bytes). The older Tauri/Rust release v1.0.0 is not replaced.
 
 This is an operational **pilot**, not a claim of commercial security certification. No real mod/game package was seeded as if usable. Actual game/uploader installation on the user's machine, Authenticode, signed updater, load/security review, external automated backup/restore, capacity monitoring and retention remain release/operations gates. External bot integration is not configured.
 
