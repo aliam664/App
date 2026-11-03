@@ -26,7 +26,9 @@
     "build:edge": "tsx scripts/build-edge.ts",
     "build:live-pages": "npm run typecheck && vite build --mode live-pages && tsx scripts/finish-pages.ts --live",
     "build:live-branch": "npm run typecheck && vite build --mode live-branch && tsx scripts/finish-branch.ts --live",
-    "desktop:build:production": "tsx scripts/desktop-production.ts"
+    "desktop:build:production": "tsx scripts/desktop-production.ts",
+    "audit:security": "vitest run tests/security-audit.test.ts",
+    "audit:browser": "playwright test --config playwright.security.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",

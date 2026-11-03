@@ -6,6 +6,8 @@
 
 [شروع سریع و به‌روزرسانی](docs/operations-fa.md) • [کاندید با امضای آپدیت](https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.0) • [گزارش آمادگی و موارد باقی‌مانده](docs/release-readiness-audit-fa.md)
 
+[ممیزی امنیت سرور، ضدکرک، نصب مود و ماتریس دسترسی‌ها — ۲۰۲۶/۱۱/۰۳](docs/security-audit-2026-11-03-fa.md) — شامل ۶ یافتهٔ باز؛ expected-failureها اصلاح محسوب نمی‌شوند.
+
 [طراحی جدید مطابق سایت اصلی UHM و تصاویر اجرا](docs/design-reference-fa.md)
 
 ## مرکز مدیریت پیشرفته

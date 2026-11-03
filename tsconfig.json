@@ -20,6 +20,7 @@
     "vite.config.ts",
     "playwright.config.ts",
     "playwright.pages.config.ts",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "playwright.security.config.ts"
   ]
 }
