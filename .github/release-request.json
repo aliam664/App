@@ -1,5 +1,5 @@
 {
-  "build_run": "41522458902",
+  "build_run": "41657964757",
   "publish_candidate": true,
-  "request_note": "Green locked build; real cloud OIDC policy probe passed with immutable owner/repository IDs."
+  "request_note": "Version 0.1.1 final shared UI; Platform checks passed for 2df82d89c50b3171ebd8fbebb0f58eaff3d08773. Preserve independent updater and license trust."
 }
