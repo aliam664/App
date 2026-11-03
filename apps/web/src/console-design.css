@@ -885,3 +885,28 @@ button:disabled {
   flex-wrap: wrap;
   min-width: 0;
 }
+.mobile-console-brand {
+  display: none;
+}
+@media (max-width: 700px) {
+  .mobile-console-brand {
+    display: block;
+  }
+  .admin-shell .mobile-console-brand .brand {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    font-size: 0;
+  }
+  .mobile-console-brand .brand img {
+    width: 30px;
+    height: 30px;
+  }
+  .mobile-console-brand small {
+    display: none;
+  }
+  .admin-shell .workspace {
+    padding-bottom: 0;
+  }
+}

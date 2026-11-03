@@ -52,7 +52,9 @@ test('sandbox activation and admin actions survive reload without a real backend
   await expect(page.locator('#codes')).toHaveValue(/UHM-/);
   await page.getByRole('button', { name: 'بستن', exact: true }).click();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'همه‌چیز، زیر کنترل.' })).toBeVisible();
+  await expect(page).toHaveURL(/\/App\/#\/admin\/licenses$/);
+  await expect(page.locator('#license-table')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تولید لایسنس', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'بازگشت به لانچر', exact: true }).click();
   await expect(page).toHaveURL(/\/App\/$/);
   await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
