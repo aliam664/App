@@ -1,3 +1,4 @@
+import { appVersion } from './version';
 import { api } from './api';
 import { proof } from './device';
 import { localStore } from './storage';
@@ -47,7 +48,7 @@ export async function recordEvent(
     occurred_at: new Date().toISOString(),
     session_id: sessionId,
     license_id: license.id,
-    app_version: '0.1.0',
+    app_version: appVersion,
   };
   try {
     await transaction('readwrite', (store) => store.put(event));
