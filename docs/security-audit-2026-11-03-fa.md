@@ -37,10 +37,11 @@ Source شروع بررسی: `b11b819` در `arena/37af8e92-app`. نسخهٔ نص
 ### محدودیت‌های مهم ضدکرک
 
 - `security.rs::device_key/protect` کلید نرم‌افزاری را برای همان کاربر ویندوز با DPAPI ذخیره و برای امضا در حافظه بازیابی می‌کند. این کار کپی سادهٔ blob به PC دیگر را سخت می‌کند، ولی در مقابل کنترل کامل همان حساب/سیستم یا استخراج کلید در حافظه تضمین سخت‌افزاری نیست. سرور کلید را می‌شناسد، نه اثبات مستقل PC فیزیکی را. این **ریسک معماری** است؛ در این ممیزی استخراج کلید یا کلون واقعی روی دو PC انجام نشد.
+- هویت مرورگر در IndexedDB (`apps/web/src/device.ts`) با هویت DPAPI دسکتاپ مشترک نیست؛ حتی روی یک PC یکسان، مرورگر دیگر/حساب ویندوز دیگر/دسکتاپ می‌توانند کلید متفاوت داشته باشند. پس مدل موجود دقیقاً «یک کلید ثبت‌شده» است، نه تشخیص قطعی «یک PC». فعال‌سازی اولیه روی وب می‌تواند ورود بعدی همان کد در اپ را به reset/فرایند انتقال نیازمند کند. پذیرش عملی وب→دسکتاپ با لایسنس مالک امتحان نشد و binding آن تغییر نکرد.
 - grant آفلاین تا سقف ۱۰ روز معتبر است و refresh پیشنهادی بعد از ۳ روز است (`crypto.ts::grant`). لغو آنلاین فوراً plan جدید را می‌بندد؛ اما اپ آفلاین نمی‌تواند همان لحظه از لغو باخبر شود. تغییر/حذف state ساعت و patch کردن اپ روی دستگاه مهاجم نیز مرز اعتماد محلی را ضعیف می‌کند.
 - plan امضاشده، لینک‌ها و رمز لازم برای استخراج را به کاربر مجاز می‌دهد؛ دانلودر باید آن‌ها را ببیند. رمز آرشیو ماسک‌شده در UI به معنی مخفی‌ماندن دائمی آن از همان کاربر نیست. لینک عمومی/طولانی‌عمر آپلودر پس از افشا لزوماً با revoke لایسنس باطل نمی‌شود.
 - plan در شروع Native اعتبارسنجی می‌شود؛ ادامهٔ عملیات طولانی/paused، بررسی تازهٔ وضعیت لایسنس در هر فایل ندارد. انقضای plan با پاک‌کردن فایل‌های قبلاً دریافت‌شده یکی نیست.
-- `main.rs::install_plan` تطابق license/device را کنترل می‌کند، اما tier و entitlement_version را بین plan و grant مقایسه نمی‌کند. plan قبلی تا ۱۵ دقیقه و grant قدیمی طبق lease آفلاین می‌تواند معتبر بماند. داشتن grant جدیدِ تنزل‌یافته، به‌تنهایی plan قدیمی را در Native باطل نمی‌کند. این مشاهدهٔ کد است، نه بازتولید Runtime روی Windows یا جعل امضا؛ باید سیاست lease/revocation صریح شود و مقایسهٔ claimها به‌عنوان دفاع تکمیلی اضافه شود. حتی آن مقایسه هم revoke فوریِ دستگاه کاملاً آفلاین را تضمین نمی‌کند.
+- `main.rs::install_plan` تطابق license/device را کنترل می‌کند، اما tier و entitlement_version را بین plan و grant مقایسه نمی‌کند؛ payload فعلی plan هم entitlement_version ندارد و tier در metadata پکیج‌هاست. plan قبلی تا ۱۵ دقیقه و grant قدیمی طبق lease آفلاین می‌تواند معتبر بماند. داشتن grant جدیدِ تنزل‌یافته، به‌تنهایی plan قدیمی را در Native باطل نمی‌کند. این مشاهدهٔ کد است، نه بازتولید Runtime روی Windows یا جعل امضا؛ باید سیاست lease/revocation صریح شود و binding claimها در هر دو سمت به‌عنوان دفاع تکمیلی اضافه شود. حتی آن تغییر هم revoke فوریِ دستگاه کاملاً آفلاین را تضمین نمی‌کند.
 - admin session یک bearer token پانزده‌دقیقه‌ای است. ورود device proof دارد و هر درخواست دوباره نقش/نسخهٔ دسترسی/وضعیت لایسنس را از DB می‌سنجد، ولی برای هر عملیات امضای تازهٔ دستگاه لازم نیست. سرقت session/XSS در مبدأ مورداعتماد می‌تواند در محدودهٔ همان دسترسی اثر بگذارد؛ چنین XSS موفقی در این بررسی اثبات نشد.
 - امضای updater جلوی اجرای فایل با امضای غلط/نسخهٔ جعل‌شده را می‌گیرد؛ مانع patch کردن کلاینت توسط صاحب دستگاه یا توزیع clone آلوده بیرون از کانال رسمی نیست. Authenticode هنوز وجود ندارد.
 
@@ -118,7 +119,8 @@ Source شروع بررسی: `b11b819` در `arena/37af8e92-app`. نسخهٔ نص
 - repository.list کل جدول را page به page می‌خواند. authentication و overview چند خواندن کامل دارند؛ بعضی limitها **پس از** خواندن همهٔ telemetry اعمال می‌شوند. برای رشد کاربران/رویدادها باید lookup ایندکس‌دار، pagination واقعی و محدودسازی هزینه بررسی شود؛ تست بار این مرحله انجام نشد.
 - Secrets در سطح همین پروژه در اختیار توابع آن پروژه‌اند. broker پس از OIDC/provenance، **کلید بلندمدت updater** را موقتاً به CI می‌دهد؛ remote signing بدون خروج کلید نیست. compromise پروژه، runner، dependency یا مدیر مخزن ریسک مهم supply-chain است؛ compromise واقعی مشاهده نشد.
 - actionهای CI عمدتاً با tag نسخه و نه commit SHA فراخوانی می‌شوند. branch protection، MFA حساب‌های مدیریتی GitHub/Supabase، restore خارج سایت و دفاع DDoS/CDN در این ممیزی به‌طور کامل قابل اثبات نبودند.
-- npm audit بدون آسیب‌پذیری گزارش‌شده بود؛ این به معنی audit کامل 7-Zip، Rust، business logic یا صفر بودن آسیب‌پذیری نیست. آخرین CI پیش از ممیزی برای source a7a6003 موفق بود؛ Rust جدید در محیط محلی اجرا نشد، چون cargo موجود نیست.
+- npm audit بدون آسیب‌پذیری گزارش‌شده بود؛ این به معنی audit کامل 7-Zip، business logic یا صفر بودن آسیب‌پذیری نیست. محیط محلی cargo ندارد، ولی CI تازهٔ Windows روی source ممیزی f48b76a برای Native tests، cargo audit و ساخت NSIS موفق شد؛ جزئیات در بخش شواهد. این job هم جای تست بازی واقعی را نمی‌گیرد.
+- زیرساخت رایگان فعلی سقف ظرفیت/مصرف دارد و تضمین always-on این ممیزی نیست؛ برنامهٔ بازیابی از توقف سرویس، مانیتورینگ و restore باید برای پذیرش نهایی روشن باشد. سرویس پولی یا محل ذخیرهٔ جدیدی ایجاد نشد.
 
 ## ۴. برای نصب مود مناسب است؟
 
@@ -165,6 +167,16 @@ Source شروع بررسی: `b11b819` در `arena/37af8e92-app`. نسخهٔ نص
 
 این جدول default است؛ **permissions صریح staff می‌تواند با اسم role متفاوت باشد**. Owner همواره همهٔ permissionها را دارد. به همین دلیل فقط آزمایش اسم role کافی نیست؛ editor/publisher سفارشی نیز تست شدند.
 
+سایر مجوزهای پیش‌فرض، مطابق `rolePermissions`:
+
+- **Owner:** هر ۱۷ مجوز، شامل تیم، service/maintenance، audit، محتوا، لایسنس و خطاها.
+- **license_manager:** هشت `licenses.*` یعنی read/create/update/suspend/revoke/reset/extend/archive، به‌علاوه analytics.read و errors.read؛ مجموع ۱۰ مجوز. مجوز تیم یا انتشار محتوا ندارد.
+- **content_manager:** content.read/write/publish و analytics.read و errors.read؛ مجموع ۵.
+- **support:** licenses.read/update، content.read، analytics.read و errors.read/resolve؛ مجموع ۶. `licenses.update` فقط ویرایش نام/یادداشت نیست؛ مسیر تغییر tier لایسنس عادی نیز از همین permission استفاده می‌کند. اگر Support باید صرفاً نام/یادداشت را تغییر دهد، این permission نیازمند تفکیک است.
+- **viewer:** content.read و analytics.read؛ مجموع ۲.
+
+تغییر وضعیت/reset/tier/archive یک لایسنسِ دارای staff فعال برای non-owner محدود شده است؛ self-access change نیز محدودیت جدا دارد. این محافظت با مجازبودن تغییر tier یک کاربر عادی یکسان نیست. permissionها را باید بر اساس عملیات واقعی انتخاب کرد، نه صرفاً اسم نمایشی نقش.
+
 ### مجوز واقعی هر مسیر API
 
 | عملیات | permission |
@@ -195,7 +207,7 @@ Source شروع بررسی: `b11b819` در `arena/37af8e92-app`. نسخهٔ نص
 - `playwright.security.config.ts` و دو فرمان `audit:security` و `audit:browser` برای اجرای ایزوله.
 - `.github/workflows/security-audit.yml`: تست‌ها + کنترل غیرمخرب API تولید؛ بدون id-token/write permission، بدون دریافت کلید امضا یا تغییر تولید.
 
-نتیجه محلی نهایی: `npm run check`، typecheck/build/format موفق؛ **۱۶۲ تست عادی + ۴ expected failure** در ۱۰ فایل. browser audit: ۱ عادی + ۲ expected failure. npm audit: صفر آسیب‌پذیری گزارش‌شده. به هیچ عنوان نباید این اعداد را «۱۶۶ تست امنیتی موفق و صفر ایراد» خواند.
+نتیجه محلی نهایی: `npm run check`، typecheck/build/format موفق؛ **۱۶۲ تست عادی + ۴ expected failure** در ۱۰ فایل. browser audit: ۱ عادی + ۲ expected failure. همچنین **۱۹ تست مرورگر قبلی** دوباره موفق شدند؛ بخش native-bridge آن‌ها IPC را شبیه‌سازی می‌کند و اجرای واقعی Rust/نصب فایل بازی نیست. build:edge موفق و diff خروجی deploy صفر بود. npm audit: صفر آسیب‌پذیری گزارش‌شده. به هیچ عنوان نباید این اعداد را «۱۶۶ تست امنیتی موفق و صفر ایراد» خواند.
 
 تست‌های known-failure عمداً ادعای امنِ فعلاً نادرست را علامت می‌زنند؛ بعد از اصلاح باید از expected-failure خارج و عادی شوند. اصلاح بدون تغییر این علامت هم باید در CI دیده شود.
 
@@ -211,7 +223,16 @@ npm audit --audit-level=high
 
 مرورگر باید نصب باشد. در محیط sandbox این جلسه Chromium بسته npm با `CHROMIUM_PATH=/tmp/chromium` و `LD_LIBRARY_PATH=/tmp/lib` استفاده شد؛ در CI Playwright مرورگر رسمی نصب می‌کند.
 
-نتیجهٔ اجرای زندهٔ workflow این مرحله پس از دریافت conclusion ثبت می‌شود. read-only queryهای RLS/permissions/Auth/metadata همین جلسه انجام شدند؛ metadata فعال بودن سرویس به‌تنهایی تست HTTP تازه نیست.
+### نتیجهٔ CI و کنترل HTTP واقعیِ این مرحله
+
+هر دو اجرا برای source `f48b76a7ad82bb16d2fb2251d0d34cd1ee3e52e8` **SUCCESS** شدند:
+
+- [Security and package permission audit — 41615226906](https://github.com/aliam664/App/actions/runs/41615226906): تست API و مرورگر، npm audit و مرحلهٔ HTTP غیرمخرب واقعی موفق. health/کلید عمومی/identity/capability، catalog، رد دسترسی ناشناس مدیریت و DB، CORS و رد GET/POST ناشناس broker کنترل شدند. هیچ owner license یا signing credential در این workflow مصرف نشد. موفقیت CI شامل همان ۴+۲ expected-failure باز است.
+- [Platform checks — 41615227212](https://github.com/aliam664/App/actions/runs/41615227212): web/API/format/build/edge-diff/npm-audit/۱۹ تست مرورگر و job Windows شامل Native security/recovery tests، cargo audit و ساخت NSIS موفق شدند. نصب‌کنندهٔ خروجی artifact آزمایش CI است؛ release/feed عمومی جدید منتشر نشد.
+
+خواندن status/step conclusionها موفق بود؛ دریافت لاگ کامل jobها در sandbox به خطای شبکهٔ EOF خورد. بنابراین شمار تازهٔ تست‌های Rust را از لاگ جدید نقل نمی‌کنم. محدودیت لاگ، نتیجهٔ SUCCESS گزارش‌شدهٔ خود job را تغییر نمی‌دهد؛ همچنین آن نتیجه اثبات پذیرش روی بازی واقعی نیست.
+
+queryهای read-only پیکربندی/RLS/permissions/Auth همین جلسه جداگانه انجام شدند. در کنار آن‌ها، مرحلهٔ HTTP بالا واقعاً اجرا شد؛ نتیجه صرفاً از metadata فعال بودن سرویس استنباط نشده است.
 
 ## ۷. ترتیب پیشنهادی اصلاح
 
