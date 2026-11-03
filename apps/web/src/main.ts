@@ -1,13 +1,15 @@
+import { readRoute, pageUrl } from './navigation';
 import { updateStatusPanel } from './update-status';
 import { recordEvent, flushEvents, pendingEvents } from './outbox';
 import { licenseAdminSession } from './license-admin';
-import { assetUrl, modeUrl, isAdminRoute, staticPreview, buildRevision } from './runtime';
+import { assetUrl, modeUrl, staticPreview, buildRevision } from './runtime';
 import { localStore, sessionStore } from './storage';
 import './style.css';
 import { localLibrary, libraryPreferences } from './local-library';
 import { downloadPreferences } from './download-preferences';
 import './reference.css';
 import './brand-theme.css';
+import './console-design.css';
 import { api, ApiError, supabase } from './api';
 import { proof, native, invoke } from './device';
 import {
@@ -51,8 +53,8 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 let serviceMessage = '';
 let demo = false,
   online = true,
-  page = 'discover',
-  adminMode = isAdminRoute(),
+  page = readRoute().page,
+  adminMode = readRoute().admin,
   adminToken = sessionStore.getItem('uhm-admin') || '';
 let catalog: CatalogItem[] = [],
   activeCategory = 'all',
@@ -89,7 +91,7 @@ try {
 }
 const persistTasks = () => localStore.setItem('uhm-task-history', JSON.stringify(tasks.slice(-60)));
 let installing = false;
-let language = localStore.getItem('uhm-language') || 'fa';
+let language = localStore.getItem('uhm-language') === 'en' ? 'en' : 'fa';
 let compact = localStore.getItem('uhm-compact') === 'true';
 const launcherNav = [
   ['discover', 'compass', 'خانه'],
@@ -123,19 +125,50 @@ function footerMarkup() {
   return `<footer class="site-footer"><div class="footer-identity"><img src="${assetUrl('/brand/logo.png')}" alt=""><div><b>UHM GRAPHICS PACK</b>${staticPreview ? `<small class="build-revision" dir="ltr">PREVIEW / ${esc(buildRevision.slice(0, 7))}</small>` : ''}<span>ساخته‌شده توسط Ali369 · برای جامعهٔ Assetto Corsa</span></div></div><span class="connection ${online ? '' : 'offline'}"><i></i>${online ? 'متصل به سرویس' : 'حالت آفلاین'}</span><button id="about">دربارهٔ پروژه ${icon('arrow-up-left')}</button></footer>`;
 }
 function launcherShell(nav: string[][]) {
-  return `<div class="launcher-shell"><div class="reference-header"><header class="container nav">${brandMarkup()}<nav class="nav-links" aria-label="ناوبری اصلی">${nav.map(([id, , t]) => `<button class="${page === id ? 'current' : ''}" data-nav="${id}">${t}${id === 'downloads' && tasks.length ? ` <b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}<button data-nav="settings">تنظیمات</button></nav><div class="nav-actions"><button class="profile language-toggle" id="profile" aria-label="${license ? 'مدیریت اشتراک' : 'اشتراک و فعال‌سازی'}"><span class="language-orbit">${icon('key-round')}</span><span>${license ? license.tier.toUpperCase() + ' MEMBER' : 'لایسنس'}</span><span class="language-chevron">↗</span></button><button class="icon" id="theme" aria-label="تغییر تم">◐</button><button class="icon notification-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="menu-btn" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')} منو</button></div></header></div>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main class="launcher-content ${page === 'discover' ? 'is-discover' : ''}" id="content" tabindex="-1"></main>${footerMarkup()}<button class="mode-switch-access" id="switch-mode">${icon('sliders-horizontal')}پنل مدیریت</button></div><div id="toasts" aria-live="polite"></div>`;
+  return `<div class="launcher-shell"><a class="skip-link" href="#content">رفتن به محتوای صفحه</a><div class="reference-header"><header class="container nav">${brandMarkup()}<nav class="nav-links" aria-label="ناوبری اصلی">${nav.map(([id, , t]) => `<button class="${page === id ? 'current' : ''}" ${page === id ? 'aria-current="page"' : ''} data-nav="${id}">${t}${id === 'downloads' && tasks.length ? ` <b>${fa(tasks.length)}</b>` : ''}</button>`).join('')}<button class="${page === 'settings' ? 'current' : ''}" ${page === 'settings' ? 'aria-current="page"' : ''} data-nav="settings">تنظیمات</button></nav><div class="nav-actions"><button class="profile language-toggle" id="profile" aria-label="${license ? 'مدیریت اشتراک' : 'اشتراک و فعال‌سازی'}"><span class="language-orbit">${icon('key-round')}</span><span>${license ? license.tier.toUpperCase() + ' MEMBER' : 'لایسنس'}</span><span class="language-chevron">↗</span></button><button class="icon" id="theme" aria-label="تغییر تم">◐</button><button class="icon notification-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="menu-btn" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')} منو</button></div></header></div>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main class="launcher-content ${page === 'discover' ? 'is-discover' : ''}" id="content" tabindex="-1"></main>${footerMarkup()}<button class="mode-switch-access" id="switch-mode">${icon('sliders-horizontal')}پنل مدیریت</button></div><div id="toasts" aria-live="polite"></div>`;
 }
 function adminShell(nav: string[][]) {
-  return `<div class="app-shell admin-shell"><aside class="sidebar">${brandMarkup()}<div class="workspace-label">اتاق کنترل<span>CONTROL ROOM</span></div><nav aria-label="منوی اصلی">${nav.map(([id, i, t]) => `<button class="nav-item ${page === id ? 'active' : ''}" data-nav="${id}">${icon(i)}<span>${t}</span></button>`).join('')}</nav><div class="sidebar-bottom"><button class="nav-item" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon('arrow-up-right')}بازگشت به لانچر</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon('sliders-horizontal')}<span>مدیریت سیستم / ${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</span></div><div class="topbar-actions"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')}</button><button class="icon-button" id="theme" aria-label="تغییر تم">◐</button><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile"><span class="avatar">A</span><span>مدیریت<small>CONTROL PANEL</small></span>${icon('chevron-down')}</button></div></header>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main id="content" tabindex="-1"></main>${footerMarkup()}</div></div><div id="toasts" aria-live="polite"></div>`;
+  const groups = [
+    ['فضای کاری', ['dashboard', 'licenses', 'devices']],
+    ['مدیریت محتوا', ['packages', 'versions']],
+    ['نظارت و کنترل', ['analytics', 'errors', 'team', 'service', 'logs']],
+  ] as const;
+  return `<div class="app-shell admin-shell"><a class="skip-link" href="#content">رفتن به محتوای صفحه</a><aside class="sidebar">${brandMarkup()}<div class="workspace-label">فضای مدیریت<span lang="en">CONTROL ROOM</span></div><nav aria-label="منوی اصلی">${groups
+    .map(
+      ([label, ids]) =>
+        `<div class="nav-group"><p class="nav-group-label">${label}</p>${nav
+          .filter(([id]) => (ids as readonly string[]).includes(id))
+          .map(
+            ([id, i, t]) =>
+              `<button class="nav-item ${page === id ? 'active' : ''}" ${page === id ? 'aria-current="page"' : ''} ${id !== 'dashboard' ? 'hidden' : ''} data-nav="${id}">${icon(i)}<span>${t}</span></button>`,
+          )
+          .join('')}</div>`,
+    )
+    .join(
+      '',
+    )}</nav><div class="sidebar-bottom"><div class="workspace-identity">${icon('shield-check')}<div><b data-admin-role>مدیریت</b><small>دسترسی بر اساس مجوز حساب</small></div></div><button class="nav-item ${page === 'settings' ? 'active' : ''}" data-nav="settings">${icon('settings-2')}تنظیمات</button><button class="nav-item" id="switch-mode">${icon('arrow-up-right')}بازگشت به لانچر</button><div class="sidebar-version"><span>UHM PLATFORM</span><code>v0.1.0</code></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumbs">${icon('sliders-horizontal')}<span>اتاق کنترل</span>${icon('chevron-left')}<strong>${esc(nav.find((n) => n[0] === page)?.[2] || 'تنظیمات')}</strong></div><div class="topbar-actions"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="منوی بخش‌ها" aria-expanded="false">${icon('menu')}</button><button class="icon-button" id="theme" aria-label="تغییر تم">◐</button><button class="icon-button" id="notifications" aria-label="تازه‌های انتشار">${icon('bell')}</button><button class="profile" id="profile" aria-label="خروج از حساب مدیریت"><span class="avatar">${icon('shield-check')}</span><span><b data-admin-role>مدیریت</b><small lang="en">UHM WORKSPACE</small></span>${icon('chevron-down')}</button></div></header>${demoStrip()}${serviceMessage ? `<div class="console-notice">${esc(serviceMessage)}</div>` : ''}<main id="content" tabindex="-1"></main>${footerMarkup()}</div></div><div id="toasts" aria-live="polite"></div>`;
+}
+function navigate(next: string) {
+  page = next;
+  const url = pageUrl(page, adminMode);
+  if (location.pathname + location.hash !== url) history.pushState({}, '', url);
+  void render().then(() => {
+    document.querySelector<HTMLElement>('#content')?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  });
 }
 function shell() {
-  document.documentElement.lang = language;
+  document.documentElement.lang = 'fa';
   document.documentElement.dir = language === 'fa' ? 'rtl' : 'ltr';
   document.body.classList.toggle('compact', compact);
   const nav = adminMode ? adminNav : launcherNav;
   app.innerHTML = adminMode ? adminShell(nav) : launcherShell(nav);
   document.documentElement.dataset.theme =
     localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
+  document.querySelector('.skip-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelector<HTMLElement>('#content')?.focus();
+  });
   document.querySelector('#theme')?.addEventListener('click', () => {
     const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = theme;
@@ -145,14 +178,13 @@ function shell() {
   document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach(
     (b) =>
       (b.onclick = () => {
-        page = b.dataset.nav!;
-        void render();
+        navigate(b.dataset.nav!);
       }),
   );
   document.querySelector('#mobile-menu')!.addEventListener('click', () => {
     const d = modal(
       'بخش‌های برنامه',
-      `<div class="mobile-links">${[...nav, ['settings', 'settings-2', 'تنظیمات']].map(([id, i, t]) => `<button class="nav-item" data-mobile-nav="${id}">${icon(i)}${esc(t)}</button>`).join('')}<button class="nav-item" id="mobile-switch">${icon('sliders-horizontal')}${adminMode ? 'بازگشت به لانچر' : 'پنل مدیریت'}</button></div>`,
+      `<div class="mobile-links">${[...nav.filter(([id]) => !document.querySelector<HTMLButtonElement>(`[data-nav="${id}"]`)?.hidden), ['settings', 'settings-2', 'تنظیمات']].map(([id, i, t]) => `<button class="nav-item" data-mobile-nav="${id}">${icon(i)}${esc(t)}</button>`).join('')}<button class="nav-item" id="mobile-switch">${icon('sliders-horizontal')}${adminMode ? 'بازگشت به لانچر' : 'پنل مدیریت'}</button></div>`,
     );
     d.classList.add('drawer-dialog');
     const menuButton = document.querySelector('#mobile-menu')!;
@@ -164,9 +196,8 @@ function shell() {
     d.querySelectorAll<HTMLButtonElement>('[data-mobile-nav]').forEach(
       (b) =>
         (b.onclick = () => {
-          page = b.dataset.mobileNav!;
           d.close();
-          void render();
+          navigate(b.dataset.mobileNav!);
         }),
     );
     d.querySelector('#mobile-switch')!.addEventListener('click', () => {
@@ -221,6 +252,10 @@ function shell() {
 async function render() {
   shell();
   const content = document.querySelector<HTMLElement>('#content')!;
+  content.setAttribute('aria-busy', 'true');
+  if (adminMode)
+    content.innerHTML =
+      '<div class="page-loading" role="status">در حال دریافت اطلاعات اتاق کنترل…</div>';
   try {
     if (page === 'settings') {
       settings(content);
@@ -265,16 +300,23 @@ async function render() {
       'اتصال یا نشست خود را بررسی کنید.',
       'wifi-off',
     );
+    content.insertAdjacentHTML(
+      'beforeend',
+      '<button class="button secondary retry-page" id="retry-page">تلاش دوباره</button>',
+    );
+    content.querySelector('#retry-page')!.addEventListener('click', () => void render());
     handleError(e);
+  } finally {
+    content.removeAttribute('aria-busy');
   }
   decorate();
 }
 function discover(el: HTMLElement) {
-  el.innerHTML = `<div class="reference-home"><section class="hero feature" aria-label="معرفی UHM"><video class="hero-video" preload="metadata" muted loop autoplay playsinline poster="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="container hero-grid"><div class="hero-copy visible"><div class="eyebrow">UHM / ASSETTO CORSA / GRAPHICS CONFIG</div><img class="logo-plate" src="${assetUrl('/brand/logo.png')}" alt="UHM"><h1>گرافیک استو را<br><span class="hero-highlight">یک سطح بالاتر</span> ببر</h1><p class="hero-lead">UHM یک پکیج آمادهٔ تنظیمات بصری برای Assetto Corsa است؛ شامل Pure، CSP، PP Filter و Presetهای گرافیکی. از فعال‌سازی لایسنس تا دانلود و نصب مرحله‌ای، همه‌چیز در یک لانچر.</p><div class="hero-buttons"><button class="btn primary" id="browse-packages">↓ پکیج‌های UHM</button><button class="btn ghost" id="view-showcase">مشاهده نتیجه</button><button class="btn ghost" id="start-install">شروع نصب</button></div><div class="home-proof"><span>ASSETTO CORSA</span><span>PURE + CSP + PP FILTER</span><span>READY-TO-CONFIG</span></div><div class="stats"><div class="stat"><b>${fa(catalog.length)}</b><span>پکیج در کاتالوگ</span></div><div class="stat"><b>3</b><span>سطح اشتراک</span></div><div class="stat"><b>ZIP / RAR / 7z</b><span>فرمت‌های نصب</span></div></div></div><div class="hero-rail reveal visible"><img src="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}" alt="نمای واقعی گرافیک UHM در Assetto Corsa"><small>REAL GAMEPLAY / ASSETTO CORSA</small></div></div><button class="hero-scroll" id="hero-scroll"><span>SCROLL TO EXPLORE</span><i aria-hidden="true">↓</i></button><div class="ticker" aria-hidden="true"><span>UHM GRAPHICS PACK <i>✦</i> PURE READY <i>✦</i> CONTENT MANAGER <i>✦</i> ALI369 <i>✦</i> UHM GRAPHICS PACK <i>✦</i></span></div></section>
+  el.innerHTML = `<div class="reference-home"><section class="hero feature" aria-label="معرفی UHM"><video class="hero-video" preload="metadata" aria-hidden="true" muted loop ${window.matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : 'autoplay'} playsinline poster="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="container hero-grid"><div class="hero-copy visible"><div class="eyebrow">UHM / ASSETTO CORSA / GRAPHICS CONFIG</div><img class="logo-plate" src="${assetUrl('/brand/logo.png')}" alt="UHM"><h1>گرافیک استو را<br><span class="hero-highlight">یک سطح بالاتر</span> ببر</h1><p class="hero-lead">UHM یک پکیج آمادهٔ تنظیمات بصری برای Assetto Corsa است؛ شامل Pure، CSP، PP Filter و Presetهای گرافیکی. از فعال‌سازی لایسنس تا دانلود و نصب مرحله‌ای، همه‌چیز در یک لانچر.</p><div class="hero-buttons"><button class="btn primary" id="browse-packages">↓ پکیج‌های UHM</button><button class="btn ghost" id="view-showcase">مشاهده نتیجه</button><button class="btn ghost" id="start-install">شروع نصب</button></div><div class="home-proof"><span>ASSETTO CORSA</span><span>PURE + CSP + PP FILTER</span><span>READY-TO-CONFIG</span></div><div class="stats"><div class="stat"><b>${fa(catalog.length)}</b><span>پکیج در کاتالوگ</span></div><div class="stat"><b>3</b><span>سطح اشتراک</span></div><div class="stat"><b>ZIP / RAR / 7z</b><span>فرمت‌های نصب</span></div></div></div><div class="hero-rail reveal visible"><img src="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}" alt="نمای واقعی گرافیک UHM در Assetto Corsa"><small>REAL GAMEPLAY / ASSETTO CORSA</small></div></div><button class="hero-scroll" id="hero-scroll"><span>SCROLL TO EXPLORE</span><i aria-hidden="true">↓</i></button><div class="ticker" aria-hidden="true"><span>UHM GRAPHICS PACK <i>✦</i> PURE READY <i>✦</i> CONTENT MANAGER <i>✦</i> ALI369 <i>✦</i> UHM GRAPHICS PACK <i>✦</i></span></div></section>
   <section id="showcase" class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">SHOWCASE</div><h2>ببین، بعد نصب کن.</h2></div><p>نمای واقعی پک UHM؛ همان ویدیو و همان تجربه‌ای که در سایت می‌بینی.</p></div><div class="video-shell"><video controls preload="none" poster="${assetUrl('/brand/images/830c39f4-b1ff-4d2b-94a0-7ea5549e7f28.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="video-caption"><span><b>UHM / Showcase</b><br><small>Gameplay capture · Assetto Corsa</small></span><button class="btn ghost" id="showcase-packages">مشاهده پکیج‌ها ←</button></div></div></div></section>
-  <section class="catalog-section section" id="package-catalog"><div class="container"><div class="section-head"><div><div class="eyebrow">UHM / COLLECTION</div><h2>پکیج‌های گرافیک و تجربهٔ رانندگی</h2></div><span class="count" id="result-count">${fa(catalog.length)} پکیج</span></div><div class="catalog-controls"><div class="tabs" role="tablist" aria-label="دسته‌بندی پکیج‌ها">${[['all', 'همه پکیج‌ها'], ...Object.entries(category)].map(([v, l]) => `<button role="tab" aria-selected="${activeCategory === v}" class="tab ${activeCategory === v ? 'selected' : ''}" data-category="${v}">${l}</button>`).join('')}</div><div class="catalog-search"><label class="search">${icon('search')}<input id="package-search" placeholder="پکیج مورد نظرت را پیدا کن…" value="${esc(query)}" aria-label="جست‌وجوی پکیج"></label><select id="tier-filter" aria-label="فیلتر سطح اشتراک"><option value="all">همه سطح‌ها</option>${['normal', 'pro', 'vip'].map((t) => `<option value="${t}" ${tierFilter === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select></div></div><div class="package-grid" id="packages"></div></div></section>
+  <section class="catalog-section section" id="package-catalog"><div class="container"><div class="section-head"><div><div class="eyebrow">UHM / COLLECTION</div><h2>پکیج‌های گرافیک و تجربهٔ رانندگی</h2></div><span class="count" id="result-count">${fa(catalog.length)} پکیج</span></div><div class="catalog-controls"><div class="tabs" role="tablist" aria-label="دسته‌بندی پکیج‌ها">${[['all', 'همه پکیج‌ها'], ...Object.entries(category)].map(([v, l]) => `<button role="tab" aria-selected="${activeCategory === v}" class="tab ${activeCategory === v ? 'selected' : ''}" tabindex="${activeCategory === v ? '0' : '-1'}" data-category="${v}">${l}</button>`).join('')}</div><div class="catalog-search"><label class="search">${icon('search')}<input id="package-search" placeholder="پکیج مورد نظرت را پیدا کن…" value="${esc(query)}" aria-label="جست‌وجوی پکیج"></label><select id="tier-filter" aria-label="فیلتر سطح اشتراک"><option value="all">همه سطح‌ها</option>${['normal', 'pro', 'vip'].map((t) => `<option value="${t}" ${tierFilter === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select></div></div><div class="package-grid" id="packages"></div></div></section>
   <section class="section membership-section"><div class="container"><div class="download"><div><div class="eyebrow">YOUR ACCESS / UHM</div><h2>${license ? 'اشتراک تو، مسیرهای بیشتر.' : 'کلید گاراژت را فعال کن.'}</h2><p>${license ? 'وضعیت مجوز و زمان تمدید را در بخش اشتراک ببین.' : 'یک لایسنس، یک دستگاه؛ بدون ساخت حساب کاربری.'}</p><div class="home-proof"><span>NORMAL</span><span>PRO</span><span>VIP</span></div></div><button class="btn primary" id="membership">${license ? 'مدیریت اشتراک' : 'فعال‌سازی لایسنس'} ${icon('arrow-left')}</button></div></div></section>
-  <section class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">IN-GAME LOOKS</div><h2>نمای واقعی، بدون عکس استوک.</h2></div><p>تصاویر اصلی سایت UHM؛ ثبت‌شده در Assetto Corsa.</p></div><div class="looks">${[
+  <section class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">IN-GAME LOOKS</div><h2>نمای واقعی، بدون عکس استوک.</h2></div><p>تصاویر اصلی سایت UHM؛ ثبت‌شده در Assetto Corsa.</p></div><div class="looks" tabindex="0" role="region" aria-label="گالری تصاویر بازی">${[
     ['830c39f4-b1ff-4d2b-94a0-7ea5549e7f28', 'NIGHT RUN'],
     ['2ec1805b-df61-4db6-beed-1c8c08ac0ee5', 'LIGHTING'],
     ['c439ae92-1ebe-4683-9f65-8713cf560a28', 'DETAILS'],
@@ -310,6 +352,7 @@ function discover(el: HTMLElement) {
         el.querySelectorAll('[data-category]').forEach((t) => {
           t.classList.toggle('selected', t === b);
           t.setAttribute('aria-selected', String(t === b));
+          (t as HTMLButtonElement).tabIndex = t === b ? 0 : -1;
         });
         list();
       }),
@@ -317,6 +360,27 @@ function discover(el: HTMLElement) {
   el.querySelector('#package-search')!.addEventListener('input', (e) => {
     query = (e.target as HTMLInputElement).value;
     list();
+  });
+  el.querySelector('.tabs')!.addEventListener('keydown', (event) => {
+    const e = event as KeyboardEvent;
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const tabs = [...el.querySelectorAll<HTMLButtonElement>('[data-category]')];
+    const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+    if (current < 0) return;
+    e.preventDefault();
+    const direction = document.documentElement.dir === 'rtl' ? -1 : 1;
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? tabs.length - 1
+          : (current + (e.key === 'ArrowRight' ? direction : -direction) + tabs.length) %
+            tabs.length;
+    tabs[next].click();
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = index === next ? 0 : -1;
+    });
+    tabs[next].focus();
   });
   el.querySelector('#tier-filter')!.addEventListener('change', (e) => {
     tierFilter = (e.target as HTMLSelectElement).value;
@@ -821,7 +885,6 @@ async function boot() {
   await refreshDueLicense();
   void recordEvent('app_open', { stage: 'app' });
   void flushEvents();
-  if (adminMode) page = 'dashboard';
   await render();
 }
 window.addEventListener('license-activated', () => {
@@ -830,8 +893,9 @@ window.addEventListener('license-activated', () => {
   void recordEvent('app_open', { stage: 'app' });
 });
 window.addEventListener('popstate', () => {
-  adminMode = isAdminRoute();
-  page = adminMode ? 'dashboard' : 'discover';
+  const route = readRoute();
+  adminMode = route.admin;
+  page = route.page;
   void render();
 });
 window.addEventListener('outbox-error', () =>

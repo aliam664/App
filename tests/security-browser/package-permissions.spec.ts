@@ -75,20 +75,18 @@ test('AUD-02: publisher without content.write should have an enabled publish but
   await page.getByRole('button', { name: 'پکیج‌ها', exact: true }).click();
   await page.locator(`[data-edit="${id}"]`).click();
   await expect(page.locator('[name=name]')).toBeDisabled();
-  test.fail(
-    true,
-    'Known open UI defect: read-only editor fieldset disables authorized publisher actions',
-  );
   await expect(page.locator('#publish-package')).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'ذخیره پیش‌نویس', exact: true })).toHaveCount(0);
+  await page.locator('#validate-package').click();
+  await expect(page.locator('.toast').last()).toContainText('ساختار ذخیره‌شده معتبر است');
 });
 test('AUD-03: content.write without content.read should expose a route to adding a package', async ({
   page,
   request,
 }) => {
   await staff(request, page, ['content.write']);
-  test.fail(
-    true,
-    'Known open UI/API permission mismatch: API permits writing but package navigation is hidden',
-  );
   await expect(page.getByRole('button', { name: 'پکیج‌ها', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'پکیج‌ها', exact: true }).click();
+  await page.getByRole('button', { name: 'پکیج جدید', exact: true }).click();
+  await expect(page.locator('[name=name]')).toBeEnabled();
 });

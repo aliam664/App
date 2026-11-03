@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
-    env: { PORT: '5179' },
+    env: { PORT: '5179', HMR_PORT: '24679', UHM_DEV_INSTANCE: 'security-browser' },
     url: 'http://127.0.0.1:5179/api/health',
     reuseExistingServer: false,
     timeout: 30000,

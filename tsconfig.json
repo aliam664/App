@@ -21,6 +21,7 @@
     "playwright.config.ts",
     "playwright.pages.config.ts",
     "scripts/**/*.ts",
-    "playwright.security.config.ts"
+    "playwright.security.config.ts",
+    "playwright.design.config.ts"
   ]
 }

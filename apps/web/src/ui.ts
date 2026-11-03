@@ -18,6 +18,8 @@ import {
   FlaskConical,
   Folder,
   FolderCheck,
+  FolderCog,
+  CalendarDays,
   FolderOpen,
   Gamepad2,
   GitBranch,
@@ -65,6 +67,8 @@ const icons = {
   FlaskConical,
   Folder,
   FolderCheck,
+  FolderCog,
+  CalendarDays,
   FolderOpen,
   Gamepad2,
   GitBranch,
@@ -100,7 +104,8 @@ export const esc = (x: unknown) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
 export const icon = (name: string, cls = '') => `<i data-lucide="${name}" class="${cls}"></i>`;
-export const decorate = () => createIcons({ icons, attrs: { 'stroke-width': 1.6 } });
+export const decorate = () =>
+  createIcons({ icons, attrs: { 'stroke-width': 1.6, 'aria-hidden': 'true', focusable: 'false' } });
 export const fa = (n: number) => new Intl.NumberFormat('fa-IR').format(n);
 export const date = (s: string | null) =>
   s
@@ -121,12 +126,27 @@ export const category: Record<string, string> = {
   tools: 'ابزارهای پایه',
 };
 export function toast(text: string, danger = false) {
+  let stack = document.querySelector<HTMLElement>('.toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.className = 'toast-stack';
+    document.body.append(stack);
+  }
   const el = document.createElement('div');
   el.className = `toast ${danger ? 'danger' : ''}`;
-  el.setAttribute('role', 'status');
-  el.textContent = text;
-  document.body.append(el);
-  setTimeout(() => el.remove(), 6500);
+  el.setAttribute('role', danger ? 'alert' : 'status');
+  const message = document.createElement('span');
+  message.textContent = text;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'بستن پیام');
+  close.textContent = '×';
+  close.onclick = () => el.remove();
+  el.append(message, close);
+  stack.append(el);
+  while (stack.children.length > 3) stack.firstElementChild?.remove();
+  setTimeout(() => el.remove(), danger ? 10000 : 6500);
 }
 export const handleError = (e: unknown) =>
   toast(
@@ -142,20 +162,53 @@ export const handleError = (e: unknown) =>
 export function modal(title: string, content: string, wide = false): HTMLDialogElement {
   const dialog = document.createElement('dialog');
   dialog.className = wide ? 'modal wide' : 'modal';
-  dialog.innerHTML = `<div class="modal-head"><h2>${esc(title)}</h2><button class="icon-button" data-close aria-label="بستن">${icon('x')}</button></div><div class="modal-body">${content}</div>`;
+  const titleId = `dialog-${crypto.randomUUID()}`;
+  const opener = document.activeElement;
+  dialog.setAttribute('aria-labelledby', titleId);
+  dialog.innerHTML = `<div class="modal-head"><h2 id="${titleId}">${esc(title)}</h2><button class="icon-button" data-close aria-label="بستن">${icon('x')}</button></div><div class="modal-body">${content}</div>`;
   document.body.append(dialog);
-  dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
+  const requestClose = () => {
+    if (
+      dialog.dataset.dirty === 'true' &&
+      !window.confirm('تغییرات این فرم ذخیره نشده است. بدون ذخیره بسته شود؟')
+    )
+      return;
+    dialog.close();
+  };
+  dialog.addEventListener('input', (e) => {
+    if ((e.target as HTMLElement).closest('form[data-guard-discard]'))
+      dialog.dataset.dirty = 'true';
+  });
+  dialog.addEventListener('click', (e) => {
+    if (
+      (e.target as HTMLElement).closest(
+        '#add-file, #add-step, [data-remove], [data-up], [data-down], .remove-file',
+      )
+    )
+      dialog.dataset.dirty = 'true';
+  });
+  dialog.querySelector('[data-close]')!.addEventListener('click', requestClose);
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    requestClose();
+  });
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) {
       const r = dialog.getBoundingClientRect();
       const m = e as MouseEvent;
       if (m.clientX < r.left || m.clientX > r.right || m.clientY < r.top || m.clientY > r.bottom)
-        dialog.close();
+        requestClose();
     }
   });
-  dialog.addEventListener('close', () => dialog.remove());
+  dialog.addEventListener('close', () => {
+    dialog.remove();
+    if (!document.querySelector('dialog[open]'))
+      document.documentElement.classList.remove('has-modal');
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
+  });
   decorate();
   dialog.showModal();
+  document.documentElement.classList.add('has-modal');
   return dialog;
 }
 export async function busy(button: HTMLButtonElement, job: () => Promise<void>) {

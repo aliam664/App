@@ -35,7 +35,7 @@ jobs:
         if: always()
         run: |
           echo '## Security audit' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Known expected failures are OPEN FINDINGS, not fixes or security passes. API: 32 normal + 4 expected failures; browser: 1 normal + 2 expected failures. See docs/security-audit-2026-11-03-fa.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Known expected failures are OPEN FINDINGS, not fixes or security passes. API: 32 normal + 4 expected failures; browser: 3 normal permission regressions (AUD-02/03 fixed in UI). See docs/security-audit-2026-11-03-fa.md.' >> "$GITHUB_STEP_SUMMARY"
           echo 'No owner license activation, production mutation, signing credential or new release in this workflow.' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()

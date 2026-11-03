@@ -9,10 +9,13 @@ import { seedPackages } from '../src/seed.ts';
 import { codeHash, b64, generateLicenseCode } from '../src/crypto.ts';
 if (process.env.NODE_ENV === 'production')
   throw new Error('Demo server is disabled in production. Deploy the Supabase function.');
-await mkdir('.local', { recursive: true, mode: 0o700 });
+const instance = process.env.UHM_DEV_INSTANCE;
+if (instance && !/^[a-z0-9-]{1,32}$/.test(instance)) throw new Error('Invalid local instance name');
+const stateDir = instance ? `.local/${instance}` : '.local';
+await mkdir(stateDir, { recursive: true, mode: 0o700 });
 let keys: Pick<ApiConfig, 'privateJwk' | 'publicJwk' | 'pepper'>;
 try {
-  keys = JSON.parse(await readFile('.local/dev-keys.json', 'utf8'));
+  keys = JSON.parse(await readFile(`${stateDir}/dev-keys.json`, 'utf8'));
 } catch {
   const pair = await generateKeyPair('ES256', { extractable: true });
   keys = {
@@ -20,11 +23,11 @@ try {
     publicJwk: await exportJWK(pair.publicKey),
     pepper: b64(crypto.getRandomValues(new Uint8Array(32))),
   };
-  await writeFile('.local/dev-keys.json', JSON.stringify(keys), { mode: 0o600 });
+  await writeFile(`${stateDir}/dev-keys.json`, JSON.stringify(keys), { mode: 0o600 });
 }
 let state: State;
 try {
-  state = JSON.parse(await readFile('.local/state.json', 'utf8'));
+  state = JSON.parse(await readFile(`${stateDir}/state.json`, 'utf8'));
 } catch {
   state = emptyState();
   state.packages = seedPackages();
@@ -34,8 +37,8 @@ const demoCode = generateLicenseCode();
 const repo = new LocalRepository(
   state,
   async (state) => {
-    await writeFile('.local/state.tmp', JSON.stringify(state), { mode: 0o600 });
-    await rename('.local/state.tmp', '.local/state.json');
+    await writeFile(`${stateDir}/state.tmp`, JSON.stringify(state), { mode: 0o600 });
+    await rename(`${stateDir}/state.tmp`, `${stateDir}/state.json`);
   },
   token,
 );
@@ -66,7 +69,10 @@ const api = createApi(repo, {
 const port = Number(process.env.PORT || 5173);
 const vite = await createViteServer({
   configFile: 'vite.config.ts',
-  server: { middlewareMode: true, hmr: { port: 24678, host: '0.0.0.0' } },
+  server: {
+    middlewareMode: true,
+    hmr: { port: Number(process.env.HMR_PORT || 24678), host: '0.0.0.0' },
+  },
   appType: 'spa',
 });
 const server = createServer(async (req, res) => {
