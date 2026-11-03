@@ -12,12 +12,26 @@
 
 کلید امضای لایسنس و updater، identifier برنامه و محل تنظیمات/دستگاه همان قبلی‌اند؛ reset لایسنس یا ساخت کلید جدید لازم نیست.
 
-## دانلود پس از انتشار موفق
+## دانلود نسخهٔ منتشرشده
 
 - [نصاب Windows x64](https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.1/UHM-Launcher-0.1.1-x64-setup.exe)
 - [صفحه انتشار و فایل‌های SHA-256/امضا](https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.1)
 
-دریافت برای عموم تنها پس از موفقیت job امضا/انتشار تأیید می‌شود. نتیجه build، انتشار و آزمون نصب Windows پس از پایان اجراها در همین سند ثبت می‌شود.
+نصاب در **۲۰۲۶/۱۱/۰۳** منتشر شد. job انتشار، feed عمومی و فایل واقعی نصاب را پس از انتشار دوباره دریافت و امضا/نسخه/bytes آن را بررسی کرد.
+
+## شناسنامه و اعتبارسنجی
+
+- source دقیق نصاب: `2df82d89c50b3171ebd8fbebb0f58eaff3d08773`.
+- [Platform checks: موفق](https://github.com/aliam664/App/actions/runs/41657964757): format/typecheck، ۱۸۲ تست معمولی + چهار expected-failure، build، آزمون‌های مرورگر/طراحی و تست Native/audit/NSIS ویندوز.
+- [امضا، انتشار و تأیید feed/نصاب عمومی: موفق](https://github.com/aliam664/App/actions/runs/41658932271). OIDC و سیاست source/build تأیید شد؛ کلید موقت job پس از امضا حذف شد.
+- اندازه نصاب: **16,446,096 bytes** (حدود 15.68 MiB).
+- SHA-256 ثبت‌شده توسط GitHub برای asset منتشرشده:
+
+```text
+1064de0500e37fece771f5ab26b838984353916ca7a7cf0576c6f7348aed17dd
+```
+
+- [آزمون نصب و ارتقای خودکار Windows](https://github.com/aliam664/App/actions/runs/41659125833): **موفق، 4m37s**؛ نصب fixture نسخهٔ 0.0.0 در Windows دورریختنی، دریافت و بررسی امضای فایل عمومی 0.1.1، تعویق به‌هنگام اجرای process آزمایشی بازی، ارتقای واقعی NSIS در خروج امن، اجرای مجدد و حفظ تنظیمات/فایل sentinel بررسی شد. این نتیجه تأیید ارتقای 0.1.0 روی رایانهٔ کاربر یا اجرای بازی واقعی نیست؛ process بازی، fixture آزمایشی است.
 
 ## محدودیت‌ها
 
