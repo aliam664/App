@@ -96,4 +96,17 @@
 - اجرای محلی با Chromium و بررسی بصری screenshot انجام شد؛ Safari/iOS، Firefox، NVDA/VoiceOver، scaling خاص Windows و خود WebView2 روی PC کاربر آزمون دستی نشدند.
 - صفحات کتابخانه/نصب در مرورگر، محدودیت Native را صریح نمایش می‌دهند. تست‌های قبلی native-bridge، IPC را شبیه‌سازی می‌کنند و اثبات نصب مود روی دیسک نیستند.
 - تمام اندازه‌ها و ترکیب‌های محتوا در جهان قابل پوشش نیستند؛ هدف ماتریس regression قابل تکرار و رفع خطاهای مشاهده‌شده است، نه تضمین مطلق نبود باگ.
-- وضعیت اجرای CI و انتشار Pages پس از دریافت conclusion در همین گزارش ثبت می‌شود؛ تا قبل از آن صرف موفقیت محلی، موفقیت انتشار نامیده نمی‌شود.
+
+## نتیجهٔ CI و انتشار تأییدشده
+
+Source نهایی رابط: `f6f4d1cae7022516037a5213e1f83cdaced8edb0`.
+
+- [Platform checks — 41622491228](https://github.com/aliam664/App/actions/runs/41622491228): **SUCCESS**. وب/API، format، build، edge-diff، audit، ۱۹ تست قبلی و ۱۰ سناریوی طراحی موفق شدند. job ویندوز نیز Native tests، cargo audit و ساخت NSIS را موفق گذراند؛ این نتیجه همچنان تست دستی بازی یا WebView2 روی PC مالک نیست.
+- [Refresh compiled branch preview — 41622491310](https://github.com/aliam664/App/actions/runs/41622491310): **SUCCESS**؛ buildهای استاتیک، چهار تست Pages/branch و خروجی live-branch موفق.
+- [Publish shared app UI — 41622491224](https://github.com/aliam664/App/actions/runs/41622491224): **SUCCESS**. deploy در آن workflow عمداً skipped است، چون سایت از تنظیم legacy استفاده می‌کند؛ ربات branch-preview خروجی متصل را روی همان شاخه ثبت و انتشار legacy را درخواست کرد.
+- commit تولیدشدهٔ ربات `a5dc0633904b79ec17147829ad46d428842b2d8e` است. build-info آن source نهایی f6f4d1c و mode=connected-production دارد. API خود GitHub برای آخرین Pages build همین commit را با **status=built و بدون error** در ۲۰۲۶/۱۱/۰۳ ساعت ۱۰:۵۰:۴۷ UTC گزارش داد. بنابراین انتشار فقط از موفقیت build محلی استنباط نشده است.
+- [Security/permission audit — 41621035349](https://github.com/aliam664/App/actions/runs/41621035349): **SUCCESS** روی source اصلی بازطراحی 69592e6؛ سه regression رابط و کنترل HTTP غیرمخرب تولید موفق بودند. بعد از اصلاح لوگوی موبایل نیز هر سه تست permission محلی دوباره موفق شدند.
+
+تلاش نخست انتشار در source 69592e6 دو شکست Pages داشت: انتظار قدیمی reset شدن صفحه و لینک ناموجود لوگوی موبایل. هر دو بررسی شدند، مورد واقعی رابط اصلاح و قرارداد تست با حفظ صفحه هم‌تراز شد؛ اجرای نهایی بالا سبز است. تست حذف یا بی‌اثر نشد.
+
+سایت: https://aliam664.github.io/App/ . انتشار وب انجام شد؛ feed آپدیت و release نصب‌کنندهٔ رسمی جدید در این مرحله تغییر نکردند.
