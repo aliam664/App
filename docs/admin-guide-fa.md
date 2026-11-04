@@ -89,14 +89,14 @@ API فهرست کاربران، hash کد و اثر انگشت دستگاه را
 
 ![چند نقش هم‌زمان و مجوزهای مستقیم برای عضو آزمایشی](screenshots/mission-0.1.2/member-grants.png)
 
-| گروه | مجوزهای مستقل |
-| --- | --- |
-| لایسنس | `licenses.read/create/update/extend/suspend/revoke/reset/archive` |
-| کاربران و دستگاه | `users.read`، `users.manage`، `devices.read` |
-| محتوا | `content.read/create/update/publish/delete/versions`، `categories.manage` |
-| مشاهده و رسیدگی | `analytics.read`، `errors.read`، `errors.resolve`، `audit.read` |
-| حساس | `team.manage`، `roles.manage`، `service.manage` |
-| سازگاری قدیمی | `content.write`؛ معادل ساخت/ویرایش قدیمی، نه انتشار/حذف/بازگردانی |
+| گروه             | مجوزهای مستقل                                                             |
+| ---------------- | ------------------------------------------------------------------------- |
+| لایسنس           | `licenses.read/create/update/extend/suspend/revoke/reset/archive`         |
+| کاربران و دستگاه | `users.read`، `users.manage`، `devices.read`                              |
+| محتوا            | `content.read/create/update/publish/delete/versions`، `categories.manage` |
+| مشاهده و رسیدگی  | `analytics.read`، `errors.read`، `errors.resolve`، `audit.read`           |
+| حساس             | `team.manage`، `roles.manage`، `service.manage`                           |
+| سازگاری قدیمی    | `content.write`؛ معادل ساخت/ویرایش قدیمی، نه انتشار/حذف/بازگردانی         |
 
 «Owner» همهٔ مجوزها را دارد. قالب نقش به‌تنهایی نباید مجوزِ لغوشده را دوباره بسازد. پنهان‌کردن دکمه، جای کنترل API نیست؛ درخواست مستقیم غیرمجاز هم باید 403 بگیرد.
 
@@ -155,7 +155,7 @@ API فهرست کاربران، hash کد و اثر انگشت دستگاه را
 
 ![بازبینی واقعی؛ هشدار روشن دربارهٔ محدودیت preview](screenshots/mission-0.1.2/builder-review.png)
 
-**fixture پروژه:** `tests/fixtures/package-smoke.zip`، حجم 807 bytes، SHA-256 `339705e6977e71898554c50bcf8e2e1cee3b1d1f8e6e5182648a909a3ffcb78d`. این فقط چند فایل metadata/config مصنوعی دارد و خودرو قابل‌راندن نیست؛ پوشهٔ خارج از `bundle/car` نباید نصب شود. اسکریپت `package-chain-smoke.ts` از دیتابیس و کلیدهای یک‌بارمصرف استفاده می‌کند؛ آزمون Native جداگانه در Windows CI لازم است. نتیجهٔ مرورگر را به‌جای نصب واقعی گزارش نکنید.
+**fixture پروژه:** `tests/fixtures/package-smoke.zip`، حجم 807 bytes، SHA-256 `339705e6977e71898554c50bcf8e2e1cee3b1d1f8e6e5182648a909a3ffcb78d`. این فقط چند فایل metadata/config مصنوعی دارد و خودرو قابل‌راندن نیست؛ پوشهٔ خارج از `bundle/car` نباید نصب شود. اسکریپت `package-chain-smoke.ts` از دیتابیس و کلیدهای یک‌بارمصرف استفاده می‌کند؛ [آزمون Native جداگانه در Windows CI موفق شد](https://github.com/aliam664/App/actions/runs/41801336559): شبکه، استخراج، نصب روی tempdir و scan واقعی‌اند؛ فقط رویداد/تأیید preview با test runtime کنترل می‌شود. این نتیجه جای آزمون GUI یا ارتقای نصاب عمومی را نمی‌گیرد.
 
 ## ۱۳. نسخهٔ جدید، بازگردانی snapshot و حذف منطقی
 
