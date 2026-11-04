@@ -11,6 +11,8 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/202611010002_live_catalog.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611020003_admin_telemetry.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261102201702_content_packages.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611040001_custom_roles.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611040002_license_windows.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -19,7 +21,7 @@ it('installs all tables and enforces RLS on each', async () => {
   const result = await db.query<{ tablename: string; rowsecurity: boolean }>(
     "select tablename,rowsecurity from pg_tables where schemaname='uhm'",
   );
-  expect(result.rows.length).toBe(14);
+  expect(result.rows.length).toBe(15);
   expect(result.rows.every((r) => r.rowsecurity)).toBe(true);
 });
 it('has no anon/public RPC execution privilege', async () => {
@@ -213,5 +215,79 @@ it('keeps last stable version visible through future and test releases', async (
   await expect(
     db.query("update uhm.packages set author='mutated' where id=$1", [id]),
   ).rejects.toThrow('RELEASE_IMMUTABLE');
+  await db.exec('reset role');
+});
+it('custom roles enforce atomic revisions, audit history and no browser grants', async () => {
+  const id = '20000000-0000-4000-8000-000000000050';
+  const input = {
+    id,
+    name: 'Isolated role',
+    description: 'Synthetic only',
+    permissions: ['licenses.read'],
+    enabled: true,
+  };
+  await db.exec('set role service_role');
+  await db.query('select uhm.save_custom_role($1,$2,$3)', [
+    JSON.stringify(input),
+    'test-role-owner',
+    0,
+  ]);
+  await expect(
+    db.query('select uhm.save_custom_role($1,$2,$3)', [
+      JSON.stringify({ ...input, permissions: [] }),
+      'test-role-owner',
+      0,
+    ]),
+  ).rejects.toThrow('EDIT_CONFLICT');
+  const row = await db.query<{ version: number }>(
+    'select version from uhm.custom_roles where id=$1',
+    [id],
+  );
+  expect(row.rows[0].version).toBe(1);
+  const events = await db.query<{ count: number }>(
+    "select count(*)::integer as count from uhm.audit_events where actor='test-role-owner'",
+  );
+  expect(events.rows[0].count).toBe(1);
+  await db.exec('reset role; set role anon');
+  await expect(db.query('select * from uhm.custom_roles')).rejects.toThrow();
+  await expect(
+    db.query('select uhm.save_custom_role($1,$2,$3)', [JSON.stringify(input), 'attacker', 1]),
+  ).rejects.toThrow();
+  await db.exec('reset role');
+});
+it('calendar windows enforce not-before, fixed expiry, revisions and atomic audit in PostgreSQL', async () => {
+  const id = '20000000-0000-4000-8000-000000000060';
+  await db.query(
+    "insert into uhm.licenses(id,code_hash,prefix,tier,duration_days,starts_at,expires_at) values($1,'calendar-only','TEST','normal',30,now()+interval '1 day',now()+interval '2 days')",
+    [id],
+  );
+  await db.exec('set role service_role');
+  await expect(
+    db.query("select uhm.activate_license('calendar-only','isolated-device')"),
+  ).rejects.toThrow('ACTIVATION_DENIED');
+  const expires = new Date(Date.now() + 86400000).toISOString();
+  await db.query('select uhm.set_license_window($1,$2,$3)', [
+    id,
+    JSON.stringify({ starts_at: null, expires_at: expires, expected_version: 1 }),
+    'calendar-test',
+  ]);
+  await db.query("select uhm.activate_license('calendar-only','isolated-device')");
+  const row = await db.query<{ expires_at: Date; entitlement_version: number }>(
+    'select expires_at,entitlement_version from uhm.licenses where id=$1',
+    [id],
+  );
+  expect(new Date(row.rows[0].expires_at).toISOString()).toBe(expires);
+  expect(row.rows[0].entitlement_version).toBe(2);
+  await expect(
+    db.query('select uhm.set_license_window($1,$2,$3)', [
+      id,
+      JSON.stringify({ starts_at: null, expires_at: null, expected_version: 2 }),
+      'calendar-test',
+    ]),
+  ).rejects.toThrow('INVALID_ACTION');
+  const events = await db.query<{ count: number }>(
+    "select count(*)::integer as count from uhm.audit_events where actor='calendar-test'",
+  );
+  expect(events.rows[0].count).toBe(1);
   await db.exec('reset role');
 });

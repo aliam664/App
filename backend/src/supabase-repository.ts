@@ -20,6 +20,8 @@ export class SupabaseRepository implements Repository {
         'INVALID_ACTION',
         'NOT_FOUND',
         'LAST_OWNER',
+        'EDIT_CONFLICT',
+        'ROLE_NAME_EXISTS',
       ];
       const code = known.find((code) => error.message.includes(code));
       if (code) throw new Error(code);
@@ -180,14 +182,44 @@ export class SupabaseRepository implements Repository {
   async saveAccess(
     access: import('../../packages/contracts/src/index.ts').AdminAccess,
     actor: string,
+    expectedVersion?: number,
   ) {
-    const { error } = await this.db.rpc('save_admin_access', { p_access: access, p_actor: actor });
+    const { error } = await this.db.rpc('save_admin_access', {
+      p_access: { ...access, expected_version: expectedVersion },
+      p_actor: actor,
+    });
+    this.check(error);
+  }
+  async saveRole(
+    role: import('../../packages/contracts/src/index.ts').CustomRole,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    const { error } = await this.db.rpc('save_custom_role', {
+      p_role: role,
+      p_actor: actor,
+      p_expected_version: expectedVersion,
+    });
     this.check(error);
   }
   async ingestEvents(events: import('../../packages/contracts/src/index.ts').TelemetryEvent[]) {
     const { error } = await this.db
       .from('telemetry_events')
       .upsert(events, { onConflict: 'license_id,id', ignoreDuplicates: true });
+    this.check(error);
+  }
+  async setLicenseWindow(
+    id: string,
+    window: import('zod').infer<
+      typeof import('../../packages/contracts/src/index.ts').LicenseWindowInput
+    >,
+    actor: string,
+  ) {
+    const { error } = await this.db.rpc('set_license_window', {
+      p_id: id,
+      p_window: window,
+      p_actor: actor,
+    });
     this.check(error);
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {

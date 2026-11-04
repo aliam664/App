@@ -15,6 +15,9 @@ export const Permission = z.enum([
   'licenses.archive',
   'content.read',
   'content.write',
+  'content.create',
+  'content.update',
+  'roles.manage',
   'content.publish',
   'analytics.read',
   'errors.read',
@@ -46,24 +49,65 @@ export const rolePermissions: Record<Role, Permission[]> = {
   ],
   viewer: ['content.read', 'analytics.read'],
 };
+// content.write is retained for installed 0.1.1 clients and existing grants only.
+// New grants can split creation/update; neither implies publishing or deletion.
 export function hasPermission(admin: Pick<Admin, 'role' | 'permissions'>, permission: Permission) {
   return (
     admin.role === 'owner' ||
-    (admin.permissions ?? rolePermissions[admin.role]).includes(permission)
+    (admin.permissions ?? rolePermissions[admin.role]).includes(permission) ||
+    (['content.create', 'content.update'].includes(permission) &&
+      (admin.permissions ?? rolePermissions[admin.role]).includes('content.write'))
   );
 }
 export const AccessInput = z
   .object({
     role: Role,
-    permissions: z.array(Permission).max(Permission.options.length),
+    permissions: z
+      .array(Permission)
+      .max(Permission.options.length)
+      .refine((v) => new Set(v).size === v.length, 'مجوز تکراری است'),
     enabled: z.boolean(),
+    role_ids: z.array(z.string().uuid()).max(8).optional(),
+    expected_version: z.number().int().nonnegative().optional(),
   })
   .strict();
-export type AdminAccess = z.infer<typeof AccessInput> & {
+export type AdminAccess = Omit<z.infer<typeof AccessInput>, 'expected_version' | 'role_ids'> & {
+  role_ids?: string[];
   id: string;
   version: number;
   updated_at: string;
 };
+export const CustomRoleInput = z
+  .object({
+    name: z.string().trim().min(2).max(80),
+    description: z.string().max(300),
+    permissions: z
+      .array(Permission)
+      .max(Permission.options.length)
+      .refine((v) => new Set(v).size === v.length, 'مجوز تکراری است'),
+    enabled: z.boolean(),
+    expected_version: z.number().int().nonnegative(),
+  })
+  .strict();
+export type CustomRole = Omit<z.infer<typeof CustomRoleInput>, 'expected_version'> & {
+  id: string;
+  version: number;
+  updated_at: string;
+};
+export function accessPermissions(
+  access: Pick<AdminAccess, 'role' | 'permissions' | 'role_ids'>,
+  roles: CustomRole[],
+): Permission[] {
+  if (access.role === 'owner') return [...Permission.options];
+  return [
+    ...new Set([
+      ...access.permissions,
+      ...roles
+        .filter((r) => r.enabled && access.role_ids?.includes(r.id))
+        .flatMap((r) => r.permissions),
+    ]),
+  ];
+}
 export const EventInput = z
   .object({
     id: z.string().uuid(),
@@ -180,6 +224,10 @@ export function isPrivateHost(host: string): boolean {
     /^(0|10|127)\./.test(h) ||
     /^169\.254\./.test(h) ||
     /^192\.168\./.test(h) ||
+    /^198\.(18|19)\./.test(h) ||
+    /^192\.0\.(0|2)\./.test(h) ||
+    /^198\.51\.100\./.test(h) ||
+    /^203\.0\.113\./.test(h) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
     /^(22[4-9]|23\d|24\d|25[0-5])\./.test(h) ||
     /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)
@@ -247,6 +295,7 @@ export type License = {
   status: 'unused' | 'active' | 'suspended' | 'revoked';
   duration_days: number;
   created_at: string;
+  starts_at?: string | null;
   activated_at: string | null;
   expires_at: string | null;
   device_thumbprint: string | null;
@@ -298,15 +347,37 @@ export type Tables = {
   admin_access: AdminAccess;
   telemetry_events: TelemetryEvent;
   service_settings: ServiceSettings;
+  custom_roles: CustomRole;
 };
 export type Table = keyof Tables;
+export const LicenseWindowInput = z
+  .object({
+    starts_at: z.string().datetime().nullable(),
+    expires_at: z.string().datetime().nullable(),
+    expected_version: z.number().int().positive(),
+  })
+  .strict()
+  .refine(
+    (v) => !v.starts_at || !v.expires_at || Date.parse(v.expires_at) > Date.parse(v.starts_at),
+    'انقضا باید پس از شروع باشد',
+  );
 export const GenerateLicenses = z
   .object({
     tier: Tier,
     duration_days: z.number().int().min(1).max(1095),
     count: z.number().int().min(1).max(100),
+    starts_at: z.string().datetime().nullable().optional(),
+    expires_at: z.string().datetime().nullable().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => !v.starts_at || !v.expires_at || Date.parse(v.expires_at) > Date.parse(v.starts_at),
+    'انقضا باید پس از شروع باشد',
+  )
+  .refine(
+    (v) => !v.expires_at || Date.parse(v.expires_at) > Date.now(),
+    'تاریخ انقضا باید در آینده باشد',
+  );
 export const PublicJwk = z
   .object({
     kty: z.literal('EC'),
@@ -346,12 +417,15 @@ export function resolvePlan(id: string, packages: PackageSpec[], tier: Tier): Pa
     visiting.delete(key);
     visited.add(key);
     result.push(pkg);
+    if (result.length > 30) throw new Error('INSTALL_PLAN_LIMIT');
   }
   visit(id);
   return result;
 }
 export function validatePublication(pkg: PackageSpec, all: PackageSpec[]) {
   if (!pkg.files.length || !pkg.steps.length) throw new Error('EMPTY_INSTALL_PLAN');
+  if (pkg.files.reduce((n, f) => n + f.size, 0) > 100_000_000_000)
+    throw new Error('ARTIFACT_SIZE_LIMIT');
   if (new Set(pkg.files.map((f) => f.name.toLowerCase())).size !== pkg.files.length)
     throw new Error('DUPLICATE_FILENAME');
   const files = new Map(pkg.files.map((f) => [f.id, f]));

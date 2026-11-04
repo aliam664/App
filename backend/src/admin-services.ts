@@ -3,13 +3,16 @@ import {
   Id,
   Proof,
   AccessInput,
+  Permission,
+  CustomRoleInput,
+  LicenseWindowInput,
+  accessPermissions,
   EventInput,
   ServiceInput,
   defaultService,
   hasPermission,
   rolePermissions,
   type Admin,
-  type Permission,
 } from '../../packages/contracts/src/index.ts';
 import type { Repository } from './repository.ts';
 import { signPayload, type SigningConfig } from './crypto.ts';
@@ -44,6 +47,7 @@ export async function adminServices(c: {
       !access ||
       license.status !== 'active' ||
       license.archived ||
+      (license.starts_at && Date.parse(license.starts_at) > Date.now()) ||
       license.device_thumbprint !== thumb ||
       Date.parse(license.expires_at!) <= Date.now()
     )
@@ -63,7 +67,7 @@ export async function adminServices(c: {
     return reply({
       token,
       role: access.role,
-      permissions: access.role === 'owner' ? rolePermissions.owner : access.permissions,
+      permissions: accessPermissions(access, await repo.list('custom_roles')),
       expires_in: 900,
     });
   }
@@ -164,10 +168,14 @@ export async function adminServices(c: {
     });
   }
   if (path === '/admin/team' && method === 'GET') {
-    await requireAdmin('team.manage');
+    const actor = await requireAdmin('read');
+    const membersAllowed = hasPermission(actor, 'team.manage');
+    if (!membersAllowed && !hasPermission(actor, 'roles.manage')) return fail('ROLE_DENIED');
     return reply({
-      members: await repo.list('admin_access'),
-      license_options: (await repo.list('licenses')).map((l) => ({
+      members: membersAllowed ? await repo.list('admin_access') : [],
+      roles: await repo.list('custom_roles'),
+      available_permissions: Permission.options,
+      license_options: (membersAllowed ? await repo.list('licenses') : []).map((l) => ({
         id: l.id,
         prefix: l.prefix,
         display_name: l.display_name,
@@ -176,18 +184,57 @@ export async function adminServices(c: {
       })),
     });
   }
+  if (path === '/admin/roles' && method === 'GET') {
+    await requireAdmin('roles.manage');
+    return reply({ roles: await repo.list('custom_roles') });
+  }
+  const roleRoute = path.match(/^\/admin\/roles\/([a-f0-9-]+)$/);
+  if (roleRoute && method === 'POST') {
+    const actor = await requireAdmin('roles.manage');
+    const id = Id.parse(roleRoute[1]);
+    const { expected_version, ...input } = CustomRoleInput.parse(body);
+    const old = (await repo.list('custom_roles')).find((r) => r.id === id);
+    if (
+      actor.role !== 'owner' &&
+      [...input.permissions, ...(old?.permissions || [])].some((p) => !hasPermission(actor, p))
+    )
+      return fail('ROLE_DENIED');
+    // Non-owners cannot edit a reusable role already attached to an owner.
+    if (
+      actor.role !== 'owner' &&
+      (await repo.list('admin_access')).some((a) => a.role === 'owner' && a.role_ids?.includes(id))
+    )
+      return fail('ROLE_DENIED');
+    await repo.saveRole(
+      { ...input, id, version: 1, updated_at: new Date().toISOString() },
+      actor.id,
+      expected_version,
+    );
+    return reply({ ok: true });
+  }
   const accessRoute = path.match(/^\/admin\/team\/([a-f0-9-]+)$/);
   if (accessRoute && method === 'POST') {
     const actor = await requireAdmin('team.manage');
     const id = Id.parse(accessRoute[1]);
-    const input = AccessInput.parse(body);
-    if (actor.license_id === id) return fail('SELF_ACCESS_CHANGE');
+    const { expected_version, ...parsed } = AccessInput.parse(body);
     const old = (await repo.list('admin_access')).find((a) => a.id === id);
+    // 0.1.1 has no role_ids field: preserve reusable assignments when it edits a member.
+    const input = { ...parsed, role_ids: parsed.role_ids ?? old?.role_ids ?? [] };
+    if (new Set(input.role_ids).size !== input.role_ids.length) return fail('DUPLICATE_ROLE', 400);
+    const roles = await repo.list('custom_roles');
+    if (
+      input.role_ids.some(
+        (id) => !roles.some((r) => r.id === id && (r.enabled || old?.role_ids?.includes(id))),
+      )
+    )
+      return fail('ROLE_UNAVAILABLE', 400);
+    if (actor.license_id === id) return fail('SELF_ACCESS_CHANGE');
     if (
       actor.role !== 'owner' &&
       (old?.role === 'owner' ||
         input.role === 'owner' ||
-        input.permissions.some((p) => !hasPermission(actor, p)))
+        accessPermissions(input, roles).some((p) => !hasPermission(actor, p)) ||
+        (old && accessPermissions(old, roles).some((p) => !hasPermission(actor, p))))
     )
       return fail('ROLE_DENIED');
     if (
@@ -199,6 +246,7 @@ export async function adminServices(c: {
     await repo.saveAccess(
       { ...input, id, version: 1, updated_at: new Date().toISOString() },
       actor.id,
+      expected_version,
     );
     return reply({ ok: true });
   }
@@ -216,6 +264,28 @@ export async function adminServices(c: {
       JSON.stringify({ before: old, after: next }),
     );
     return reply({ settings: next, bot_configured: false });
+  }
+  const licenseWindow = path.match(/^\/admin\/licenses\/([a-f0-9-]+)\/window$/);
+  if (licenseWindow && method === 'POST') {
+    const actor = await requireAdmin('licenses.update');
+    const id = Id.parse(licenseWindow[1]);
+    const input = LicenseWindowInput.parse(body);
+    const old = (await repo.list('licenses')).find((l) => l.id === id);
+    if (!old) return fail('NOT_FOUND', 404);
+    if (actor.license_id === id) return fail('SELF_ACCESS_CHANGE');
+    if (
+      actor.role !== 'owner' &&
+      (await repo.list('admin_access')).some((a) => a.id === id && a.enabled)
+    )
+      return fail('ROLE_DENIED');
+    // Editing dates must not become a way to bypass the independent extension grant.
+    if (
+      input.expires_at &&
+      (!old.expires_at || Date.parse(input.expires_at) > Date.parse(old.expires_at))
+    )
+      await requireAdmin('licenses.extend');
+    await repo.setLicenseWindow(id, input, actor.id);
+    return reply({ ok: true });
   }
   const metadata = path.match(/^\/admin\/licenses\/([a-f0-9-]+)\/metadata$/);
   if (metadata && method === 'POST') {

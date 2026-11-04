@@ -18,6 +18,7 @@ export const emptyState = (): State => ({
   admin_access: [],
   telemetry_events: [],
   service_settings: [],
+  custom_roles: [],
 });
 export class LocalRepository implements Repository {
   private queue: Promise<unknown> = Promise.resolve();
@@ -104,6 +105,7 @@ export class LocalRepository implements Repository {
       if (
         !l ||
         l.archived ||
+        (l.starts_at && l.starts_at > now) ||
         ['suspended', 'revoked'].includes(l.status) ||
         (l.expires_at && l.expires_at <= now) ||
         (l.device_thumbprint && l.device_thumbprint !== thumb)
@@ -111,7 +113,7 @@ export class LocalRepository implements Repository {
         throw new Error('ACTIVATION_DENIED');
       if (!l.activated_at) {
         l.activated_at = now;
-        l.expires_at = new Date(Date.parse(now) + l.duration_days * 86400000).toISOString();
+        l.expires_at ||= new Date(Date.parse(now) + l.duration_days * 86400000).toISOString();
       }
       if (!l.device_thumbprint) l.activation_count++;
       l.device_thumbprint = thumb;
@@ -212,9 +214,12 @@ export class LocalRepository implements Repository {
   async saveAccess(
     access: import('../../packages/contracts/src/index.ts').AdminAccess,
     actor: string,
+    expectedVersion?: number,
   ) {
     await this.transaction(() => {
       const old = this.state.admin_access.find((a) => a.id === access.id);
+      if (expectedVersion !== undefined && (old?.version ?? 0) !== expectedVersion)
+        throw new Error('EDIT_CONFLICT');
       if (
         old?.enabled &&
         old.role === 'owner' &&
@@ -236,6 +241,34 @@ export class LocalRepository implements Repository {
       });
     });
   }
+  async saveRole(
+    role: import('../../packages/contracts/src/index.ts').CustomRole,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    await this.transaction(() => {
+      const old = this.state.custom_roles.find((r) => r.id === role.id);
+      if ((old?.version ?? 0) !== expectedVersion) throw new Error('EDIT_CONFLICT');
+      if (
+        this.state.custom_roles.some(
+          (r) => r.id !== role.id && r.name.toLocaleLowerCase() === role.name.toLocaleLowerCase(),
+        )
+      )
+        throw new Error('ROLE_NAME_EXISTS');
+      const next = { ...role, version: (old?.version ?? 0) + 1 };
+      this.state.custom_roles = this.state.custom_roles
+        .filter((r) => r.id !== role.id)
+        .concat(next);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'admin.role.changed',
+        target: role.id,
+        detail: JSON.stringify({ before: old, after: next }),
+        created_at: new Date().toISOString(),
+      });
+    });
+  }
   async ingestEvents(events: import('../../packages/contracts/src/index.ts').TelemetryEvent[]) {
     await this.transaction(() => {
       for (const event of events)
@@ -245,6 +278,36 @@ export class LocalRepository implements Repository {
           )
         )
           this.state.telemetry_events.push(structuredClone(event));
+    });
+  }
+  async setLicenseWindow(
+    id: string,
+    window: import('zod').infer<
+      typeof import('../../packages/contracts/src/index.ts').LicenseWindowInput
+    >,
+    actor: string,
+  ) {
+    await this.transaction(() => {
+      const l = this.state.licenses.find((l) => l.id === id);
+      if (!l) throw new Error('NOT_FOUND');
+      if (l.entitlement_version !== window.expected_version) throw new Error('EDIT_CONFLICT');
+      if (l.status === 'revoked' || (l.activated_at && !window.expires_at))
+        throw new Error('INVALID_ACTION');
+      const before = { ...l };
+      l.starts_at = window.starts_at;
+      l.expires_at = window.expires_at;
+      l.entitlement_version++;
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'license.window.changed',
+        target: id,
+        detail: JSON.stringify({
+          before: { starts_at: before.starts_at, expires_at: before.expires_at },
+          after: { starts_at: l.starts_at, expires_at: l.expires_at },
+        }),
+        created_at: new Date().toISOString(),
+      });
     });
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {

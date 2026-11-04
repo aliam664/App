@@ -11,6 +11,9 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "updater_status",
+            "updater_preferences",
+            "set_updater_preferences",
+            "check_launcher_update",
             "device_identity",
             "sign_challenge",
             "get_settings",

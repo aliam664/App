@@ -910,3 +910,50 @@ button:disabled {
     padding-bottom: 0;
   }
 }
+/* Independent grants: grouped, readable and usable without color alone. */
+.permission-sections {
+  display: grid;
+  gap: 14px;
+  margin-block: 18px;
+  min-width: 0;
+}
+.permission-section {
+  min-inline-size: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.permission-section legend {
+  padding-inline: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.permission-section .permission-grid {
+  margin: 0;
+}
+.permission-grid label {
+  align-items: flex-start;
+}
+.permission-grid label span {
+  min-width: 0;
+}
+.permission-grid small {
+  display: block;
+  opacity: 0.75;
+  overflow-wrap: anywhere;
+  margin-block-start: 4px;
+  font-size: 0.7rem;
+}
+.role-catalog {
+  margin-block-start: 24px;
+}
+.role-card {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 12px;
+  border: 1px solid var(--border);
+  padding: 18px;
+  border-radius: 12px;
+  min-width: 0;
+}

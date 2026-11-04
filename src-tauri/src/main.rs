@@ -349,6 +349,18 @@ async fn install_plan(
 fn updater_status() -> Result<updater::Status, String> {
     updater::status()
 }
+#[tauri::command]
+fn updater_preferences(app: tauri::AppHandle) -> Result<updater::Preferences, String> {
+    updater::preferences(&app)
+}
+#[tauri::command]
+fn set_updater_preferences(app: tauri::AppHandle, automatic_checks: bool) -> Result<updater::Preferences, String> {
+    updater::set_preferences(&app, automatic_checks)
+}
+#[tauri::command]
+async fn check_launcher_update(app: tauri::AppHandle) -> Result<updater::Status, String> {
+    tauri::async_runtime::spawn_blocking(move || updater::manual_check(&app)).await.map_err(|_| "Updater task failed".to_string())?
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -373,6 +385,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             updater_status,
+            updater_preferences,
+            set_updater_preferences,
+            check_launcher_update,
             device_identity,
             sign_challenge,
             get_settings,

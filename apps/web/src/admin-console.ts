@@ -3,6 +3,8 @@ import {
   hasPermission,
   Permission,
   rolePermissions,
+  accessPermissions,
+  type CustomRole,
   defaultService,
   type Admin,
   type AdminAccess,
@@ -14,6 +16,7 @@ import { esc, icon, fa, date, badge, modal, field, busy, toast, decorate, empty 
 type LicenseView = Omit<License, 'code_hash'>;
 export type ConsoleData = {
   admin: Admin;
+  capabilities?: string[];
   licenses: LicenseView[];
   telemetry?: TelemetryEvent[];
   service?: ServiceSettings | null;
@@ -37,7 +40,10 @@ const permissionLabels: Record<Permission, string> = {
   'licenses.extend': 'تمدید اعتبار',
   'licenses.archive': 'بایگانی',
   'content.read': 'مشاهده محتوا',
-  'content.write': 'ویرایش فایل‌ها و رمز آرشیو',
+  'content.write': 'مجوز ترکیبی قدیمی: ساخت و ویرایش محتوا',
+  'content.create': 'ساخت پکیج جدید',
+  'content.update': 'ویرایش پکیج و فایل‌های دانلود',
+  'roles.manage': 'ساخت و ویرایش نقش‌های سفارشی',
   'content.publish': 'انتشار و بایگانی محتوا',
   'analytics.read': 'مشاهده تحلیل عملکرد',
   'errors.read': 'مشاهده خطاها',
@@ -77,11 +83,17 @@ function activityTable(events: TelemetryEvent[], packages: Context['data']['pack
         'radio',
       );
 }
+const localDateInput = (value?: string | null) =>
+  value
+    ? new Date(Date.parse(value) - new Date(value).getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16)
+    : '';
 export function licenseProfile(l: LicenseView, c: Context) {
   const events = (c.data.telemetry || []).filter((e) => e.license_id === l.id);
   const d = modal(
     l.display_name || 'پرونده لایسنس',
-    `<div class="license-hero"><div>${badge(l.tier)}<h3>${esc(l.display_name || l.prefix + '••••')}</h3><code>${esc(l.id)}</code></div><span class="status ${l.status}">${esc({ active: 'فعال', unused: 'فعال‌نشده', suspended: 'معلق', revoked: 'لغوشده' }[l.status])}</span></div><div class="console-tabs" role="group" aria-label="بخش‌های پرونده لایسنس"><button type="button" class="current" aria-pressed="true" data-profile-tab="details">مشخصات و کنترل</button><button type="button" aria-pressed="false" data-profile-tab="activity">دانلود و نصب</button><button type="button" aria-pressed="false" data-profile-tab="history">تاریخچه مدیران</button></div><section data-profile-panel="details"><div class="profile-summary"><div><small>اعتبار تا</small><b>${date(l.expires_at)}</b></div><div><small>فعال‌سازی دستگاه</small><b>${fa(l.activation_count)}</b></div><div><small>اجراهای گزارش‌شده</small><b id="profile-open-count">…</b></div></div><form id="license-metadata">${field('نام دلخواه', `<input name="display_name" maxlength="120" value="${esc(l.display_name || '')}">`)}${field('برچسب‌ها (با ویرگول جدا کنید)', `<input name="tags" value="${esc((l.tags || []).join(', '))}">`)}${field('توضیحات داخلی', `<textarea name="notes" rows="4" maxlength="4000">${esc(l.notes || '')}</textarea>`)}${can(c, 'licenses.update') ? '<button class="button" type="submit">ذخیره مشخصات</button>' : ''}</form><div class="license-controls">${can(c, 'licenses.extend') ? `<label class="field">روز تمدید<input id="extend-days" type="number" min="1" max="365" value="30"></label><button class="button secondary" data-license-action="extend">تمدید اعتبار</button>` : ''}${can(c, 'licenses.update') ? `<label class="field">سطح جدید<select id="new-tier">${['normal', 'pro', 'vip'].map((t) => `<option ${t === l.tier ? 'selected' : ''}>${t}</option>`).join('')}</select></label><button class="button secondary" data-license-action="tier">تغییر سطح</button>` : ''}${(
+    `<div class="license-hero"><div>${badge(l.tier)}<h3>${esc(l.display_name || l.prefix + '••••')}</h3><code>${esc(l.id)}</code></div><span class="status ${l.status}">${esc({ active: 'فعال', unused: 'فعال‌نشده', suspended: 'معلق', revoked: 'لغوشده' }[l.status])}</span></div><div class="console-tabs" role="group" aria-label="بخش‌های پرونده لایسنس"><button type="button" class="current" aria-pressed="true" data-profile-tab="details">مشخصات و کنترل</button><button type="button" aria-pressed="false" data-profile-tab="activity">دانلود و نصب</button><button type="button" aria-pressed="false" data-profile-tab="history">تاریخچه مدیران</button></div><section data-profile-panel="details"><div class="profile-summary"><div><small>اعتبار تا</small><b>${date(l.expires_at)}</b></div><div><small>فعال‌سازی دستگاه</small><b>${fa(l.activation_count)}</b></div><div><small>اجراهای گزارش‌شده</small><b id="profile-open-count">…</b></div></div><form id="license-metadata">${field('نام دلخواه', `<input name="display_name" maxlength="120" value="${esc(l.display_name || '')}">`)}${field('برچسب‌ها (با ویرگول جدا کنید)', `<input name="tags" value="${esc((l.tags || []).join(', '))}">`)}${field('توضیحات داخلی', `<textarea name="notes" rows="4" maxlength="4000">${esc(l.notes || '')}</textarea>`)}${can(c, 'licenses.update') ? '<button class="button" type="submit">ذخیره مشخصات</button>' : ''}</form>${can(c, 'licenses.update') && c.data.capabilities?.includes('license-window-v1') ? `<form id="license-window" class="panel" data-guard-discard><h3>بازهٔ اعتبار تقویمی</h3><div class="form-grid">${field('شروع مجاز (زمان محلی؛ اختیاری)', `<input name="starts_at" type="datetime-local" value="${localDateInput(l.starts_at)}">`)}${field('انقضای ثابت (زمان محلی)', `<input name="expires_at" type="datetime-local" ${l.activated_at ? 'required' : ''} value="${localDateInput(l.expires_at)}">`)}</div><p class="fine-print">خالی‌بودن تاریخ شروع یعنی فعال‌سازی از همین حالا مجاز است. افزایش انقضا به مجوز مستقل تمدید نیاز دارد. ذخیره، اعتبار grant قبلی را برای درخواست آنلاین جدید باطل می‌کند.</p><button type="submit" class="button secondary">ذخیره بازه اعتبار</button></form>` : ''}<div class="license-controls">${can(c, 'licenses.extend') ? `<label class="field">روز تمدید<input id="extend-days" type="number" min="1" max="365" value="30"></label><button class="button secondary" data-license-action="extend">تمدید اعتبار</button>` : ''}${can(c, 'licenses.update') ? `<label class="field">سطح جدید<select id="new-tier">${['normal', 'pro', 'vip'].map((t) => `<option ${t === l.tier ? 'selected' : ''}>${t}</option>`).join('')}</select></label><button class="button secondary" data-license-action="tier">تغییر سطح</button>` : ''}${(
       ['suspend', 'resume', 'reset', 'revoke', 'archive'] as const
     )
       .filter((a) => can(c, `licenses.${a === 'resume' ? 'suspend' : a}` as Permission))
@@ -94,6 +106,32 @@ export function licenseProfile(l: LicenseView, c: Context) {
       )}</div><p class="fine-print">مجوز آفلاینِ قبلاً صادرشده فوراً از دستگاه حذف نمی‌شود. بایگانی، سابقه را نگه می‌دارد و صدور دسترسی جدید را متوقف می‌کند.</p></section><section data-profile-panel="activity" hidden><div id="profile-activity">${activityTable(events, c.data.packages)}</div><button class="button secondary" id="load-activity">دریافت تاریخچه بیشتر از سرور</button></section><section data-profile-panel="history" hidden><div id="profile-history" class="audit-timeline"></div><button type="button" class="button secondary" id="load-audit">تاریخچه قدیمی‌تر</button></section>`,
     true,
   );
+  const windowForm = d.querySelector<HTMLFormElement>('#license-window');
+  if (windowForm)
+    windowForm.onsubmit = (e) => {
+      e.preventDefault();
+      void busy(windowForm.querySelector('[type=submit]')!, async () => {
+        if (!window.confirm('بازهٔ اعتبار تغییر کند؟ دسترسی آنلاین با بازهٔ جدید کنترل خواهد شد.'))
+          return;
+        const f = new FormData(windowForm);
+        await api(
+          `/admin/licenses/${l.id}/window`,
+          {
+            starts_at: f.get('starts_at')
+              ? new Date(String(f.get('starts_at'))).toISOString()
+              : null,
+            expires_at: f.get('expires_at')
+              ? new Date(String(f.get('expires_at'))).toISOString()
+              : null,
+            expected_version: l.entitlement_version,
+          },
+          c.token,
+        );
+        d.close();
+        await c.reload();
+        toast('بازه اعتبار ثبت شد.');
+      });
+    };
   if (!can(c, 'licenses.update'))
     d.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
       '#license-metadata input, #license-metadata textarea',
@@ -237,7 +275,7 @@ export async function renderConsole(el: HTMLElement, page: string, c: Context): 
     service: 'service.manage',
   };
   if (!need[page]) return false;
-  if (!can(c, need[page])) {
+  if (!(page === 'team' ? can(c, 'team.manage') || can(c, 'roles.manage') : can(c, need[page]))) {
     el.innerHTML = empty(
       'دسترسی این بخش واگذار نشده',
       'مالک می‌تواند مجوزهای حساب مدیریتی شما را تغییر دهد.',
@@ -253,11 +291,51 @@ export async function renderConsole(el: HTMLElement, page: string, c: Context): 
   decorate();
   return true;
 }
+function permissionEditor(
+  admin: Admin,
+  selected: Permission[],
+  available = Permission.options as readonly Permission[],
+) {
+  const groups = [
+    ['licenses.', 'لایسنس و دستگاه'],
+    ['content.', 'پکیج و انتشار'],
+
+    ['analytics.', 'آمار'],
+    ['errors.', 'خطاها'],
+    ['audit.', 'گزارش امنیتی'],
+    ['team.', 'مدیریت اعضا — حساس'],
+    ['roles.', 'مدیریت نقش‌ها — حساس'],
+    ['service.', 'تنظیمات سیستم — حساس'],
+  ];
+  return `<div class="permission-sections">${groups
+    .map(([prefix, label]) => {
+      const items = Permission.options.filter(
+        (p) => available.includes(p) && p.startsWith(prefix) && hasPermission(admin, p),
+      );
+      if (!items.length) return '';
+      return `<fieldset class="permission-section"><legend>${label}</legend><div class="permission-grid">${items.map((p) => `<label><input type="checkbox" name="permission" value="${p}" ${selected.includes(p) ? 'checked' : ''}><span>${permissionLabels[p]}<small dir="ltr">${p}</small></span></label>`).join('')}</div></fieldset>`;
+    })
+    .join('')}</div>`;
+}
 async function team(el: HTMLElement, c: Context) {
-  const { members, license_options } = await api<{
+  const {
+    members,
+    license_options,
+    roles: receivedRoles,
+    available_permissions,
+  } = await api<{
     members: AdminAccess[];
+    roles?: CustomRole[];
+    available_permissions?: Permission[];
     license_options: ConsoleData['licenses'];
   }>('/admin/team', undefined, c.token);
+  const supportsRoles = Array.isArray(receivedRoles);
+  const customRoles = receivedRoles || [];
+  const available =
+    available_permissions ||
+    Permission.options.filter(
+      (p) => !['content.create', 'content.update', 'roles.manage'].includes(p),
+    );
   el.innerHTML =
     heading(
       'PEOPLE & PERMISSIONS / 06',
@@ -266,12 +344,12 @@ async function team(el: HTMLElement, c: Context) {
     ) +
     `<div class="console-notice">${icon('key-round')}ابتدا لایسنس بسازید، سپس اینجا دسترسی بدهید. فرد با همان کد، برنامه و دسترسی مدیریتی خود را فعال می‌کند.</div><div class="team-grid">${members
       .map((m) => {
-        const l = c.data.licenses.find((l) => l.id === m.id);
-        return `<article class="panel member-card"><span class="avatar">${esc((l?.display_name || l?.prefix || 'A').slice(0, 2))}</span><h3>${esc(l?.display_name || l?.prefix || m.id.slice(0, 8))}</h3><span class="console-pill">${esc(roles[m.role])}</span><p class="muted">${m.enabled ? 'دسترسی فعال' : 'دسترسی متوقف'} · ${fa(m.role === 'owner' ? Permission.options.length : m.permissions.length)} مجوز مشخص</p><small>${date(m.updated_at)}</small><button class="button secondary" data-edit-member="${m.id}">تنظیم دسترسی‌ها</button></article>`;
+        const l = license_options.find((l) => l.id === m.id);
+        return `<article class="panel member-card"><span class="avatar">${esc((l?.display_name || l?.prefix || 'A').slice(0, 2))}</span><h3>${esc(l?.display_name || l?.prefix || m.id.slice(0, 8))}</h3><span class="console-pill">${esc(roles[m.role])}</span><p class="muted">${m.enabled ? 'دسترسی فعال' : 'دسترسی متوقف'} · ${fa(m.role === 'owner' ? Permission.options.length : accessPermissions(m, customRoles).length)} مجوز مشخص</p><small>${date(m.updated_at)}</small><button class="button secondary" data-edit-member="${m.id}">تنظیم دسترسی‌ها</button></article>`;
       })
       .join(
         '',
-      )}<button class="panel add-member-card" id="new-member">${icon('plus')}<b>واگذاری دسترسی جدید</b><span>انتخاب لایسنس و مجوزها</span></button></div>`;
+      )} ${can(c, 'team.manage') ? `<button class="panel add-member-card" id="new-member">${icon('plus')}<b>واگذاری دسترسی جدید</b><span>انتخاب لایسنس و مجوزها</span></button>` : ''}</div>${supportsRoles && can(c, 'roles.manage') ? `<section class="panel role-catalog"><div class="section-heading"><div><h2>نقش‌های سفارشی</h2><p class="muted">نقش‌ها قابل استفادهٔ مجددند؛ غیرفعال‌سازی نقش، مجوزهای آن را در درخواست بعدی حذف می‌کند.</p></div><button class="button secondary" id="new-role">ساخت نقش</button></div><div class="team-grid">${customRoles.map((r) => `<article class="role-card"><h3>${esc(r.name)}</h3><p>${esc(r.description)}</p><span class="console-pill">${r.enabled ? 'فعال' : 'غیرفعال'} · ${fa(r.permissions.length)} مجوز</span><button class="text-button" data-edit-role="${r.id}">ویرایش نقش</button></article>`).join('')}</div></section>` : ''}`;
   const edit = (existing?: AdminAccess) => {
     const candidates = (license_options || c.data.licenses).filter(
       (l) =>
@@ -292,15 +370,15 @@ async function team(el: HTMLElement, c: Context) {
               `<option value="${r}" ${(existing?.role || 'support') === r ? 'selected' : ''}>${label}</option>`,
           )
           .join('')}</select>`,
-      )}<label class="setting-row"><span>دسترسی مدیریت فعال باشد</span><input type="checkbox" name="enabled" ${!existing || existing.enabled ? 'checked' : ''}></label><h3>مجوزهای قابل واگذاری</h3><div class="permission-grid">${Permission.options
-        .filter((p) => hasPermission(c.data.admin, p))
-        .map(
-          (p) =>
-            `<label><input type="checkbox" name="permission" value="${p}" ${(existing?.permissions || rolePermissions.support).includes(p) ? 'checked' : ''}><span>${permissionLabels[p]}</span></label>`,
-        )
-        .join(
-          '',
-        )}</div><p class="fine-print">نقش مالک همه اختیارات برنامه را دارد. مجوزهای رمز عبور آرشیو و مدیریت تیم حساس‌اند؛ فقط در صورت نیاز واگذار شوند. تغییر حساب فعلی خودتان ممنوع است.</p><button class="button full" type="submit">ذخیره و اعمال دسترسی</button></form>`,
+      )}<label class="setting-row"><span>دسترسی مدیریت فعال باشد</span><input type="checkbox" name="enabled" ${!existing || existing.enabled ? 'checked' : ''}></label><h3>نقش‌های سفارشی هم‌زمان</h3><div class="permission-grid">${
+        customRoles
+          .filter((r) => r.enabled && r.permissions.every((p) => hasPermission(c.data.admin, p)))
+          .map(
+            (r) =>
+              `<label><input type="checkbox" name="role_ids" value="${r.id}" ${existing?.role_ids?.includes(r.id) ? 'checked' : ''}><span>${esc(r.name)}<small>${esc(r.description)}</small></span></label>`,
+          )
+          .join('') || '<p class="muted">هنوز نقش قابل واگذاری وجود ندارد.</p>'
+      }</div><h3>مجوزهای مستقیم (مستقل از نقش‌ها)</h3>${permissionEditor(c.data.admin, existing?.permissions || rolePermissions.support, available)}<p class="fine-print">نقش مالک همه اختیارات برنامه را دارد. مجوزهای رمز عبور آرشیو و مدیریت تیم حساس‌اند؛ فقط در صورت نیاز واگذار شوند. تغییر حساب فعلی خودتان ممنوع است.</p><button class="button full" type="submit">ذخیره و اعمال دسترسی</button></form>`,
       true,
     );
     d.querySelector<HTMLSelectElement>('[name=role]')!.onchange = function () {
@@ -314,9 +392,18 @@ async function team(el: HTMLElement, c: Context) {
       e.preventDefault();
       void busy(d.querySelector('[type=submit]')!, async () => {
         const f = new FormData(e.target as HTMLFormElement);
+        if (!window.confirm('دسترسی مدیریتی با این مجوزهای مستقیم و نقش‌های انتخاب‌شده اعمال شود؟'))
+          return;
         await api(
           `/admin/team/${existing?.id || f.get('license_id')}`,
-          { role: f.get('role'), permissions: f.getAll('permission'), enabled: f.has('enabled') },
+          {
+            role: f.get('role'),
+            permissions: f.getAll('permission'),
+            enabled: f.has('enabled'),
+            ...(supportsRoles
+              ? { role_ids: f.getAll('role_ids'), expected_version: existing?.version || 0 }
+              : {}),
+          },
           c.token,
         );
         d.close();
@@ -326,7 +413,40 @@ async function team(el: HTMLElement, c: Context) {
     };
     decorate();
   };
-  el.querySelector('#new-member')!.addEventListener('click', () => edit());
+  const editRole = (existing?: CustomRole) => {
+    const d = modal(
+      existing ? 'ویرایش نقش سفارشی' : 'ساخت نقش سفارشی',
+      `<form id="custom-role-form" data-guard-discard>${field('نام نقش', `<input name="name" required minlength="2" maxlength="80" value="${esc(existing?.name || '')}">`)}${field('توضیح کوتاه', `<textarea name="description" maxlength="300">${esc(existing?.description || '')}</textarea>`)}<label class="setting-row"><span>نقش فعال باشد</span><input type="checkbox" name="enabled" ${!existing || existing.enabled ? 'checked' : ''}></label>${permissionEditor(c.data.admin, existing?.permissions || [])}<p class="notice">تغییر این نقش بر تمام اعضای دارای آن اثر دارد؛ مجوزهای مستقیم و سایر نقش‌های آن‌ها باقی می‌مانند.</p><button class="button full" type="submit">ذخیره نقش</button></form>`,
+      true,
+    );
+    d.querySelector('form')!.onsubmit = (e) => {
+      e.preventDefault();
+      void busy(d.querySelector('[type=submit]')!, async () => {
+        if (!window.confirm('این تغییر برای همهٔ اعضای دارای این نقش اعمال شود؟')) return;
+        const f = new FormData(e.target as HTMLFormElement);
+        await api(
+          `/admin/roles/${existing?.id || crypto.randomUUID()}`,
+          {
+            name: f.get('name'),
+            description: f.get('description'),
+            enabled: f.has('enabled'),
+            permissions: f.getAll('permission'),
+            expected_version: existing?.version || 0,
+          },
+          c.token,
+        );
+        d.close();
+        await c.reload();
+        toast('نقش با ثبت تاریخچه ذخیره شد.');
+      });
+    };
+    decorate();
+  };
+  el.querySelector('#new-role')?.addEventListener('click', () => editRole());
+  el.querySelectorAll<HTMLButtonElement>('[data-edit-role]').forEach(
+    (b) => (b.onclick = () => editRole(customRoles.find((r) => r.id === b.dataset.editRole))),
+  );
+  el.querySelector('#new-member')?.addEventListener('click', () => edit());
   el.querySelectorAll<HTMLButtonElement>('[data-edit-member]').forEach(
     (b) => (b.onclick = () => edit(members.find((m) => m.id === b.dataset.editMember))),
   );

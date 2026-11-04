@@ -1,5 +1,5 @@
 /** Read-only production audit is separate. All mutations below use disposable local fixtures.
- * it.fails cases are KNOWN OPEN FINDINGS, not security passes or fixes.
+ * Previous findings below are ordinary regression tests; none are skipped.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { exportJWK, generateKeyPair } from 'jose';
@@ -244,51 +244,42 @@ describe('cryptographic boundary and independent live permissions', () => {
     ).toBe(403);
   });
 });
-describe('KNOWN OPEN FINDINGS — expected failures, NOT fixed security checks', () => {
-  it.fails(
-    "AUD-01: an anonymous flood must not exhaust another user's production unknown-IP bucket",
-    async () => {
-      for (let i = 0; i < 120; i++)
-        expect((await request('/catalog', undefined, '')).status).toBe(200);
-      expect((await request('/admin/overview')).status).toBe(200); // current actual: 429
-    },
-  );
-  it.fails(
-    'AUD-04: a dependency plan exceeding the native 30-package limit should fail before signing',
-    async () => {
-      const chain = Array.from({ length: 31 }, () => ({ ...pkg(), status: 'published' as const }));
-      for (let i = 0; i < chain.length - 1; i++) chain[i].dependencies = [chain[i + 1].id];
-      repo.state.packages.push(...chain);
-      const d = await activate();
-      const result = await request(
-        '/install/plan',
-        { package_id: chain[0].id, ...(await d.proof('plan')) },
-        d.grant,
+describe('regressions for the four previously open findings', () => {
+  it("AUD-01: an anonymous flood must not exhaust another user's production unknown-IP bucket", async () => {
+    for (let i = 0; i < 120; i++)
+      expect((await request('/catalog', undefined, '')).status).toBe(200);
+    expect((await request('/admin/overview')).status).toBe(200); // current actual: 429
+  });
+  it('AUD-04: a dependency plan exceeding the native 30-package limit should fail before signing', async () => {
+    const chain = Array.from({ length: 31 }, () => ({ ...pkg(), status: 'published' as const }));
+    for (let i = 0; i < chain.length - 1; i++) chain[i].dependencies = [chain[i + 1].id];
+    repo.state.packages.push(...chain);
+    const d = await activate();
+    const result = await request(
+      '/install/plan',
+      { package_id: chain[0].id, ...(await d.proof('plan')) },
+      d.grant,
+    );
+    if (result.status === 200)
+      expect((await verifyToken(result.data.plan, config, 'uhm-plan+jwt')).packages).toHaveLength(
+        31,
       );
-      if (result.status === 200)
-        expect((await verifyToken(result.data.plan, config, 'uhm-plan+jwt')).packages).toHaveLength(
-          31,
-        );
-      expect(result.status).toBe(409); // current actual: signed 200; desktop rejects later
-    },
-  );
-  it.fails(
-    'AUD-05: publication should reject a package exceeding the native 100GB combined artifact limit',
-    async () => {
-      const p = pkg();
-      p.files[0].size = 60_000_000_000;
-      p.files.push({ ...p.files[0], id: crypto.randomUUID(), name: 'second.zip' });
-      p.steps.push({
-        ...p.steps[0],
-        id: crypto.randomUUID(),
-        file_id: p.files[1].id,
-        destination: 'content/tracks',
-      });
-      await repo.insert('packages', [p]);
-      expect((await request(`/admin/packages/${p.id}/publish`, {})).status).toBe(409); // actual: 200
-    },
-  );
-  it.fails('AUD-06: benchmarking-only IPv4 is not a public uploader URL', () => {
+    expect(result.status).toBe(409); // current actual: signed 200; desktop rejects later
+  });
+  it('AUD-05: publication should reject a package exceeding the native 100GB combined artifact limit', async () => {
+    const p = pkg();
+    p.files[0].size = 60_000_000_000;
+    p.files.push({ ...p.files[0], id: crypto.randomUUID(), name: 'second.zip' });
+    p.steps.push({
+      ...p.steps[0],
+      id: crypto.randomUUID(),
+      file_id: p.files[1].id,
+      destination: 'content/tracks',
+    });
+    await repo.insert('packages', [p]);
+    expect((await request(`/admin/packages/${p.id}/publish`, {})).status).toBe(409); // actual: 200
+  });
+  it('AUD-06: benchmarking-only IPv4 is not a public uploader URL', () => {
     expect(DownloadUrl.safeParse('https://198.18.0.1/file.zip').success).toBe(false); // actual: true
   });
 });

@@ -38,9 +38,22 @@ export interface Repository {
   saveAccess(
     access: import('../../packages/contracts/src/index.ts').AdminAccess,
     actor: string,
+    expectedVersion?: number,
+  ): Promise<void>;
+  saveRole(
+    role: import('../../packages/contracts/src/index.ts').CustomRole,
+    actor: string,
+    expectedVersion: number,
   ): Promise<void>;
   ingestEvents(
     events: import('../../packages/contracts/src/index.ts').TelemetryEvent[],
+  ): Promise<void>;
+  setLicenseWindow(
+    id: string,
+    window: import('zod').infer<
+      typeof import('../../packages/contracts/src/index.ts').LicenseWindowInput
+    >,
+    actor: string,
   ): Promise<void>;
   mutateLicense(id: string, action: string, actor: string, days?: number): Promise<void>;
 }

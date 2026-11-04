@@ -1,6 +1,7 @@
 import { adminServices } from './admin-services.ts';
 import {
   hasPermission,
+  accessPermissions,
   defaultService,
   type Permission,
 } from '../../packages/contracts/src/index.ts';
@@ -81,7 +82,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
       if (request.method === 'GET' && path === '/health')
         return reply({
           mode: config.mode,
-          capabilities: ['content-packages-v2'],
+          capabilities: ['content-packages-v2', 'admin-custom-roles-v1', 'license-window-v1'],
           version: '0.1.0',
           public_key: config.publicJwk,
           issuer: config.issuer,
@@ -89,7 +90,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         });
       // Only adapter-supplied IPs are trusted; never arbitrary forwarded headers.
       const ipKey = await codeHash(trustedIp, config.pepper);
-      if (!(await repo.rateLimit(`ip:${ipKey}`, 120, 60))) {
+      if (!path.startsWith('/admin/') && !(await repo.rateLimit(`ip:${ipKey}`, 120, 60))) {
         headers.set('Retry-After', '60');
         throw new HttpError(429, 'RATE_LIMITED');
       }
@@ -131,6 +132,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(400, 'INVALID_JSON');
         }
       }
+      let adminRateChecked = false;
       async function requireAdmin(
         section: Permission | 'read' | 'license' | 'content',
       ): Promise<Admin> {
@@ -145,6 +147,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
             (l) =>
               l.id === claims.license_id &&
               !l.archived &&
+              (!l.starts_at || Date.parse(l.starts_at) <= Date.now()) &&
               l.status === 'active' &&
               l.device_thumbprint === claims.device_thumbprint &&
               l.entitlement_version === claims.entitlement_version &&
@@ -155,7 +158,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
               id: `license:${license.id}`,
               license_id: license.id,
               role: access.role,
-              permissions: access.permissions,
+              permissions: accessPermissions(access, await repo.list('custom_roles')),
               aal: 'device-proof',
               auth_method: 'license',
             };
@@ -164,6 +167,13 @@ export function createApi(repo: Repository, config: ApiConfig) {
         }
         if (!admin) admin = await repo.admin(token);
         if (!admin) throw new HttpError(401, 'ADMIN_REQUIRED');
+        if (!adminRateChecked) {
+          if (!(await repo.rateLimit(`admin:${admin.id}`, 180, 60))) {
+            headers.set('Retry-After', '60');
+            throw new HttpError(429, 'RATE_LIMITED');
+          }
+          adminRateChecked = true;
+        }
         const permission =
           section === 'license'
             ? 'licenses.create'
@@ -212,6 +222,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
           !license ||
           license.status !== 'active' ||
           license.archived ||
+          (license.starts_at && Date.parse(license.starts_at) > Date.now()) ||
           license.device_thumbprint !== thumb ||
           payload.device_thumbprint !== thumb ||
           license.entitlement_version !== payload.entitlement_version ||
@@ -365,7 +376,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         const actor = await requireAdmin('content.read');
         return reply({
           releases: (await repo.releases()).map((r) =>
-            hasPermission(actor, 'content.write')
+            hasPermission(actor, 'content.update')
               ? r
               : { ...r, manifest: { ...r.manifest, files: [], steps: [] } },
           ),
@@ -378,10 +389,11 @@ export function createApi(repo: Repository, config: ApiConfig) {
           can('analytics.read') || can('errors.read') ? await repo.list('telemetry_events') : [];
         return reply({
           admin,
+          capabilities: ['admin-custom-roles-v1', 'license-window-v1'],
           licenses: can('licenses.read') ? (await repo.list('licenses')).map(publicLicense) : [],
           packages: can('content.read')
             ? (await repo.list('packages')).map((p) =>
-                can('content.write') ? p : { ...p, files: [], steps: [] },
+                can('content.update') ? p : { ...p, files: [], steps: [] },
               )
             : [],
           events: can('audit.read')
@@ -413,8 +425,9 @@ export function createApi(repo: Repository, config: ApiConfig) {
             status: 'unused',
             duration_days: input.duration_days,
             created_at: now,
+            starts_at: input.starts_at ?? null,
             activated_at: null,
-            expires_at: null,
+            expires_at: input.expires_at ?? null,
             device_thumbprint: null,
             entitlement_version: 1,
             activation_count: 0,
@@ -447,11 +460,13 @@ export function createApi(repo: Repository, config: ApiConfig) {
         return reply({ ok: true });
       }
       if (path === '/admin/packages' && request.method === 'POST') {
-        const admin = await requireAdmin('content');
+        // Authenticate before parsing, then authorize the actual create/update action.
+        const admin = await requireAdmin('read');
         const pkg = PackageSpec.parse(body);
         if (pkg.status !== 'draft') throw new HttpError(400, 'SAVE_AS_DRAFT');
         const all = await repo.list('packages');
         const existing = all.find((p) => p.id === pkg.id);
+        await requireAdmin(existing ? 'content.update' : 'content.create');
         if (existing?.status === 'published' && existing.version === pkg.version)
           throw new HttpError(409, 'RELEASE_IMMUTABLE');
         if (all.some((p) => p.slug === pkg.slug && p.id !== pkg.id))
@@ -556,6 +571,10 @@ export function createApi(repo: Repository, config: ApiConfig) {
         'INVALID_ACTION',
         'LAST_OWNER',
         'RELEASE_IMMUTABLE',
+        'INSTALL_PLAN_LIMIT',
+        'ARTIFACT_SIZE_LIMIT',
+        'EDIT_CONFLICT',
+        'ROLE_NAME_EXISTS',
       ];
       if (error instanceof Error && known.includes(error.message))
         return reply({ error: error.message, request_id: requestId }, 409);

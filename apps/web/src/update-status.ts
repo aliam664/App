@@ -1,5 +1,5 @@
 import { native, invoke } from './device';
-import { size } from './ui';
+import { size, busy, toast } from './ui';
 export type UpdateStatus = {
   phase: string;
   current_version: string;
@@ -36,13 +36,50 @@ export async function updateStatusPanel(el: HTMLElement) {
   const section = document.createElement('section');
   section.className = 'panel';
   section.innerHTML =
-    '<h2>به‌روزرسانی خودکار لانچر</h2><p role="status"></p><p class="muted">دریافت پس‌زمینه و نصب در خروج یا اجرای بعدی؛ فقط فایل دارای امضای معتبر و نسخه جدیدتر پذیرفته می‌شود. اطلاعات لایسنس و بازی حفظ می‌شوند.</p>';
+    '<h2>به‌روزرسانی خودکار لانچر</h2><p role="status"></p><p class="muted">دریافت پس‌زمینه و نصب در خروج یا اجرای بعدی؛ فقط فایل دارای امضای معتبر و نسخه جدیدتر پذیرفته می‌شود. اطلاعات لایسنس و بازی حفظ می‌شوند.</p><label class="setting-row"><span>بررسی خودکار هنگام اجرا و هر شش ساعت<small class="muted">خاموش‌کردن، دانلود جاری یا نصب امنِ آپدیت آماده را لغو نمی‌کند.</small></span><input type="checkbox" id="automatic-update-checks"></label><button type="button" class="button secondary" id="manual-update-check">بررسی دستی نسخه جدید</button>';
   el.append(section);
+  const automatic = section.querySelector<HTMLInputElement>('#automatic-update-checks')!;
+  try {
+    automatic.checked = (
+      await invoke<{ automatic_checks: boolean }>('updater_preferences')
+    ).automatic_checks;
+    automatic.onchange = () => {
+      automatic.disabled = true;
+      void (async () => {
+        try {
+          await invoke('set_updater_preferences', { automaticChecks: automatic.checked });
+          toast('تنظیم بررسی خودکار ذخیره شد.');
+        } catch {
+          automatic.checked = !automatic.checked;
+          toast('ذخیره تنظیم بررسی خودکار ممکن نشد.', true);
+        } finally {
+          automatic.disabled = false;
+        }
+      })();
+    };
+  } catch {
+    automatic.disabled = true;
+  }
+  section.querySelector<HTMLButtonElement>('#manual-update-check')!.onclick = function () {
+    void busy(this as HTMLButtonElement, async () => {
+      await invoke('check_launcher_update');
+    });
+  };
   const render = async () => {
     if (!section.isConnected) return;
     try {
       const s = await invoke<UpdateStatus>('updater_status');
-      if (section.isConnected) section.querySelector('p')!.textContent = updateStatusText(s);
+      if (section.isConnected) {
+        section.querySelector('p')!.textContent =
+          s.phase === 'idle' && !automatic.checked
+            ? 'بررسی خودکار غیرفعال است؛ بررسی دستی در دسترس است.'
+            : updateStatusText(s);
+        section.querySelector<HTMLButtonElement>('#manual-update-check')!.disabled = [
+          'checking',
+          'downloading',
+          'installing',
+        ].includes(s.phase);
+      }
     } catch {
       section.querySelector('p')!.textContent = 'خواندن وضعیت آپدیت ممکن نشد.';
     }

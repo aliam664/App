@@ -191,6 +191,10 @@ test('owner can configure a second independent manager entirely through the team
   await page.locator('[name=license_id]').selectOption(id);
   await page.locator('[name=role]').selectOption('content_manager');
   await page.locator('[name=permission][value="analytics.read"]').uncheck();
+  page.once('dialog', async (d) => {
+    expect(d.message()).toContain('دسترسی مدیریتی');
+    await d.accept();
+  });
   await page.getByRole('button', { name: 'ذخیره و اعمال دسترسی', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const result = await (

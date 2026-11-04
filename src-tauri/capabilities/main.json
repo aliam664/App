@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "Bundled main window only; no arbitrary filesystem or shell API",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:allow-open",
@@ -27,6 +25,9 @@
     "allow-control-job",
     "allow-set-download-preferences",
     "allow-download-cache-status",
-    "allow-updater-status"
+    "allow-updater-status",
+    "allow-updater-preferences",
+    "allow-set-updater-preferences",
+    "allow-check-launcher-update"
   ]
 }

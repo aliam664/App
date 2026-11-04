@@ -34,6 +34,7 @@ import {
 } from '../../../packages/contracts/src/index';
 export type Overview = {
   admin: Admin;
+  capabilities?: string[];
   telemetry?: TelemetryEvent[];
   service?: ServiceSettings | null;
   licenses: Omit<License, 'code_hash'>[];
@@ -56,7 +57,7 @@ const statuses: Record<string, string> = {
 const can = (section: string) =>
   hasPermission(
     overview.admin,
-    ({ license: 'licenses.create', content: 'content.write' }[section] || section) as Permission,
+    ({ license: 'licenses.create', content: 'content.update' }[section] || section) as Permission,
   );
 export async function renderAdmin(
   container: HTMLElement,
@@ -82,11 +83,15 @@ export async function renderAdmin(
     const permission = navPermissions[b.dataset.nav || ''];
     if (permission)
       b.hidden =
-        b.dataset.nav === 'packages'
-          ? !['content.read', 'content.write', 'content.publish'].some((p) =>
-              hasPermission(overview.admin, p as Permission),
-            )
-          : !hasPermission(overview.admin, permission);
+        b.dataset.nav === 'team'
+          ? !(can('team.manage') || can('roles.manage'))
+          : b.dataset.nav === 'licenses'
+            ? !(can('licenses.read') || can('licenses.create'))
+            : b.dataset.nav === 'packages'
+              ? !['content.read', 'content.create', 'content.update', 'content.publish'].some((p) =>
+                  hasPermission(overview.admin, p as Permission),
+                )
+              : !hasPermission(overview.admin, permission);
   });
   const roleLabels: Record<string, string> = {
     owner: 'مالک اصلی',
@@ -228,7 +233,7 @@ function licenses(el: HTMLElement) {
 function generateDialog() {
   const d = modal(
     'تولید لایسنس',
-    `<p class="muted">کد کامل فقط یک‌بار نمایش داده می‌شود. شروع اعتبار در اولین فعال‌سازی است.</p><form id="generate-form"><div class="form-grid">${field('سطح اشتراک', '<select name="tier"><option value="normal">Normal</option><option value="pro">Pro</option><option value="vip">VIP</option></select>')}${field('اعتبار (روز)', '<input name="duration_days" type="number" min="1" max="1095" value="30" required>')}${field('تعداد', '<input name="count" type="number" min="1" max="100" value="1" required>')}</div><div class="notice">${icon('monitor')}هر لایسنس فقط یک دستگاه فعال دارد.</div><button class="button full" type="submit">تولید و نمایش کدها</button></form>`,
+    `<p class="muted">کد کامل فقط یک‌بار نمایش داده می‌شود. اگر تاریخ تقویمی وارد نکنید، شروع اعتبار در اولین فعال‌سازی است.</p><form id="generate-form"><div class="form-grid">${field('سطح اشتراک', '<select name="tier"><option value="normal">Normal</option><option value="pro">Pro</option><option value="vip">VIP</option></select>')}${field('اعتبار (روز)', '<input name="duration_days" type="number" min="1" max="1095" value="30" required>')}${field('تعداد', '<input name="count" type="number" min="1" max="100" value="1" required>')}${overview.capabilities?.includes('license-window-v1') ? field('شروع مجاز فعال‌سازی (زمان محلی، اختیاری)', '<input name="starts_at" type="datetime-local">') + field('انقضای ثابت تقویمی (زمان محلی، اختیاری)', '<input name="expires_at" type="datetime-local">') : ''}</div><div class="notice">${icon('monitor')}هر لایسنس فقط یک دستگاه فعال دارد.</div><button class="button full" type="submit">تولید و نمایش کدها</button></form>`,
   );
   d.querySelector('form')!.onsubmit = (e) => {
     e.preventDefault();
@@ -240,6 +245,16 @@ function generateDialog() {
           tier: f.get('tier'),
           duration_days: Number(f.get('duration_days')),
           count: Number(f.get('count')),
+          ...(overview.capabilities?.includes('license-window-v1')
+            ? {
+                starts_at: f.get('starts_at')
+                  ? new Date(String(f.get('starts_at'))).toISOString()
+                  : null,
+                expires_at: f.get('expires_at')
+                  ? new Date(String(f.get('expires_at'))).toISOString()
+                  : null,
+              }
+            : {}),
         },
         token,
       );
@@ -274,7 +289,7 @@ function licenseDialog(l: Overview['licenses'][number]) {
   licenseProfile(l, { data: overview, token, reload: refreshPage });
 }
 function packages(el: HTMLElement, versions: boolean) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">CONTENT STUDIO / 03</p><h1>${versions ? 'انتشار بعدی، دقیق‌تر.' : 'محتوا را شما می‌سازید.'}</h1><p class="muted">${versions ? 'نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.' : 'چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.'}</p></div>${can('content') ? '<button class="button" id="new-package">' + icon('plus') + 'پکیج جدید</button>' : ''}</div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>سطح</th><th>وضعیت</th><th>فایل / پیش‌نیاز</th><th>عملیات</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code>v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${statuses[p.status]}</span></td><td>${can('content') ? fa(p.files.length) : 'محفوظ'} / ${fa(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? 'ویرایش / انتشار' : 'مشاهده'} ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.</p>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">CONTENT STUDIO / 03</p><h1>${versions ? 'انتشار بعدی، دقیق‌تر.' : 'محتوا را شما می‌سازید.'}</h1><p class="muted">${versions ? 'نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.' : 'چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.'}</p></div>${can('content.create') ? '<button class="button" id="new-package">' + icon('plus') + 'پکیج جدید</button>' : ''}</div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>سطح</th><th>وضعیت</th><th>فایل / پیش‌نیاز</th><th>عملیات</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code>v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${statuses[p.status]}</span></td><td>${can('content') ? fa(p.files.length) : 'محفوظ'} / ${fa(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? 'ویرایش / انتشار' : 'مشاهده'} ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.</p>`;
   if (!can('content.read'))
     el.querySelector('.table-panel')!.innerHTML = empty(
       'فهرست محتوا برای این حساب پنهان است',
@@ -331,7 +346,7 @@ async function versionsPage(el: HTMLElement) {
 }
 
 function editPackage(existing?: PackageSpec) {
-  const writable = can('content');
+  const writable = can(existing ? 'content.update' : 'content.create');
   const p =
     existing ||
     ({

@@ -1,6 +1,6 @@
 //! Signed, version-bound application updates; never uses a license signing key.
 use crate::security::{atomic_write, safe_target};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::Read,
@@ -33,6 +33,30 @@ impl Default for Status {
             error: None,
         }
     }
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Preferences {
+    automatic_checks: bool,
+}
+impl Default for Preferences {
+    fn default() -> Self { Self { automatic_checks: true } }
+}
+pub fn preferences(app: &tauri::AppHandle<Wry>) -> Result<Preferences, String> {
+    let path = safe_target(&directory(app)?, "preferences.json")?;
+    if !path.exists() { return Ok(Preferences::default()); }
+    let file = fs::File::open(path).map_err(|_| "Cannot read updater preferences")?;
+    let mut bytes = Vec::new();
+    file.take(1025).read_to_end(&mut bytes).map_err(|_| "Cannot read updater preferences")?;
+    if bytes.len()>1024 { return Err("Updater preferences exceed limit".into()); }
+    serde_json::from_slice(&bytes).map_err(|_| "Updater preferences are damaged".into())
+}
+pub fn set_preferences(app: &tauri::AppHandle<Wry>, automatic_checks: bool) -> Result<Preferences, String> {
+    let next = Preferences { automatic_checks };
+    atomic_write(&safe_target(&directory(app)?, "preferences.json")?, &serde_json::to_vec(&next).map_err(|_| "Invalid updater preferences")?)?;
+    Ok(next)
+}
+pub fn manual_check(app: &tauri::AppHandle<Wry>) -> Result<Status, String> {
+    match check(app, false, true) { Ok(()) => status(), Err(e) => { error(e.clone()); Err(e) } }
 }
 struct Ready {
     update: Update,
@@ -309,7 +333,9 @@ pub fn closing(app: tauri::AppHandle<Wry>) -> bool {
     });
     true
 }
-fn check(app: &tauri::AppHandle<Wry>, restore: bool) -> Result<(), String> {
+fn check(app: &tauri::AppHandle<Wry>, restore: bool, online: bool) -> Result<(), String> {
+    static CHECK_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let _check_guard = CHECK_LOCK.get_or_init(Default::default).try_lock().map_err(|_| "An update check is already active")?;
     let dir = directory(app)?;
     let updater = app
         .updater_builder()
@@ -352,6 +378,7 @@ fn check(app: &tauri::AppHandle<Wry>, restore: bool) -> Result<(), String> {
             }
         }
     }
+    if !online { return Ok(()); }
     if ready().lock().map(|r| r.is_none()).unwrap_or(false) {
         phase("checking");
     }
@@ -380,7 +407,10 @@ pub fn start(app: tauri::AppHandle<Wry>) {
     std::thread::spawn(move || {
         let mut restore = true;
         loop {
-            if let Err(e) = check(&app, restore) {
+            // A missing preference means enabled for installed 0.1.1 users.
+            // Corrupt preferences do not silently enable networking.
+            let automatic = preferences(&app).map(|p| p.automatic_checks).unwrap_or(false);
+            if let Err(e) = check(&app, restore, automatic) {
                 error(e);
             }
             restore = false;
@@ -393,6 +423,13 @@ pub fn start(app: tauri::AppHandle<Wry>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn preference_defaults_preserve_existing_clients_and_explicit_opt_out() {
+        assert!(Preferences::default().automatic_checks);
+        let disabled: Preferences = serde_json::from_str(r#"{"automatic_checks":false}"#).unwrap();
+        assert!(!disabled.automatic_checks);
+        assert!(serde_json::from_str::<Preferences>(r#"{"automatic_checks":"false"}"#).is_err());
+    }
     fn verifier() -> (
         tauri::App<tauri::test::MockRuntime>,
         tauri_plugin_updater::Updater,
