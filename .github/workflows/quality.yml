@@ -76,13 +76,21 @@ jobs:
           }
       - name: Real isolated PostgreSQL API to native package-install chain
         run: |
-          npx tsx scripts/package-chain-smoke.ts "$env:RUNNER_TEMP/package-chain"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:UHM_PACKAGE_SMOKE_PATH = "$env:RUNNER_TEMP/package-chain/package-chain.json"
-          Push-Location src-tauri
-          cargo test --locked full_package_chain_downloads_extracts_installs_and_scans -- --ignored --nocapture
+          npx tsx scripts/package-chain-smoke.ts "$env:RUNNER_TEMP/package-chain" 2>&1 | Tee-Object -FilePath package-api-smoke.log
           $code = $LASTEXITCODE
-          Pop-Location
+          if ($code -eq 0) {
+            $env:UHM_PACKAGE_SMOKE_PATH = "$env:RUNNER_TEMP/package-chain/package-chain.json"
+            Push-Location src-tauri
+            cargo test --locked full_package_chain_downloads_extracts_installs_and_scans -- --ignored --nocapture 2>&1 | Tee-Object -FilePath ../package-native-smoke.log
+            $code = $LASTEXITCODE
+            Pop-Location
+          }
+          if ($code -ne 0) {
+            $tail = (@(Get-Content package-api-smoke.log -Tail 30 -ErrorAction SilentlyContinue) + @(Get-Content package-native-smoke.log -Tail 45 -ErrorAction SilentlyContinue)) -join "`n"
+            if ($tail.Length -gt 3800) { $tail = $tail.Substring($tail.Length - 3800) }
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Isolated package-chain output::$tail"
+          }
           exit $code
       - uses: taiki-e/install-action@cargo-audit
       - name: Audit native dependencies
