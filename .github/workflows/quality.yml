@@ -107,6 +107,27 @@ jobs:
           }
       - name: Build production-connected unsigned installer
         run: npm run desktop:build
+      - name: Fresh NSIS install and upgrade from the exact public 0.1.1 installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download uhm-launcher-v0.1.1 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe" 0.1.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installer = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*0.1.2*x64*setup.exe)
+          if ($installer.Count -ne 1) { throw 'Exactly one 0.1.2 candidate required' }
+          try { ./scripts/windows-installer-upgrade.ps1 -Candidate $installer[0].FullName -ExpectedVersion 0.1.2 } catch {
+            $message = $_.ToString().Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Public-installer compatibility::$message"
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-upgrade-evidence
+          path: ${{ runner.temp }}/installer-upgrade-result.json
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: uhm-windows-production-unsigned
