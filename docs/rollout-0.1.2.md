@@ -32,4 +32,4 @@ Read-only checks after deployment:
 
 ## Rollout status
 
-**Not published at this checkpoint.** Live updater feed still offers 0.1.1. The release request has not been changed yet. Publication will make the signed 0.1.2 update discoverable to online supported clients; it cannot execute remote commands or prove every physical PC has installed successfully. Physical rollback of personally modified game files is not authorized or claimed.
+**Publication requested after final gates.** Release request now references successful run 41804408252 with publication enabled. Await signing/publication/remote verification and the postpublication automatic-upgrade smoke before treating rollout as validated. Publication will make the signed 0.1.2 update discoverable to online supported clients; it cannot execute remote commands or prove every physical PC has installed successfully. Physical rollback of personally modified game files is not authorized or claimed.

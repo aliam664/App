@@ -1,5 +1,5 @@
 {
-  "build_run": "41657964757",
+  "build_run": "41804408252",
   "publish_candidate": true,
-  "request_note": "Version 0.1.1 final shared UI; Platform checks passed for 2df82d89c50b3171ebd8fbebb0f58eaff3d08773. Preserve independent updater and license trust."
+  "request_note": "Publish signed 0.1.2 from ffc9a4ad178b79251b20f58c413626d2d17e647e. Matching Platform checks passed: actual immutable public 0.1.1 NSIS upgrade, locked-target NSIS failure/old-app startup/retry, fresh-profile install, all web/native/security/package-chain/audit gates. API v11 and additive migrations deployed; Owner trust/data unchanged. Postpublication public-feed automatic upgrade smoke required."
 }
