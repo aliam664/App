@@ -27,28 +27,58 @@ $gameSentinel = Join-Path $game 'content/preserve-after-update.txt'
 $settingsHash = (Get-FileHash $settings).Hash
 $gameHash = (Get-FileHash $gameSentinel).Hash
 $exe = Join-Path $target 'uhm-launcher.exe'
-$installer = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*0.0.0*x64*setup.exe)
-Assert ($installer.Count -eq 1) 'Expected exactly one locally built 0.0.0 NSIS fixture'
-$setup = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$target") -PassThru -Wait
+Assert ($ExpectedVersion -eq '0.1.2') 'Only the reviewed 0.1.1 to 0.1.2 rollout is allowed'
+$installer = Join-Path $env:RUNNER_TEMP 'public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe'
+Assert ((Get-FileHash $installer -Algorithm SHA256).Hash.ToLower() -eq '1064de0500e37fece771f5ab26b838984353916ca7a7cf0576c6f7348aed17dd') 'Original public 0.1.1 installer bytes differ'
+$setup = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$target") -PassThru -Wait
 Assert ($setup.ExitCode -eq 0) "Initial real NSIS installation failed: $($setup.ExitCode)"
-Assert ((Version $exe) -eq '0.0.0') 'Initial installed binary is not the 0.0.0 fixture'
+Assert ((Version $exe) -eq '0.1.1') 'Initial binary must be the original public 0.1.1'
 # Create only a trusted OS executable fixture to exercise the process-name deferral.
 Copy-Item "$env:SystemRoot/System32/cmd.exe" "$game/acs.exe"
-$blocker = Start-Process "$game/acs.exe" -ArgumentList @('/c', 'ping -n 180 127.0.0.1 > nul') -WindowStyle Hidden -PassThru
+$blocker = Start-Process "$game/acs.exe" -ArgumentList @('/c', 'ping -n 900 127.0.0.1 > nul') -WindowStyle Hidden -PassThru
 $app = $null
+$firewallRule = 'UHM-disposable-update-smoke-' + [guid]::NewGuid().ToString()
 try {
   Assert (-not $blocker.HasExited) 'Game-process fixture did not start'
   $app = Start-Process $exe -PassThru
   $metadata = Join-Path $data 'updater/release.json'
   Wait-Until { (Test-Path $metadata) -and ((Get-Content $metadata -Raw | ConvertFrom-Json).version -eq $ExpectedVersion) } 'Launcher did not download and verify the real published update'
-  Assert ((Version $exe) -eq '0.0.0') 'App changed before a safe installation point'
+  Assert ((Version $exe) -eq '0.1.1') 'App changed before a safe installation point'
   # A real OS close request, not IPC or a mocked install function.
   Wait-Until { $app.Refresh(); $app.MainWindowHandle -ne 0 } 'Native launcher window never became available'
   Assert ($app.CloseMainWindow()) 'Could not close the actual native launcher window'
   Assert ($app.WaitForExit(30000)) 'Launcher did not close with a game process active'
   Start-Sleep -Seconds 3
-  Assert ((Version $exe) -eq '0.0.0') 'Updater incorrectly installed while acs.exe was active'
+  Assert ((Version $exe) -eq '0.1.1') 'Updater incorrectly installed while acs.exe was active'
   Assert (-not $blocker.HasExited) 'Process fixture ended before the deferral assertion'
+  # Prove rejection and startup recovery in the ACTUAL old public application.
+  # Block this executable only; never edit the public feed or execute an unverified EXE.
+  $cache = Join-Path $data 'updater/installer.exe'
+  $goodMetadata = [IO.File]::ReadAllBytes($metadata)
+  $goodInstaller = [IO.File]::ReadAllBytes($cache)
+  New-NetFirewallRule -DisplayName $firewallRule -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
+  foreach ($failure in @('tampered','truncated')) {
+    [IO.File]::WriteAllBytes($metadata,$goodMetadata)
+    $bad = [byte[]]$goodInstaller.Clone()
+    if ($failure -eq 'tampered') { $bad[0] = $bad[0] -bxor 1 } else { $bad = $bad[0..127] }
+    [IO.File]::WriteAllBytes($cache,$bad)
+    $app = Start-Process $exe -PassThru
+    Wait-Until { $app.Refresh();$app.MainWindowHandle -ne 0 } 'Old app failed to start with a damaged cached update'
+    Wait-Until { -not(Test-Path $metadata) -and -not(Test-Path $cache) } "Old app did not reject and discard $failure cache"
+    Assert ((Version $exe) -eq '0.1.1') 'A damaged update changed the installed binary'
+    Assert ($app.CloseMainWindow()) 'Could not close recovered old application'
+    Assert ($app.WaitForExit(30000)) 'Recovered old application did not exit'
+    Assert ((Get-FileHash $settings).Hash -eq $settingsHash) 'Failure recovery changed settings'
+    Assert ((Get-FileHash $gameSentinel).Hash -eq $gameHash) 'Failure recovery changed content'
+  }
+  Remove-NetFirewallRule -DisplayName $firewallRule
+  # Re-download after the two failures, still deferring while the controlled game fixture is active.
+  $app = Start-Process $exe -PassThru
+  Wait-Until { (Test-Path $metadata) -and ((Get-Content $metadata -Raw | ConvertFrom-Json).version -eq $ExpectedVersion) } 'Valid update was not downloaded again after failure recovery'
+  Wait-Until { $app.Refresh();$app.MainWindowHandle -ne 0 } 'Recovered launcher window missing'
+  Assert ($app.CloseMainWindow()) 'Could not close the re-staged launcher'
+  Assert ($app.WaitForExit(30000)) 'Re-staged launcher did not exit'
+  Assert ((Version $exe) -eq '0.1.1') 'Process deferral failed after recovery'
   Stop-Process -Id $blocker.Id -Force
   # Next start must restore and reverify the cache and install without another confirmation.
   $app = Start-Process $exe -PassThru
@@ -58,13 +88,15 @@ try {
   } 'Updated application did not restart automatically' 60
   Assert ((Get-FileHash $settings).Hash -eq $settingsHash) 'Updater modified saved launcher settings'
   Assert ((Get-FileHash $gameSentinel).Hash -eq $gameHash) 'Updater modified content outside the launcher installation'
-  @{ ok=$true; from='0.0.0 fixture'; to=$ExpectedVersion; checks=@(
+  @{ ok=$true; from='public immutable 0.1.1'; to=$ExpectedVersion; checks=@(
     'Real NSIS initial installation', 'Real remote download and native signature check',
+    'Actual tampered and truncated cache rejection with offline startup recovery',
     'Actual Windows window close', 'Deferral with controlled acs.exe process fixture',
     'Cached next-start automatic NSIS upgrade', 'Automatic restart', 'Settings and game-file preservation'
   ); limits='No real Assetto Corsa execution, activated license or interactive user-PC validation' } |
     ConvertTo-Json -Depth 4 | Tee-Object -FilePath "$env:RUNNER_TEMP/windows-update-result.json"
 } finally {
+  Remove-NetFirewallRule -DisplayName $firewallRule -ErrorAction SilentlyContinue
   if ($null -ne $blocker -and -not $blocker.HasExited) { Stop-Process -Id $blocker.Id -Force -ErrorAction SilentlyContinue }
   Get-Process uhm-launcher -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } |
     Stop-Process -Force -ErrorAction SilentlyContinue

@@ -38,11 +38,7 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: tested-source/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: tested-source/src-tauri
-      - name: Parse the PowerShell harness before building
+      - name: Parse the PowerShell harness before installing
         run: |
           $tokens = $null; $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD '../scripts/windows-update-smoke.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
@@ -54,15 +50,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/published-update/UHM-Launcher-$env:APP_VERSION-x64-setup.exe" $env:APP_VERSION
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build a disposable older-version fixture from the exact tested source
+      - name: Verify the immutable original public 0.1.1 installer
         run: |
-          npx tsx scripts/public-ci-env.ts
+          gh release download uhm-launcher-v0.1.1 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.1"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node -e 'const fs=require("fs");const p="src-tauri/tauri.conf.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));c.version="0.0.0";fs.writeFileSync(p,JSON.stringify(c,null,2));const t="src-tauri/Cargo.toml";fs.writeFileSync(t,fs.readFileSync(t,"utf8").replace(/^version = "[^"]+"/m,"version = \"0.0.0\""));'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./scripts/prepare-extractor.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run desktop:build:production
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe" 0.1.1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Real installed upgrade, process deferral, automatic restart and data preservation
         run: ../scripts/windows-update-smoke.ps1 -ExpectedVersion $env:APP_VERSION

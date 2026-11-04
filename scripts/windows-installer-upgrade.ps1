@@ -40,6 +40,8 @@ Assert ($null -ne $uninstaller) 'Expected NSIS uninstaller'
 $p=Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -Wait
 Assert ($p.ExitCode -eq 0) 'Test uninstaller failed'
 Wait-Until {-not(Test-Path $exe)} 'Test uninstall did not finish'
+Move-Item $data (Join-Path $env:RUNNER_TEMP 'uhm-preserved-upgrade-profile')
+Assert (-not(Test-Path $data)) 'Fresh installation must have a fresh application profile'
 Install (Resolve-Path $Candidate).Path
 Assert ((Version $exe) -eq $ExpectedVersion) 'Fresh install version differs'
 Open-Close

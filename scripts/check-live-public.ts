@@ -31,7 +31,16 @@ check(
   'unchanged license public trust',
 );
 check(health.capabilities.includes('content-packages-v2'), 'deployed package v2 capability');
-checks.push('Production identity, unchanged license trust and live package v2 capability');
+for (const capability of [
+  'admin-custom-roles-v1',
+  'license-window-v1',
+  'package-admin-v1',
+  'user-profiles-v1',
+])
+  check(health.capabilities.includes(capability), `deployed ${capability}`);
+checks.push(
+  'Production identity, unchanged license trust, package v2 and all 0.1.2 admin capabilities',
+);
 check(Array.isArray((await (await request('/catalog', 200)).json()).packages), 'live catalog');
 await request('/admin/overview', 401);
 for (const operation of ['validate', 'test-plan'])
@@ -39,7 +48,14 @@ for (const operation of ['validate', 'test-plan'])
 const denied = await request('/health', 403, false, 'https://untrusted.invalid');
 check(!denied.headers.has('Access-Control-Allow-Origin'), 'untrusted origin rejected');
 checks.push('Live catalog and anonymous admin/builder denial; CORS isolation');
-for (const table of ['licenses', 'package_files', 'package_steps', 'package_dependencies']) {
+for (const table of [
+  'licenses',
+  'package_files',
+  'package_steps',
+  'package_dependencies',
+  'custom_roles',
+  'package_categories',
+]) {
   const response = await fetch(`${config.supabase_url}/rest/v1/${table}?select=*`, {
     headers: { apikey: config.supabase_publishable_key, 'Accept-Profile': 'uhm' },
     signal: AbortSignal.timeout(25000),
@@ -47,7 +63,9 @@ for (const table of ['licenses', 'package_files', 'package_steps', 'package_depe
   });
   check([401, 403, 404, 406].includes(response.status), `anonymous direct ${table} access denied`);
 }
-checks.push('Anonymous database access to licenses and all three new normalized tables denied');
+checks.push(
+  'Anonymous database access to licenses and normalized content and new admin tables denied',
+);
 const brokerGet = await fetch(BROKER_URL, { signal: AbortSignal.timeout(25000) });
 check(brokerGet.status === 405, 'broker GET denied');
 const brokerAnonymous = await fetch(BROKER_URL, {
