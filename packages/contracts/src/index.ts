@@ -17,6 +17,12 @@ export const Permission = z.enum([
   'content.write',
   'content.create',
   'content.update',
+  'content.delete',
+  'content.versions',
+  'categories.manage',
+  'users.read',
+  'users.manage',
+  'devices.read',
   'roles.manage',
   'content.publish',
   'analytics.read',
@@ -265,7 +271,7 @@ export const PackageSpec = z.object({
   slug: z.string().regex(/^[a-z0-9-]{2,64}$/),
   name: z.string().min(2).max(80),
   description: z.string().min(10).max(3000),
-  category: z.enum(['graphics', 'tracks', 'cars', 'tools']),
+  category: z.string().regex(/^[a-z0-9-]{2,64}$/),
   tier: Tier,
   image: z.union([z.string().regex(/^\/images\/(0[1-9]|logo)\.jpg$/), DownloadUrl]),
   version: Version,
@@ -285,8 +291,53 @@ export const PackageSpec = z.object({
   steps: z.array(Step).max(100),
   status: z.enum(['draft', 'published', 'archived']),
   released_at: z.string().datetime().nullable(),
+  revision: z.number().int().positive().optional(),
+  deleted_at: z.string().datetime().nullable().optional(),
 });
 export type PackageSpec = z.infer<typeof PackageSpec>;
+export const CategoryInput = z
+  .object({
+    name: z.string().trim().min(2).max(80),
+    enabled: z.boolean(),
+    expected_version: z.number().int().nonnegative(),
+  })
+  .strict();
+export type PackageCategory = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  version: number;
+  updated_at: string;
+};
+export const defaultCategories = (): PackageCategory[] =>
+  Object.entries({
+    graphics: 'گرافیک و نور',
+    tracks: 'مسیرها',
+    cars: 'خودروها',
+    tools: 'ابزارهای پایه',
+  }).map(([id, name]) => ({
+    id,
+    name,
+    enabled: true,
+    version: 1,
+    updated_at: '2026-11-01T00:00:00.000Z',
+  }));
+export function licenseState(
+  l: Pick<License, 'status' | 'expires_at' | 'starts_at'>,
+  now = Date.now(),
+) {
+  if (l.status === 'revoked' || l.status === 'suspended') return l.status;
+  if (l.expires_at && Date.parse(l.expires_at) <= now) return 'expired';
+  if (l.starts_at && Date.parse(l.starts_at) > now) return 'scheduled';
+  return l.status;
+}
+export const ProfileInput = z
+  .object({
+    display_name: z.string().max(120),
+    notes: z.string().max(4000),
+    tags: z.array(z.string().min(1).max(40)).max(15),
+  })
+  .strict();
 export type License = {
   id: string;
   code_hash: string;
@@ -348,6 +399,7 @@ export type Tables = {
   telemetry_events: TelemetryEvent;
   service_settings: ServiceSettings;
   custom_roles: CustomRole;
+  package_categories: PackageCategory;
 };
 export type Table = keyof Tables;
 export const LicenseWindowInput = z

@@ -957,3 +957,66 @@ button:disabled {
   border-radius: 12px;
   min-width: 0;
 }
+.builder-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-block: 10px 22px;
+}
+.builder-tabs button {
+  padding: 12px 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.builder-tabs button[aria-selected='true'] {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--surface);
+}
+.builder-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block: 20px;
+}
+.builder-preview {
+  display: grid;
+  gap: 12px;
+  padding-inline-start: 22px;
+}
+.builder-preview li {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.builder-preview code,
+.builder-preview small {
+  display: block;
+  margin-block: 8px;
+}
+.builder-errors {
+  border: 1px solid #bf7380;
+  border-radius: 12px;
+  padding: 18px;
+  overflow-wrap: anywhere;
+}
+.category-list {
+  display: grid;
+  gap: 8px;
+  margin-block: 16px;
+}
+.category-list .setting-row {
+  width: 100%;
+  text-align: start;
+}
+@media (max-width: 500px) {
+  .builder-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

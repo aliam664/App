@@ -1,3 +1,7 @@
+import { inspectArtifact } from './artifact-inspector';
+import { mountPackageBuilder } from './package-builder';
+import { manageCategories } from './package-categories';
+import { renderUsers } from './admin-users';
 import { licenseProfile, renderConsole } from './admin-console';
 import { licenseAdminSession } from './license-admin';
 import { localStore, sessionStore } from './storage';
@@ -8,6 +12,8 @@ import {
   type Permission,
   type TelemetryEvent,
   type ServiceSettings,
+  type PackageCategory,
+  licenseState,
 } from '../../../packages/contracts/src/index';
 import { assetUrl } from './runtime';
 import { api, supabase, requireContentV2 } from './api';
@@ -35,6 +41,7 @@ import {
 export type Overview = {
   admin: Admin;
   capabilities?: string[];
+  categories?: PackageCategory[];
   telemetry?: TelemetryEvent[];
   service?: ServiceSettings | null;
   licenses: Omit<License, 'code_hash'>[];
@@ -53,6 +60,8 @@ const statuses: Record<string, string> = {
   published: 'منتشرشده',
   draft: 'پیش‌نویس',
   archived: 'بایگانی',
+  scheduled: 'شروع در آینده',
+  expired: 'منقضی‌شده',
 };
 const can = (section: string) =>
   hasPermission(
@@ -68,9 +77,11 @@ export async function renderAdmin(
   token = adminToken;
   refreshPage = reload;
   overview = await api<Overview>('/admin/overview', undefined, token);
+  for (const c of overview.categories || []) category[c.id] = c.name;
   const navPermissions: Record<string, Permission> = {
     licenses: 'licenses.read',
-    devices: 'licenses.read',
+    users: 'users.read',
+    devices: 'devices.read',
     packages: 'content.read',
     versions: 'content.read',
     analytics: 'analytics.read',
@@ -83,15 +94,26 @@ export async function renderAdmin(
     const permission = navPermissions[b.dataset.nav || ''];
     if (permission)
       b.hidden =
-        b.dataset.nav === 'team'
-          ? !(can('team.manage') || can('roles.manage'))
-          : b.dataset.nav === 'licenses'
-            ? !(can('licenses.read') || can('licenses.create'))
-            : b.dataset.nav === 'packages'
-              ? !['content.read', 'content.create', 'content.update', 'content.publish'].some((p) =>
-                  hasPermission(overview.admin, p as Permission),
-                )
-              : !hasPermission(overview.admin, permission);
+        b.dataset.nav === 'users'
+          ? !(
+              overview.capabilities?.includes('user-profiles-v1') &&
+              (can('users.read') || can('users.manage'))
+            )
+          : b.dataset.nav === 'devices'
+            ? !(can('devices.read') || can('licenses.read'))
+            : b.dataset.nav === 'team'
+              ? !(can('team.manage') || can('roles.manage'))
+              : b.dataset.nav === 'licenses'
+                ? !(can('licenses.read') || can('licenses.create'))
+                : b.dataset.nav === 'packages'
+                  ? ![
+                      'content.read',
+                      'content.create',
+                      'content.update',
+                      'content.publish',
+                      'categories.manage',
+                    ].some((p) => hasPermission(overview.admin, p as Permission))
+                  : !hasPermission(overview.admin, permission);
   });
   const roleLabels: Record<string, string> = {
     owner: 'مالک اصلی',
@@ -109,9 +131,10 @@ export async function renderAdmin(
   if (await renderConsole(container, page, { data: overview, token, reload })) return;
   if (page === 'dashboard') dashboard(container);
   else if (page === 'licenses') licenses(container);
+  else if (page === 'users') await renderUsers(container, overview.admin, token);
   else if (page === 'versions') await versionsPage(container);
   else if (page === 'packages') packages(container, false);
-  else if (page === 'devices') devices(container);
+  else if (page === 'devices') await devices(container);
   else logs(container);
   decorate();
 }
@@ -199,7 +222,7 @@ function licenses(el: HTMLElement) {
     .map(([v, l]) => `<option value="${v}">${l}</option>`)
     .join(
       '',
-    )}<option value="expired">منقضی‌شده</option><option value="archived">بایگانی‌شده</option></select></div><div class="panel table-panel" id="license-table"></div>`;
+    )}<option value="scheduled">شروع در آینده</option><option value="expired">منقضی‌شده</option><option value="archived">بایگانی‌شده</option></select></div><div class="panel table-panel" id="license-table"></div>`;
   const render = () => {
     const q = (el.querySelector('#license-search') as HTMLInputElement).value.toLowerCase(),
       filter = (el.querySelector('#license-filter') as HTMLSelectElement).value;
@@ -209,14 +232,10 @@ function licenses(el: HTMLElement) {
           .toLowerCase()
           .includes(q) &&
         (filter === 'archived' ? !!l.archived : !l.archived) &&
-        (filter === 'all' ||
-          filter === 'archived' ||
-          (filter === 'expired'
-            ? l.expires_at && Date.parse(l.expires_at) < Date.now()
-            : l.status === filter)),
+        (filter === 'all' || filter === 'archived' || licenseState(l) === filter),
     );
     el.querySelector('#license-table')!.innerHTML = items.length
-      ? `<div class="table-scroll"><table><thead><tr><th>شناسه / پیشوند</th><th>سطح</th><th>وضعیت</th><th>اعتبار تا</th><th>دستگاه</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><b>${esc(l.display_name || 'بدون نام')}</b><small class="cell-sub"><code>${esc(l.prefix)}••••</code></small><small class="cell-sub" dir="ltr">${l.id.slice(0, 8)}</small></td><td>${badge(l.tier)}</td><td><span class="status ${l.status}">${l.expires_at && Date.parse(l.expires_at) < Date.now() ? 'منقضی‌شده' : statuses[l.status]}</span></td><td>${date(l.expires_at)}<small class="cell-sub">${fa(l.duration_days)} روز از فعال‌سازی</small></td><td>${l.device_thumbprint ? `<span class="device-dot"></span><code>${esc(l.device_thumbprint.slice(0, 8))}</code>` : '—'}</td><td><button class="text-button" data-license="${l.id}">پرونده ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div>`
+      ? `<div class="table-scroll"><table><thead><tr><th>شناسه / پیشوند</th><th>سطح</th><th>وضعیت</th><th>اعتبار تا</th><th>دستگاه</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><b>${esc(l.display_name || 'بدون نام')}</b><small class="cell-sub"><code>${esc(l.prefix)}••••</code></small><small class="cell-sub" dir="ltr">${l.id.slice(0, 8)}</small></td><td>${badge(l.tier)}</td><td><span class="status ${l.status}">${statuses[licenseState(l)] || 'نامشخص'}</span></td><td>${date(l.expires_at)}<small class="cell-sub">${fa(l.duration_days)} روز از فعال‌سازی</small></td><td>${l.device_thumbprint ? `<span class="device-dot"></span><code>${esc(l.device_thumbprint.slice(0, 8))}</code>` : '—'}</td><td><button class="text-button" data-license="${l.id}">پرونده ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div>`
       : empty('لایسنسی پیدا نشد', 'فیلتر را تغییر دهید یا یک لایسنس جدید بسازید.', 'key-round');
     el.querySelectorAll<HTMLButtonElement>('[data-license]').forEach(
       (b) =>
@@ -289,7 +308,7 @@ function licenseDialog(l: Overview['licenses'][number]) {
   licenseProfile(l, { data: overview, token, reload: refreshPage });
 }
 function packages(el: HTMLElement, versions: boolean) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">CONTENT STUDIO / 03</p><h1>${versions ? 'انتشار بعدی، دقیق‌تر.' : 'محتوا را شما می‌سازید.'}</h1><p class="muted">${versions ? 'نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.' : 'چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.'}</p></div>${can('content.create') ? '<button class="button" id="new-package">' + icon('plus') + 'پکیج جدید</button>' : ''}</div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>سطح</th><th>وضعیت</th><th>فایل / پیش‌نیاز</th><th>عملیات</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code>v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${statuses[p.status]}</span></td><td>${can('content') ? fa(p.files.length) : 'محفوظ'} / ${fa(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? 'ویرایش / انتشار' : 'مشاهده'} ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.</p>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">CONTENT STUDIO / 03</p><h1>${versions ? 'انتشار بعدی، دقیق‌تر.' : 'محتوا را شما می‌سازید.'}</h1><p class="muted">${versions ? 'نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.' : 'چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.'}</p></div><div class="actions">${overview.capabilities?.includes('package-admin-v1') && can('categories.manage') ? '<button class="button secondary" id="manage-categories">دسته‌بندی‌ها</button>' : ''}${can('content.create') ? '<button class="button" id="new-package">' + icon('plus') + 'پکیج جدید</button>' : ''}</div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>سطح</th><th>وضعیت</th><th>فایل / پیش‌نیاز</th><th>عملیات</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code>v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${statuses[p.status]}</span></td><td>${can('content') ? fa(p.files.length) : 'محفوظ'} / ${fa(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? 'ویرایش / انتشار' : 'مشاهده'} ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.</p>`;
   if (!can('content.read'))
     el.querySelector('.table-panel')!.innerHTML = empty(
       'فهرست محتوا برای این حساب پنهان است',
@@ -303,6 +322,9 @@ function packages(el: HTMLElement, versions: boolean) {
       'هنوز پکیجی ساخته نشده',
       'پس از ساخت اولین پیش‌نویس، فایل‌ها و چرخه انتشار اینجا مدیریت می‌شوند.',
     );
+  el.querySelector('#manage-categories')?.addEventListener('click', () =>
+    manageCategories(overview.categories || [], token, refreshPage),
+  );
   el.querySelector('#new-package')?.addEventListener('click', () => editPackage());
   el.querySelectorAll<HTMLButtonElement>('[data-edit]').forEach(
     (b) => (b.onclick = () => editPackage(overview.packages.find((p) => p.id === b.dataset.edit))),
@@ -325,20 +347,38 @@ async function versionsPage(el: HTMLElement) {
         const r = releases[Number(b.dataset.release)];
         const d = modal(
           'نسخه ' + r.version,
-          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>تعداد فایل‌ها</dt><dd>${fa(r.manifest.files.length)}</dd><dt>مراحل نصب</dt><dd>${fa(r.manifest.steps.length)}</dd><dt>انتشار</dt><dd>${date(r.published_at)}</dd></dl>${can('content') ? '<button class="button full" id="fork-release">ساخت پیش‌نویس از این نسخه</button>' : ''}`,
+          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>تعداد فایل‌ها</dt><dd>${fa(r.manifest.files.length)}</dd><dt>مراحل نصب</dt><dd>${fa(r.manifest.steps.length)}</dd><dt>انتشار</dt><dd>${date(r.published_at)}</dd></dl>${(overview.capabilities?.includes('package-admin-v1') ? can('content.versions') : can('content')) ? '<button class="button full" id="fork-release">ساخت پیش‌نویس از این نسخه</button>' : ''}`,
         );
         d.querySelector('#fork-release')?.addEventListener('click', () => {
-          d.close();
-          const parts = (overview.packages.find((p) => p.id === r.package_id)?.version || r.version)
-            .split('.')
-            .map(Number);
-          parts[2]++;
-          editPackage({
-            ...r.manifest,
-            version: parts.join('.'),
-            status: 'draft',
-            released_at: null,
-            scheduled_at: null,
+          void busy(d.querySelector('#fork-release')!, async () => {
+            const current = overview.packages.find((p) => p.id === r.package_id);
+            const parts = (current?.version || r.version).split('.').map(Number);
+            parts[2]++;
+            if (overview.capabilities?.includes('package-admin-v1')) {
+              await api(
+                `/admin/packages/${r.package_id}/restore`,
+                {
+                  release_version: r.version,
+                  new_version: parts.join('.'),
+                  expected_revision: current?.revision || 1,
+                },
+                token,
+              );
+              d.close();
+              await refreshPage();
+              toast(
+                'نسخهٔ قبلی به صورت پیش‌نویس با شمارهٔ جدید بازگردانده شد؛ هنوز منتشر یا روی دستگاهی نصب نشده است.',
+              );
+            } else {
+              d.close();
+              editPackage({
+                ...r.manifest,
+                version: parts.join('.'),
+                status: 'draft',
+                released_at: null,
+                scheduled_at: null,
+              });
+            }
           });
         });
       }),
@@ -370,7 +410,15 @@ function editPackage(existing?: PackageSpec) {
     `<div class="studio-intro"><span class="console-pill">MANIFEST STUDIO</span><h3>از لینک تا نصب؛ دقیق و قابل تکرار.</h3><p>فایل‌ها، رمز استخراج، پیش‌نیازها و مراحل نصب را جداگانه تنظیم کنید. خروجی انتشار تغییرناپذیر است.</p></div><form id="package-form" data-guard-discard><fieldset ${writable ? '' : 'disabled'}><div class="form-grid">${field('نام پکیج', `<input name="name" required minlength="2" maxlength="80" value="${esc(p.name)}">`)}${field('شناسه خوانا (انگلیسی)', `<input name="slug" required dir="ltr" pattern="[a-z0-9-]{2,64}" value="${esc(p.slug)}">`)}${field('نسخه', `<input name="version" required dir="ltr" pattern="[0-9]+\.[0-9]+\.[0-9]+" value="${esc(p.version)}">`)}${field('سطح دسترسی', `<select name="tier">${['normal', 'pro', 'vip'].map((t) => `<option ${p.tier === t ? 'selected' : ''} value="${t}">${t.toUpperCase()}</option>`).join('')}</select>`)}${field(
       'دسته‌بندی',
       `<select name="category">${Object.entries(category)
-        .map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`)
+        .filter(
+          ([id]) =>
+            !overview.categories ||
+            overview.categories.some((c) => c.id === id && (c.enabled || id === p.category)),
+        )
+        .map(
+          ([v, l]) =>
+            `<option value="${v}" ${p.category === v ? 'selected' : ''}>${esc(l)}</option>`,
+        )
         .join('')}</select>`,
     )}${field('تصویر کاور (HTTPS یا تصویر داخلی)', `<input name="image" required dir="ltr" value="${esc(p.image)}" placeholder="https://… یا /images/01.jpg">`)}</div>${field('توضیح کوتاه', `<input name="short_description" maxlength="240" value="${esc(p.short_description || '')}">`)}<div class="form-grid">${field('نوع محتوا', `<select name="content_type">${['car', 'track', 'skin', 'python_app', 'lua_app', 'csp', 'ppfilter', 'pack'].map((k) => `<option value="${k}" ${(p.content_type || 'pack') === k ? 'selected' : ''}>${k}</option>`).join('')}</select>`)}${field('سازنده', `<input name="author" maxlength="120" value="${esc(p.author || '')}">`)}${field('برند', `<input name="brand" maxlength="120" value="${esc(p.brand || '')}">`)}${field('کانال انتشار', `<select name="channel"><option value="stable">عمومی</option><option value="test" ${p.channel === 'test' ? 'selected' : ''}>تست / مخفی از کاتالوگ عمومی</option></select>`)}${field('زمان انتشار (زمان محلی؛ اختیاری)', `<input name="scheduled_at" type="datetime-local" value="${p.scheduled_at ? new Date(Date.parse(p.scheduled_at) - new Date(p.scheduled_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}">`)}</div>${field('برچسب‌ها (با کامای انگلیسی)', `<input name="tags" value="${esc((p.tags || []).join(', '))}">`)}${field('تصاویر اضافی HTTPS (هر خط یک لینک)', `<textarea name="images" dir="ltr">${esc((p.images || []).join('\n'))}</textarea>`)}${field('توضیحات', `<textarea name="description" minlength="10" maxlength="3000" required>${esc(p.description)}</textarea>`)}${field('تغییرات این نسخه', `<textarea name="changelog" maxlength="3000">${esc(p.changelog)}</textarea>`)}<h3 class="form-section">پیش‌نیازها</h3><div class="checks">${
       overview.packages
@@ -383,6 +431,29 @@ function editPackage(existing?: PackageSpec) {
     }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p></fieldset>${!writable ? '<p class="notice">این فرم فقط خواندنی است. جزئیات فایل و رمز طبق مجوز حساب پنهان می‌شوند؛ عملیات انتشار روی نسخه ذخیره‌شده سرور انجام می‌شود.</p>' : ''}<div class="actions studio-actions">${writable ? '<button class="button" type="submit">ذخیره پیش‌نویس</button>' : ''}${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="validate-package">اعتبارسنجی سرور</button><button type="button" class="button secondary" id="test-package">نصب تست روی این دستگاه</button><button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></form>`,
     true,
   );
+  if (existing && overview.capabilities?.includes('package-admin-v1') && can('content.delete')) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button danger-button';
+    remove.textContent = 'حذف پکیج از کاتالوگ';
+    d.querySelector('.studio-actions')!.append(remove);
+    remove.onclick = () =>
+      void busy(remove, async () => {
+        const typed = window.prompt(
+          `حذف منطقی پکیج با حفظ تاریخچه؛ فایل‌های نصب‌شده دست‌نخورده می‌مانند. برای تأیید شناسه را وارد کنید: ${p.slug}`,
+        );
+        if (typed === null) return;
+        if (typed !== p.slug) throw new Error('شناسه تأیید مطابقت ندارد.');
+        await api(
+          `/admin/packages/${p.id}/delete`,
+          { confirm_slug: typed, expected_revision: p.revision || 1 },
+          token,
+        );
+        d.close();
+        await refreshPage();
+        toast('پکیج حذف منطقی شد؛ تاریخچه حفظ شد.');
+      });
+  }
   const rows = d.querySelector('#file-rows')!;
   const stepsEl = d.querySelector('#install-steps')!;
   function refreshFiles() {
@@ -435,8 +506,20 @@ function editPackage(existing?: PackageSpec) {
     const el = document.createElement('div');
     el.className = 'file-row';
     el.dataset.id = file?.id || crypto.randomUUID();
-    el.innerHTML = `<div class="section-heading"><b>فایل دانلود / جزء آرشیو</b><div class="actions"><button type="button" data-up aria-label="فایل بالاتر">↑</button><button type="button" data-down aria-label="فایل پایین‌تر">↓</button><button type="button" class="icon-button remove-file" aria-label="حذف فایل">${icon('trash-2')}</button></div></div><div class="form-grid">${field('نام دقیق فایل (مانند mod.part1.rar)', `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field('فرمت', `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field('لینک مستقیم HTTPS', `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field('لینک‌های جایگزین HTTPS (هر خط یک لینک؛ حداکثر ۵)', `<textarea data-f="mirrors" dir="ltr">${esc((file?.mirrors || []).join('\n'))}</textarea>`)}${field('SHA-256 (۶۴ کاراکتر)', `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field('حجم دقیق (بایت)', `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field('رمز آرشیو (اختیاری)', `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><p class="fine-print">رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.</p>`;
+    el.innerHTML = `<div class="section-heading"><b>فایل دانلود / جزء آرشیو</b><div class="actions"><button type="button" data-up aria-label="فایل بالاتر">↑</button><button type="button" data-down aria-label="فایل پایین‌تر">↓</button><button type="button" class="icon-button remove-file" aria-label="حذف فایل">${icon('trash-2')}</button></div></div><div class="form-grid">${field('نام دقیق فایل (مانند mod.part1.rar)', `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field('فرمت', `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field('لینک مستقیم HTTPS', `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field('لینک‌های جایگزین HTTPS (هر خط یک لینک؛ حداکثر ۵)', `<textarea data-f="mirrors" dir="ltr">${esc((file?.mirrors || []).join('\n'))}</textarea>`)}${field('SHA-256 (۶۴ کاراکتر)', `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field('حجم دقیق (بایت)', `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field('رمز آرشیو (اختیاری)', `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><button type="button" class="button secondary" data-inspect>انتخاب فایل و محاسبهٔ هش / حجم</button><p class="fine-print">محاسبه روی دستگاه شماست؛ فایل آپلود نمی‌شود. رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.</p>`;
     rows.append(el);
+    el.querySelector<HTMLButtonElement>('[data-inspect]')!.onclick = function () {
+      void busy(this as HTMLButtonElement, async () => {
+        const result = await inspectArtifact();
+        if (!result) return;
+        (el.querySelector('[data-f=sha256]') as HTMLInputElement).value = result.sha256;
+        (el.querySelector('[data-f=size]') as HTMLInputElement).value = String(result.size);
+        const name = el.querySelector('[data-f=name]') as HTMLInputElement;
+        if (!name.value) name.value = result.name;
+        refreshFiles();
+        toast('هش و حجم دقیق، بدون آپلود محاسبه شد.');
+      });
+    };
     el.querySelector('.remove-file')!.addEventListener('click', () => {
       stepsEl.querySelectorAll<HTMLElement>('.install-step').forEach((step) => {
         if ((step.querySelector('[data-step-file]') as HTMLSelectElement).value === el.dataset.id)
@@ -460,64 +543,69 @@ function editPackage(existing?: PackageSpec) {
     stepRow(undefined, id);
   });
   d.querySelector('#add-step')!.addEventListener('click', () => stepRow());
-  d.querySelector('form')!.onsubmit = (e) => {
-    e.preventDefault();
-    void busy(d.querySelector('button[type=submit]')!, async () => {
-      const form = d.querySelector('form')!;
-      const f = new FormData(form);
-      const files: any[] = [],
-        steps: any[] = [];
-      rows.querySelectorAll<HTMLElement>('.file-row').forEach((el) => {
-        const get = (k: string) => (el.querySelector(`[data-f=${k}]`) as HTMLInputElement).value;
-        files.push({
-          id: el.dataset.id,
-          name: get('name'),
-          format: get('format'),
-          url: get('url'),
-          mirrors: get('mirrors')
-            .split(/\r?\n/)
-            .map((s) => s.trim())
-            .filter(Boolean),
-          sha256: get('sha256'),
-          size: Number(get('size')),
-          ...(get('archive_password') ? { archive_password: get('archive_password') } : {}),
-        });
-      });
-      stepsEl.querySelectorAll<HTMLElement>('.install-step').forEach((el) => {
-        const get = (k: string) => (el.querySelector(`[data-step=${k}]`) as HTMLInputElement).value;
-        steps.push({
-          id: el.dataset.id,
-          file_id: (el.querySelector('[data-step-file]') as HTMLSelectElement).value,
-          action: get('action'),
-          destination: get('destination'),
-          overwrite: get('overwrite'),
-          ...(get('source_subdir').trim() ? { source_subdir: get('source_subdir').trim() } : {}),
-          depends_on: get('depends_on')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
-        });
-      });
-      const pkg = PackageSpec.parse({
-        ...p,
-        ...Object.fromEntries(f),
-        dependencies: f.getAll('dependencies'),
-        tags: String(f.get('tags') || '')
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean),
-        images: String(f.get('images') || '')
+  const readManifest = () => {
+    const form = d.querySelector('form')!;
+    const f = new FormData(form);
+    const files: any[] = [],
+      steps: any[] = [];
+    rows.querySelectorAll<HTMLElement>('.file-row').forEach((el) => {
+      const get = (k: string) => (el.querySelector(`[data-f=${k}]`) as HTMLInputElement).value;
+      files.push({
+        id: el.dataset.id,
+        name: get('name'),
+        format: get('format'),
+        url: get('url'),
+        mirrors: get('mirrors')
           .split(/\r?\n/)
           .map((s) => s.trim())
           .filter(Boolean),
-        scheduled_at: f.get('scheduled_at')
-          ? new Date(String(f.get('scheduled_at'))).toISOString()
-          : null,
-        files,
-        steps,
-        status: 'draft',
-        released_at: null,
+        sha256: get('sha256'),
+        size: Number(get('size')),
+        ...(get('archive_password') ? { archive_password: get('archive_password') } : {}),
       });
+    });
+    stepsEl.querySelectorAll<HTMLElement>('.install-step').forEach((el) => {
+      const get = (k: string) => (el.querySelector(`[data-step=${k}]`) as HTMLInputElement).value;
+      steps.push({
+        id: el.dataset.id,
+        file_id: (el.querySelector('[data-step-file]') as HTMLSelectElement).value,
+        action: get('action'),
+        destination: get('destination'),
+        overwrite: get('overwrite'),
+        ...(get('source_subdir').trim() ? { source_subdir: get('source_subdir').trim() } : {}),
+        depends_on: get('depends_on')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
+    });
+    const pkg = PackageSpec.parse({
+      ...p,
+      ...Object.fromEntries(f),
+      dependencies: f.getAll('dependencies'),
+      tags: String(f.get('tags') || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      images: String(f.get('images') || '')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+      scheduled_at: f.get('scheduled_at')
+        ? new Date(String(f.get('scheduled_at'))).toISOString()
+        : null,
+      files,
+      steps,
+      status: 'draft',
+      released_at: null,
+    });
+    return pkg;
+  };
+  const wizard = mountPackageBuilder(d.querySelector('form')!, readManifest, overview.packages);
+  d.querySelector('form')!.onsubmit = (e) => {
+    e.preventDefault();
+    void busy(d.querySelector('button[type=submit]')!, async () => {
+      const pkg = readManifest();
       const advanced = Boolean(
         pkg.short_description ||
         pkg.author ||
@@ -578,7 +666,13 @@ function editPackage(existing?: PackageSpec) {
         )
       )
         return;
-      await api(`/admin/packages/${p.id}/publish`, {}, token);
+      await api(
+        `/admin/packages/${p.id}/publish`,
+        overview.capabilities?.includes('package-admin-v1')
+          ? { expected_revision: p.revision || 1 }
+          : {},
+        token,
+      );
       d.close();
       toast('نسخه منتشر شد.');
       await refreshPage();
@@ -588,19 +682,44 @@ function editPackage(existing?: PackageSpec) {
     void busy(this as HTMLButtonElement, async () => {
       if (!window.confirm('پکیج از کاتالوگ حذف و بایگانی شود؟ تاریخچه نسخه‌ها محفوظ می‌ماند.'))
         return;
-      await api(`/admin/packages/${p.id}/archive`, {}, token);
+      await api(
+        `/admin/packages/${p.id}/archive`,
+        overview.capabilities?.includes('package-admin-v1')
+          ? { expected_revision: p.revision || 1 }
+          : {},
+        token,
+      );
       d.close();
       toast('پکیج بایگانی شد.');
       await refreshPage();
     });
   });
 }
-function devices(el: HTMLElement) {
-  const items = overview.licenses.filter((l) => l.device_thumbprint);
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">DEVICE REGISTRY / 04</p><h1>یک لایسنس. یک دستگاه.</h1><p class="muted">اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>اثر انگشت کلید</th><th>اشتراک</th><th>فعال‌سازی</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${date(l.activated_at)}</td><td><span class="status ${l.status}">${statuses[l.status]}</span></td><td>${can('license') ? `<button class="text-button" data-device="${l.id}">مدیریت اتصال</button>` : 'فقط مشاهده'}</td></tr>`).join('')}</tbody></table></div>` : empty('هنوز دستگاهی متصل نیست', 'با فعال‌سازی لایسنس در لانچر، دستگاه اینجا نمایش داده می‌شود.', 'monitor')}</div>`;
+async function devices(el: HTMLElement) {
+  const items: {
+    id: string;
+    tier: string;
+    status: string;
+    device_thumbprint: string | null;
+    activated_at: string | null;
+  }[] =
+    can('devices.read') && overview.capabilities?.includes('user-profiles-v1')
+      ? (await api('/admin/devices', undefined, token)).devices
+      : overview.licenses.filter((l) => l.device_thumbprint);
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">DEVICE REGISTRY / 04</p><h1>یک لایسنس. یک دستگاه.</h1><p class="muted">اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>اثر انگشت کلید</th><th>اشتراک</th><th>فعال‌سازی</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${date(l.activated_at)}</td><td><span class="status ${l.status}">${statuses[l.status] || 'نامشخص'}</span></td><td>${can('licenses.reset') ? `<button class="text-button" data-device="${l.id}">مدیریت اتصال</button>` : 'فقط مشاهده'}</td></tr>`).join('')}</tbody></table></div>` : empty('هنوز دستگاهی متصل نیست', 'با فعال‌سازی لایسنس در لانچر، دستگاه اینجا نمایش داده می‌شود.', 'monitor')}</div>`;
   el.querySelectorAll<HTMLButtonElement>('[data-device]').forEach(
     (b) =>
-      (b.onclick = () => licenseDialog(overview.licenses.find((l) => l.id === b.dataset.device)!)),
+      (b.onclick = () =>
+        void busy(b, async () => {
+          if (
+            !window.confirm(
+              'دستگاه این لایسنس آزاد شود؟ فعال‌سازی بعدی می‌تواند به دستگاه دیگری متصل شود.',
+            )
+          )
+            return;
+          await api(`/admin/licenses/${b.dataset.device}/reset`, {}, token);
+          await refreshPage();
+        })),
   );
 }
 function eventTable(events: AuditEvent[]) {

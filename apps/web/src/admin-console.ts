@@ -43,6 +43,12 @@ const permissionLabels: Record<Permission, string> = {
   'content.write': 'مجوز ترکیبی قدیمی: ساخت و ویرایش محتوا',
   'content.create': 'ساخت پکیج جدید',
   'content.update': 'ویرایش پکیج و فایل‌های دانلود',
+  'content.delete': 'حذف منطقی پکیج؛ حفظ سابقه',
+  'content.versions': 'ساخت نسخهٔ جدید از انتشار قبلی',
+  'categories.manage': 'مدیریت دسته‌بندی‌ها',
+  'users.read': 'مشاهده پروفایل کاربران',
+  'users.manage': 'ویرایش اطلاعات کاربران؛ نه اعتبار لایسنس',
+  'devices.read': 'مشاهده دستگاه‌های متصل',
   'roles.manage': 'ساخت و ویرایش نقش‌های سفارشی',
   'content.publish': 'انتشار و بایگانی محتوا',
   'analytics.read': 'مشاهده تحلیل عملکرد',
@@ -299,6 +305,9 @@ function permissionEditor(
   const groups = [
     ['licenses.', 'لایسنس و دستگاه'],
     ['content.', 'پکیج و انتشار'],
+    ['categories.', 'دسته‌بندی‌ها'],
+    ['users.', 'پروفایل کاربران'],
+    ['devices.', 'دستگاه‌ها'],
 
     ['analytics.', 'آمار'],
     ['errors.', 'خطاها'],
@@ -334,7 +343,18 @@ async function team(el: HTMLElement, c: Context) {
   const available =
     available_permissions ||
     Permission.options.filter(
-      (p) => !['content.create', 'content.update', 'roles.manage'].includes(p),
+      (p) =>
+        ![
+          'content.create',
+          'content.update',
+          'roles.manage',
+          'content.delete',
+          'content.versions',
+          'categories.manage',
+          'users.read',
+          'users.manage',
+          'devices.read',
+        ].includes(p),
     );
   el.innerHTML =
     heading(

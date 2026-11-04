@@ -14,6 +14,7 @@ fn main() {
             "updater_preferences",
             "set_updater_preferences",
             "check_launcher_update",
+            "inspect_artifact",
             "device_identity",
             "sign_challenge",
             "get_settings",

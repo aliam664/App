@@ -104,6 +104,7 @@ const launcherNav = [
 const adminNav = [
   ['dashboard', 'layout-dashboard', 'نمای کلی'],
   ['licenses', 'key-round', 'لایسنس‌ها'],
+  ['users', 'users', 'کاربران'],
   ['packages', 'package', 'پکیج‌ها'],
   ['versions', 'git-branch', 'نسخه‌ها'],
   ['devices', 'monitor', 'دستگاه‌ها'],
@@ -130,7 +131,7 @@ function launcherShell(nav: string[][]) {
 }
 function adminShell(nav: string[][]) {
   const groups = [
-    ['فضای کاری', ['dashboard', 'licenses', 'devices']],
+    ['فضای کاری', ['dashboard', 'licenses', 'users', 'devices']],
     ['مدیریت محتوا', ['packages', 'versions']],
     ['نظارت و کنترل', ['analytics', 'errors', 'team', 'service', 'logs']],
   ] as const;
@@ -315,7 +316,7 @@ async function render() {
 function discover(el: HTMLElement) {
   el.innerHTML = `<div class="reference-home"><section class="hero feature" aria-label="معرفی UHM"><video class="hero-video" preload="metadata" aria-hidden="true" muted loop ${window.matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : 'autoplay'} playsinline poster="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="container hero-grid"><div class="hero-copy visible"><div class="eyebrow">UHM / ASSETTO CORSA / GRAPHICS CONFIG</div><img class="logo-plate" src="${assetUrl('/brand/logo.png')}" alt="UHM"><h1>گرافیک استو را<br><span class="hero-highlight">یک سطح بالاتر</span> ببر</h1><p class="hero-lead">UHM یک پکیج آمادهٔ تنظیمات بصری برای Assetto Corsa است؛ شامل Pure، CSP، PP Filter و Presetهای گرافیکی. از فعال‌سازی لایسنس تا دانلود و نصب مرحله‌ای، همه‌چیز در یک لانچر.</p><div class="hero-buttons"><button class="btn primary" id="browse-packages">↓ پکیج‌های UHM</button><button class="btn ghost" id="view-showcase">مشاهده نتیجه</button><button class="btn ghost" id="start-install">شروع نصب</button></div><div class="home-proof"><span>ASSETTO CORSA</span><span>PURE + CSP + PP FILTER</span><span>READY-TO-CONFIG</span></div><div class="stats"><div class="stat"><b>${fa(catalog.length)}</b><span>پکیج در کاتالوگ</span></div><div class="stat"><b>3</b><span>سطح اشتراک</span></div><div class="stat"><b>ZIP / RAR / 7z</b><span>فرمت‌های نصب</span></div></div></div><div class="hero-rail reveal visible"><img src="${assetUrl('/brand/images/2ec1805b-df61-4db6-beed-1c8c08ac0ee5.jpg')}" alt="نمای واقعی گرافیک UHM در Assetto Corsa"><small>REAL GAMEPLAY / ASSETTO CORSA</small></div></div><button class="hero-scroll" id="hero-scroll"><span>SCROLL TO EXPLORE</span><i aria-hidden="true">↓</i></button><div class="ticker" aria-hidden="true"><span>UHM GRAPHICS PACK <i>✦</i> PURE READY <i>✦</i> CONTENT MANAGER <i>✦</i> ALI369 <i>✦</i> UHM GRAPHICS PACK <i>✦</i></span></div></section>
   <section id="showcase" class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">SHOWCASE</div><h2>ببین، بعد نصب کن.</h2></div><p>نمای واقعی پک UHM؛ همان ویدیو و همان تجربه‌ای که در سایت می‌بینی.</p></div><div class="video-shell"><video controls preload="none" poster="${assetUrl('/brand/images/830c39f4-b1ff-4d2b-94a0-7ea5549e7f28.jpg')}"><source src="${assetUrl('/brand/media/uhm-showcase.mp4')}" type="video/mp4"></video><div class="video-caption"><span><b>UHM / Showcase</b><br><small>Gameplay capture · Assetto Corsa</small></span><button class="btn ghost" id="showcase-packages">مشاهده پکیج‌ها ←</button></div></div></div></section>
-  <section class="catalog-section section" id="package-catalog"><div class="container"><div class="section-head"><div><div class="eyebrow">UHM / COLLECTION</div><h2>پکیج‌های گرافیک و تجربهٔ رانندگی</h2></div><span class="count" id="result-count">${fa(catalog.length)} پکیج</span></div><div class="catalog-controls"><div class="tabs" role="tablist" aria-label="دسته‌بندی پکیج‌ها">${[['all', 'همه پکیج‌ها'], ...Object.entries(category)].map(([v, l]) => `<button role="tab" aria-selected="${activeCategory === v}" class="tab ${activeCategory === v ? 'selected' : ''}" tabindex="${activeCategory === v ? '0' : '-1'}" data-category="${v}">${l}</button>`).join('')}</div><div class="catalog-search"><label class="search">${icon('search')}<input id="package-search" placeholder="پکیج مورد نظرت را پیدا کن…" value="${esc(query)}" aria-label="جست‌وجوی پکیج"></label><select id="tier-filter" aria-label="فیلتر سطح اشتراک"><option value="all">همه سطح‌ها</option>${['normal', 'pro', 'vip'].map((t) => `<option value="${t}" ${tierFilter === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select></div></div><div class="package-grid" id="packages"></div></div></section>
+  <section class="catalog-section section" id="package-catalog"><div class="container"><div class="section-head"><div><div class="eyebrow">UHM / COLLECTION</div><h2>پکیج‌های گرافیک و تجربهٔ رانندگی</h2></div><span class="count" id="result-count">${fa(catalog.length)} پکیج</span></div><div class="catalog-controls"><div class="tabs" role="tablist" aria-label="دسته‌بندی پکیج‌ها">${[['all', 'همه پکیج‌ها'], ...Object.entries(category)].map(([v, l]) => `<button role="tab" aria-selected="${activeCategory === v}" class="tab ${activeCategory === v ? 'selected' : ''}" tabindex="${activeCategory === v ? '0' : '-1'}" data-category="${esc(v)}">${esc(l)}</button>`).join('')}</div><div class="catalog-search"><label class="search">${icon('search')}<input id="package-search" placeholder="پکیج مورد نظرت را پیدا کن…" value="${esc(query)}" aria-label="جست‌وجوی پکیج"></label><select id="tier-filter" aria-label="فیلتر سطح اشتراک"><option value="all">همه سطح‌ها</option>${['normal', 'pro', 'vip'].map((t) => `<option value="${t}" ${tierFilter === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}</select></div></div><div class="package-grid" id="packages"></div></div></section>
   <section class="section membership-section"><div class="container"><div class="download"><div><div class="eyebrow">YOUR ACCESS / UHM</div><h2>${license ? 'اشتراک تو، مسیرهای بیشتر.' : 'کلید گاراژت را فعال کن.'}</h2><p>${license ? 'وضعیت مجوز و زمان تمدید را در بخش اشتراک ببین.' : 'یک لایسنس، یک دستگاه؛ بدون ساخت حساب کاربری.'}</p><div class="home-proof"><span>NORMAL</span><span>PRO</span><span>VIP</span></div></div><button class="btn primary" id="membership">${license ? 'مدیریت اشتراک' : 'فعال‌سازی لایسنس'} ${icon('arrow-left')}</button></div></div></section>
   <section class="section"><div class="container"><div class="section-head"><div><div class="eyebrow">IN-GAME LOOKS</div><h2>نمای واقعی، بدون عکس استوک.</h2></div><p>تصاویر اصلی سایت UHM؛ ثبت‌شده در Assetto Corsa.</p></div><div class="looks" tabindex="0" role="region" aria-label="گالری تصاویر بازی">${[
     ['830c39f4-b1ff-4d2b-94a0-7ea5549e7f28', 'NIGHT RUN'],
@@ -410,13 +411,13 @@ function discover(el: HTMLElement) {
 }
 function card(p: CatalogItem) {
   const locked = !license || ranks[license.tier] < ranks[p.tier];
-  return `<article class="package-card"><button class="card-image" data-package="${p.id}" aria-label="مشاهده ${esc(p.name)}"><img src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}" loading="lazy">${badge(p.tier)}${installed[p.id] ? `<span class="installed-tag">${icon('check')}نصب‌شده</span>` : ''}<span class="card-open">${icon('arrow-up-left')}</span></button><div class="card-content"><div class="card-meta"><span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><button class="card-title" data-package="${p.id}">${esc(p.name)}</button><p>${esc(p.description)}</p><div class="card-footer"><span>${p.size ? size(p.size) : `${fa(p.dependencies.length)} پیش‌نیاز`}</span><button class="text-button" data-package="${p.id}">${locked ? icon('lock-keyhole') : icon('arrow-down-to-line')}${locked ? 'بررسی دسترسی' : 'مشاهده و نصب'}</button></div></div></article>`;
+  return `<article class="package-card"><button class="card-image" data-package="${p.id}" aria-label="مشاهده ${esc(p.name)}"><img src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}" loading="lazy">${badge(p.tier)}${installed[p.id] ? `<span class="installed-tag">${icon('check')}نصب‌شده</span>` : ''}<span class="card-open">${icon('arrow-up-left')}</span></button><div class="card-content"><div class="card-meta"><span>${esc(category[p.category] || 'نامشخص')}</span><code>v${esc(p.version)}</code></div><button class="card-title" data-package="${p.id}">${esc(p.name)}</button><p>${esc(p.description)}</p><div class="card-footer"><span>${p.size ? size(p.size) : `${fa(p.dependencies.length)} پیش‌نیاز`}</span><button class="text-button" data-package="${p.id}">${locked ? icon('lock-keyhole') : icon('arrow-down-to-line')}${locked ? 'بررسی دسترسی' : 'مشاهده و نصب'}</button></div></div></article>`;
 }
 function details(p: CatalogItem) {
   const locked = license && ranks[license.tier] < ranks[p.tier];
   const d = modal(
     p.name,
-    `<img class="detail-image" src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}"><div class="detail-meta">${badge(p.tier)}<span>${category[p.category]}</span><code>v${esc(p.version)}</code></div><p class="detail-description">${esc(p.description)}</p><div class="detail-facts"><div><small>آخرین انتشار</small><b>${date(p.released_at)}</b></div><div><small>حجم دانلود</small><b dir="auto">${size(p.size)}</b></div><div><small>تعداد فایل</small><b>${fa(p.file_count)}</b></div></div><h3>قبل از شروع</h3>${
+    `<img class="detail-image" src="${esc(assetUrl(p.image))}" alt="${esc(p.name)}"><div class="detail-meta">${badge(p.tier)}<span>${esc(category[p.category] || 'نامشخص')}</span><code>v${esc(p.version)}</code></div><p class="detail-description">${esc(p.description)}</p><div class="detail-facts"><div><small>آخرین انتشار</small><b>${date(p.released_at)}</b></div><div><small>حجم دانلود</small><b dir="auto">${size(p.size)}</b></div><div><small>تعداد فایل</small><b>${fa(p.file_count)}</b></div></div><h3>قبل از شروع</h3>${
       p.dependencies.length
         ? `<div class="dependency-list">${p.dependencies
             .map((id) => {
@@ -759,7 +760,9 @@ async function boot() {
     )
       serviceMessage =
         service.settings.message || 'بعضی عملیات برای نگهداری سرویس موقتاً متوقف است.';
-    catalog = (await api('/catalog')).packages;
+    const result = await api('/catalog');
+    catalog = result.packages;
+    for (const c of result.categories || []) category[c.id] = c.name;
     localStore.setItem('uhm-catalog', JSON.stringify(catalog));
   } catch {
     online = false;

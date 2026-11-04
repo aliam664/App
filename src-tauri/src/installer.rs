@@ -11,7 +11,7 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 const MAX_EXPANDED: u64 = 100_000_000_000;
 const MAX_FILES: usize = 20_000;
 #[derive(Clone, Deserialize)]
@@ -69,7 +69,7 @@ struct Journal {
     state: String,
     entries: Vec<Entry>,
 }
-fn progress(app: &AppHandle, pkg: &str, phase: &str, percent: f64, bytes: u64, total: u64) {
+fn progress<R: Runtime>(app: &AppHandle<R>, pkg: &str, phase: &str, percent: f64, bytes: u64, total: u64) {
     let _=app.emit("install-progress",json!({"package_id":pkg,"phase":phase,"progress":percent.clamp(0.0,99.0),"bytes":bytes,"total":total}));
 }
 fn regular_control(root: &Path) -> Result<PathBuf, String> {
@@ -234,6 +234,7 @@ fn public_ip(ip: IpAddr) -> bool {
                 && !v.is_unspecified()
                 && a[0] != 0
                 && a[0] < 224
+                && !(a[0] == 198 && (a[1] == 18 || a[1] == 19))
                 && !(a[0] == 100 && (64..=127).contains(&a[1]))
         }
         IpAddr::V6(_) => false, // Fail closed for IPv6 until mapped/local address cases are exhaustively tested.
@@ -242,7 +243,7 @@ fn public_ip(ip: IpAddr) -> bool {
 #[derive(Default)]
 struct TransferStats(std::sync::Mutex<BTreeMap<String, (u64, f64)>>);
 impl TransferStats {
-    fn update(&self, app: &AppHandle, pkg: &str, id: &str, bytes: u64, speed: f64, total: u64) {
+    fn update<R: Runtime>(&self, app: &AppHandle<R>, pkg: &str, id: &str, bytes: u64, speed: f64, total: u64) {
         if let Ok(mut files) = self.0.lock() {
             files.insert(id.into(), (bytes, speed));
             let received: u64 = files.values().map(|v| v.0).sum();
@@ -251,8 +252,8 @@ impl TransferStats {
         }
     }
 }
-fn download(
-    app: &AppHandle,
+fn download<R: Runtime>(
+    app: &AppHandle<R>,
     pkg: &str,
     file: &Artifact,
     out: &Path,
@@ -333,8 +334,8 @@ fn response_offset(
     }
     Ok(resumed)
 }
-fn transfer(
-    app: &AppHandle,
+fn transfer<R: Runtime>(
+    app: &AppHandle<R>,
     pkg: &str,
     file: &Artifact,
     source: &str,
@@ -603,8 +604,8 @@ fn run_extractor(exe: &Path, args: &[String], log: &Path) -> Result<String, Stri
     }
     fs::read_to_string(log).map_err(|_| "Unsupported archive filename encoding".into())
 }
-fn extract_external_password(
-    app: &AppHandle,
+fn extract_external_password<R: Runtime>(
+    app: &AppHandle<R>,
     source: &Path,
     destination: &Path,
     password: Option<&str>,
@@ -733,8 +734,8 @@ fn extract_external_with_password(
     }
     Ok(files)
 }
-fn activity(
-    app: &AppHandle,
+fn activity<R: Runtime>(
+    app: &AppHandle<R>,
     package: &Package,
     kind: &str,
     file: Option<&Artifact>,
@@ -775,8 +776,8 @@ fn activity(
     }
     let _ = app.emit("client-activity", event);
 }
-pub fn install(
-    app: &AppHandle,
+pub fn install<R: Runtime>(
+    app: &AppHandle<R>,
     root: &Path,
     packages: Vec<Package>,
     cache: &Path,
@@ -1226,6 +1227,43 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "Requires explicit API/PostgreSQL fixture and pinned public HTTPS archive; run separately in Windows CI"]
+    fn full_package_chain_downloads_extracts_installs_and_scans() {
+        use tauri::{Listener, Manager};
+        let path = std::env::var("UHM_PACKAGE_SMOKE_PATH").expect("Explicit isolated fixture required");
+        let fixture: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let verify = |token: &str, kind: &str| crate::security::verify_with_key(token,kind,&fixture["public_key"],fixture["issuer"].as_str().unwrap(),fixture["kid"].as_str().unwrap());
+        let grant = verify(fixture["grant"].as_str().unwrap(),"uhm-offline+jwt").unwrap();
+        let plan = verify(fixture["plan"].as_str().unwrap(),"uhm-plan+jwt").unwrap();
+        assert_eq!(plan["license_id"],grant["license_id"]); assert_eq!(plan["device_thumbprint"],grant["device_thumbprint"]);
+        assert!(verify(&format!("x{}",fixture["plan"].as_str().unwrap()),"uhm-plan+jwt").is_err());
+        let packages: Vec<Package> = serde_json::from_value(plan["packages"].clone()).unwrap();
+        let id = packages[0].id.clone();
+        let app = tauri::test::mock_builder().build(tauri::test::mock_context(tauri::test::noop_assets())).unwrap();
+        let approved = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)); let approved_event=approved.clone();
+        app.listen("install-preview",move |event| {
+            let preview: Value=serde_json::from_str(event.payload()).unwrap();
+            assert!(preview["files"].as_array().unwrap().iter().all(|f| f["path"].as_str().unwrap().starts_with("content/cars/uhm_fixture_car/")));
+            crate::jobs::control(preview["package_id"].as_str().unwrap(),"approve",preview["id"].as_str()).unwrap();
+            approved_event.store(true,std::sync::atomic::Ordering::SeqCst);
+        });
+        let temp=tempfile::tempdir().unwrap();let root=temp.path().join("synthetic-game");fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("preserve-user.txt"),b"untouched").unwrap();
+        let cache=temp.path().join("cache");
+        install(app.handle(),&root,packages.clone(),&cache,2).expect("Actual HTTPS download/mirror/hash/extract/install must succeed");
+        assert!(approved.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(root.join("content/cars/uhm_fixture_car/ui/ui_car.json").is_file());
+        assert!(!root.join("ignored/not-selected.txt").exists());
+        assert_eq!(library(&root).unwrap()[&id].version,"1.0.0");
+        let scan=crate::content::scan(&root,&temp.path().join("scan"),true).unwrap();
+        assert!(scan.items.iter().any(|item|item.path=="content/cars/uhm_fixture_car" && item.source=="launcher"));
+        assert!(scan.packages.iter().any(|p|p["id"]==id && p["missing"]==0));
+        let mut invalid=packages.clone();invalid[0].id=uuid::Uuid::new_v4().to_string();invalid[0].files[0].sha256="0".repeat(64);
+        assert!(install(app.handle(),&root,invalid,&temp.path().join("bad-cache"),1).is_err());
+        assert_eq!(fs::read(root.join("preserve-user.txt")).unwrap(),b"untouched");
+        println!("PACKAGE_CHAIN_OK: real HTTPS mirror failover, SHA256, subtree extraction, renamed destination, preview consent, transactional install, library scan and bad-hash rejection");
+    }
     #[test]
     fn cleans_only_staging_and_preserves_recovery_files() {
         let d = tempfile::tempdir().unwrap();

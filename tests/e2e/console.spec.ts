@@ -102,6 +102,7 @@ test('package studio preserves passwords, multiple destinations and editable ord
   await page
     .locator('textarea[name=description]')
     .fill('توضیحات کامل پکیج آزمایشی برای بررسی مراحل نصب و استخراج');
+  await page.getByRole('tab', { name: '۲ · فایل‌ها', exact: true }).click();
   await page.getByRole('button', { name: 'افزودن فایل', exact: true }).click();
   await page.locator('[data-f=name]').fill('mod.part1.rar');
   await page.locator('[data-f=format]').selectOption('rar');
@@ -109,6 +110,7 @@ test('package studio preserves passwords, multiple destinations and editable ord
   await page.locator('[data-f=sha256]').fill('a'.repeat(64));
   await page.locator('[data-f=size]').fill('1234');
   await page.locator('[data-f=archive_password]').fill('test-only-password');
+  await page.getByRole('tab', { name: '۳ · مراحل نصب', exact: true }).click();
   await page.getByRole('button', { name: 'افزودن مرحله', exact: true }).click();
   await page.locator('[data-step=destination]').nth(1).fill('content/cars');
   await page.getByRole('button', { name: 'ذخیره پیش‌نویس', exact: true }).click();

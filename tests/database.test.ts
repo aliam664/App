@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import type { PackageSpec } from '../packages/contracts/src/index';
 let db: PGlite;
 beforeAll(async () => {
   db = new PGlite();
@@ -13,6 +14,7 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/20261102201702_content_packages.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611040001_custom_roles.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/202611040002_license_windows.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611040003_package_workflows.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -21,7 +23,7 @@ it('installs all tables and enforces RLS on each', async () => {
   const result = await db.query<{ tablename: string; rowsecurity: boolean }>(
     "select tablename,rowsecurity from pg_tables where schemaname='uhm'",
   );
-  expect(result.rows.length).toBe(15);
+  expect(result.rows.length).toBe(16);
   expect(result.rows.every((r) => r.rowsecurity)).toBe(true);
 });
 it('has no anon/public RPC execution privilege', async () => {
@@ -289,5 +291,222 @@ it('calendar windows enforce not-before, fixed expiry, revisions and atomic audi
     "select count(*)::integer as count from uhm.audit_events where actor='calendar-test'",
   );
   expect(events.rows[0].count).toBe(1);
+  await db.exec('reset role');
+});
+
+function sqlPackage(): PackageSpec {
+  const id = crypto.randomUUID(),
+    file = crypto.randomUUID();
+  return {
+    id,
+    slug: 'pg-' + id,
+    name: 'PostgreSQL package',
+    description: 'Disposable valid manifest for database tests.',
+    category: 'tools',
+    tier: 'normal',
+    image: '/images/01.jpg',
+    version: '1.0.0',
+    changelog: '',
+    dependencies: [],
+    files: [
+      {
+        id: file,
+        name: 'pg.zip',
+        url: 'https://example.com/pg.zip',
+        size: 100,
+        sha256: 'a'.repeat(64),
+        format: 'zip',
+      },
+    ],
+    steps: [
+      {
+        id: crypto.randomUUID(),
+        file_id: file,
+        action: 'extract',
+        destination: 'extension',
+        overwrite: 'fail',
+      },
+    ],
+    status: 'draft',
+    released_at: null,
+  };
+}
+async function commitSql(
+  p: ReturnType<typeof sqlPackage>,
+  action: string,
+  revision: number,
+  actor = 'package-sql',
+) {
+  return (
+    await db.query<{
+      value: ReturnType<typeof sqlPackage> & { revision: number; deleted_at: string | null };
+    }>('select uhm.commit_package($1,$2,$3,$4) as value', [
+      JSON.stringify(p),
+      actor,
+      action,
+      revision,
+    ])
+  ).rows[0].value;
+}
+it('executes package RPCs with normalized children, immutable releases and revision CAS', async () => {
+  const p = sqlPackage();
+  await db.exec('set role service_role');
+  const saved = await commitSql(p, 'save', 0);
+  expect(saved.revision).toBe(1);
+  expect(
+    (await db.query('select * from uhm.package_files where package_id=$1', [p.id])).rows,
+  ).toHaveLength(1);
+  expect(
+    (await db.query('select * from uhm.package_steps where package_id=$1', [p.id])).rows,
+  ).toHaveLength(1);
+  const published = await commitSql(
+    { ...p, status: 'published', released_at: new Date().toISOString() },
+    'publish',
+    1,
+  );
+  expect(published.revision).toBe(2);
+  await expect(commitSql({ ...p, name: 'Stale editor' }, 'save', 1)).rejects.toThrow(
+    'EDIT_CONFLICT',
+  );
+  await expect(commitSql(p, 'save', 2)).rejects.toThrow('RELEASE_IMMUTABLE');
+  const restored = await commitSql({ ...p, version: '1.0.1' }, 'restore', 2);
+  expect(restored.revision).toBe(3);
+  const releases = await db.query<{ manifest: { version: string } }>(
+    'select manifest from uhm.package_releases where package_id=$1',
+    [p.id],
+  );
+  expect(releases.rows.map((r) => r.manifest.version)).toEqual(['1.0.0']);
+  expect(
+    (await db.query('select * from uhm.audit_events where target=$1', [p.id])).rows,
+  ).toHaveLength(3);
+  await db.exec('reset role');
+});
+it('rolls back the entire package, child-sync and snapshot transaction if audit insertion fails', async () => {
+  const p = sqlPackage();
+  await db.exec(
+    "create function uhm.reject_fixture_audit() returns trigger language plpgsql as $$ begin if new.actor='force-package-audit-failure' then raise exception 'Audit unavailable'; end if; return new; end $$; create trigger reject_fixture_audit before insert on uhm.audit_events for each row execute function uhm.reject_fixture_audit(); set role service_role",
+  );
+  await expect(commitSql(p, 'save', 0, 'force-package-audit-failure')).rejects.toThrow(
+    'Audit unavailable',
+  );
+  expect((await db.query('select * from uhm.packages where id=$1', [p.id])).rows).toEqual([]);
+  expect(
+    (await db.query('select * from uhm.package_files where package_id=$1', [p.id])).rows,
+  ).toEqual([]);
+  await db.exec(
+    'reset role; drop trigger reject_fixture_audit on uhm.audit_events; drop function uhm.reject_fixture_audit()',
+  );
+});
+it('preserves released dependencies against soft-deletion and hides deleted packages without deleting history', async () => {
+  const dep = sqlPackage(),
+    parent = { ...sqlPackage(), dependencies: [dep.id] };
+  await db.exec('set role service_role');
+  await commitSql(dep, 'save', 0);
+  const release: PackageSpec = {
+    ...dep,
+    status: 'published',
+    released_at: new Date().toISOString(),
+  };
+  await commitSql(release, 'publish', 1);
+  await commitSql(parent, 'save', 0);
+  await commitSql(
+    { ...parent, status: 'published', released_at: new Date().toISOString() },
+    'publish',
+    1,
+  );
+  await expect(commitSql({ ...release, status: 'archived' }, 'delete', 2)).rejects.toThrow(
+    'PACKAGE_IN_USE',
+  );
+  await commitSql({ ...parent, status: 'archived' }, 'archive', 2);
+  const deleted = await commitSql({ ...release, status: 'archived' }, 'delete', 2);
+  expect(deleted.deleted_at).toBeTruthy();
+  expect(
+    (await db.query<{ p: { id: string } }>('select uhm.published_packages() as p')).rows.some(
+      (r) => r.p.id === dep.id,
+    ),
+  ).toBe(false);
+  expect(
+    (await db.query('select * from uhm.package_releases where package_id=$1', [dep.id])).rows,
+  ).toHaveLength(1);
+  await db.exec('reset role');
+});
+it('category and profile RPCs enforce CAS/atomic audit and never alter device or tier', async () => {
+  await db.exec('set role service_role');
+  await db.query('select uhm.save_package_category($1,$2,$3)', [
+    JSON.stringify({ id: 'qa-sql', name: 'دسته آزمایش', enabled: true }),
+    'category-qa',
+    0,
+  ]);
+  await expect(
+    db.query('select uhm.save_package_category($1,$2,$3)', [
+      JSON.stringify({ id: 'qa-sql', name: 'stale', enabled: false }),
+      'category-qa',
+      0,
+    ]),
+  ).rejects.toThrow('EDIT_CONFLICT');
+  const p = { ...sqlPackage(), category: 'qa-sql' };
+  await commitSql(p, 'save', 0);
+  await db.query('select uhm.save_package_category($1,$2,$3)', [
+    JSON.stringify({ id: 'qa-sql', name: 'دسته آزمایش', enabled: false }),
+    'category-qa',
+    1,
+  ]);
+  await expect(commitSql({ ...p, status: 'published' }, 'publish', 1)).rejects.toThrow(
+    'CATEGORY_UNAVAILABLE',
+  );
+  const id = '20000000-0000-4000-8000-000000000060';
+  const before = (await db.query<any>('select * from uhm.licenses where id=$1', [id])).rows[0];
+  await db.query('select uhm.save_user_profile($1,$2,$3)', [
+    id,
+    JSON.stringify({ display_name: 'نام آزمایش', notes: 'internal', tags: ['qa'] }),
+    'profile-qa',
+  ]);
+  const after = (await db.query<any>('select * from uhm.licenses where id=$1', [id])).rows[0];
+  expect(after).toMatchObject({
+    display_name: 'نام آزمایش',
+    notes: 'internal',
+    tags: ['qa'],
+    tier: before.tier,
+    device_thumbprint: before.device_thumbprint,
+    entitlement_version: before.entitlement_version,
+  });
+  for (const signature of [
+    'uhm.save_package_category(jsonb,text,integer)',
+    'uhm.commit_package(jsonb,text,text,integer)',
+    'uhm.save_user_profile(uuid,jsonb,text)',
+  ]) {
+    expect(
+      (
+        await db.query<{ allowed: boolean }>(
+          "select has_function_privilege('anon',$1,'execute') as allowed",
+          [signature],
+        )
+      ).rows[0].allowed,
+    ).toBe(false);
+  }
+  await db.exec('reset role');
+});
+it('rechecks the live graph inside publication after a dependency disappears or forms a cycle', async () => {
+  await db.exec('set role service_role');
+  const dep = sqlPackage(),
+    parent = { ...sqlPackage(), dependencies: [dep.id] };
+  await commitSql(dep, 'save', 0);
+  await commitSql({ ...dep, status: 'published' }, 'publish', 1);
+  await commitSql(parent, 'save', 0);
+  // Represents an API-valid draft whose prerequisite was removed before its publish RPC acquired the lock.
+  await commitSql({ ...dep, status: 'archived' }, 'archive', 2);
+  await expect(commitSql({ ...parent, status: 'published' }, 'publish', 1)).rejects.toThrow(
+    'DEPENDENCY_UNAVAILABLE',
+  );
+  // Restore a newer live prerequisite; concurrent mutual drafts must not publish a cycle.
+  const next = { ...dep, version: '1.0.1' };
+  await commitSql(next, 'save', 3);
+  await commitSql({ ...next, status: 'published' }, 'publish', 4);
+  await commitSql({ ...parent, status: 'published' }, 'publish', 1);
+  const cyclic = { ...dep, version: '1.0.2', dependencies: [parent.id] };
+  await commitSql(cyclic, 'save', 5);
+  await expect(commitSql({ ...cyclic, status: 'published' }, 'publish', 6)).rejects.toThrow(
+    'DEPENDENCY_CYCLE',
+  );
   await db.exec('reset role');
 });

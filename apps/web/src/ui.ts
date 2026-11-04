@@ -45,6 +45,7 @@ import {
   SlidersHorizontal,
   Trash2,
   TriangleAlert,
+  Users,
   WifiOff,
   X,
 } from 'lucide';
@@ -94,6 +95,7 @@ const icons = {
   SlidersHorizontal,
   Trash2,
   TriangleAlert,
+  Users,
   WifiOff,
   X,
 };

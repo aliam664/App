@@ -22,6 +22,14 @@ export class SupabaseRepository implements Repository {
         'LAST_OWNER',
         'EDIT_CONFLICT',
         'ROLE_NAME_EXISTS',
+        'PACKAGE_DELETED',
+        'PACKAGE_IN_USE',
+        'DRAFT_REQUIRED',
+        'CATEGORY_UNAVAILABLE',
+        'DEPENDENCY_UNAVAILABLE',
+        'DEPENDENCY_CYCLE',
+        'TIER_REQUIRED',
+        'INSTALL_PLAN_LIMIT',
       ];
       const code = known.find((code) => error.message.includes(code));
       if (code) throw new Error(code);
@@ -221,6 +229,45 @@ export class SupabaseRepository implements Repository {
       p_actor: actor,
     });
     this.check(error);
+  }
+  async saveCategory(
+    category: import('../../packages/contracts/src/index.ts').PackageCategory,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    const { error } = await this.db.rpc('save_package_category', {
+      p_category: category,
+      p_actor: actor,
+      p_expected_version: expectedVersion,
+    });
+    this.check(error);
+  }
+  async saveProfile(
+    id: string,
+    input: import('zod').infer<typeof import('../../packages/contracts/src/index.ts').ProfileInput>,
+    actor: string,
+  ) {
+    const { error } = await this.db.rpc('save_user_profile', {
+      p_id: id,
+      p_input: input,
+      p_actor: actor,
+    });
+    this.check(error);
+  }
+  async commitPackage(
+    pkg: import('../../packages/contracts/src/index.ts').PackageSpec,
+    actor: string,
+    action: 'save' | 'publish' | 'archive' | 'delete' | 'restore',
+    expectedRevision?: number,
+  ) {
+    const { data, error } = await this.db.rpc('commit_package', {
+      p_manifest: pkg,
+      p_actor: actor,
+      p_action: action,
+      p_expected_revision: expectedRevision ?? null,
+    });
+    this.check(error);
+    return data as import('../../packages/contracts/src/index.ts').PackageSpec;
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {
     const { error } = await this.db.rpc('mutate_license', {

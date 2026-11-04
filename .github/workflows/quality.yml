@@ -74,6 +74,16 @@ jobs:
             Write-Output "::error title=Native test output::$tail"
             exit $code
           }
+      - name: Real isolated PostgreSQL API to native package-install chain
+        run: |
+          npx tsx scripts/package-chain-smoke.ts "$env:RUNNER_TEMP/package-chain"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:UHM_PACKAGE_SMOKE_PATH = "$env:RUNNER_TEMP/package-chain/package-chain.json"
+          Push-Location src-tauri
+          cargo test --locked full_package_chain_downloads_extracts_installs_and_scans -- --ignored --nocapture
+          $code = $LASTEXITCODE
+          Pop-Location
+          exit $code
       - uses: taiki-e/install-action@cargo-audit
       - name: Audit native dependencies
         working-directory: src-tauri

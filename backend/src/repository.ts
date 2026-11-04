@@ -55,5 +55,21 @@ export interface Repository {
     >,
     actor: string,
   ): Promise<void>;
+  saveCategory(
+    category: import('../../packages/contracts/src/index.ts').PackageCategory,
+    actor: string,
+    expectedVersion: number,
+  ): Promise<void>;
+  commitPackage(
+    pkg: import('../../packages/contracts/src/index.ts').PackageSpec,
+    actor: string,
+    action: 'save' | 'publish' | 'archive' | 'delete' | 'restore',
+    expectedRevision?: number,
+  ): Promise<import('../../packages/contracts/src/index.ts').PackageSpec>;
+  saveProfile(
+    id: string,
+    input: import('zod').infer<typeof import('../../packages/contracts/src/index.ts').ProfileInput>,
+    actor: string,
+  ): Promise<void>;
   mutateLicense(id: string, action: string, actor: string, days?: number): Promise<void>;
 }

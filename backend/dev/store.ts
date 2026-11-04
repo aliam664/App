@@ -1,3 +1,5 @@
+import { validatePublication } from '../../packages/contracts/src/index.ts';
+import { defaultCategories } from '../../packages/contracts/src/index.ts';
 import { summarizeEvents } from '../src/analytics.ts';
 import type {
   Tables,
@@ -19,6 +21,7 @@ export const emptyState = (): State => ({
   telemetry_events: [],
   service_settings: [],
   custom_roles: [],
+  package_categories: defaultCategories(),
 });
 export class LocalRepository implements Repository {
   private queue: Promise<unknown> = Promise.resolve();
@@ -46,10 +49,18 @@ export class LocalRepository implements Repository {
     return next;
   }
   async published() {
-    const current = await this.list('packages');
-    const releases = await this.releases();
+    await this.queue;
+    return structuredClone(this.visiblePackages());
+  }
+  private visiblePackages() {
+    const current = this.state.packages;
+    const releases = this.state.releases.map((p) => ({
+      package_id: p.id,
+      manifest: p,
+      published_at: p.released_at || '',
+    }));
     return current.flatMap((p) => {
-      if (p.status === 'archived') return [];
+      if (p.status === 'archived' || p.deleted_at) return [];
       const eligible = (p: PackageSpec) =>
         p.channel !== 'test' && (!p.scheduled_at || Date.parse(p.scheduled_at) <= Date.now());
       if (p.status === 'published' && eligible(p)) return [p];
@@ -308,6 +319,105 @@ export class LocalRepository implements Repository {
         }),
         created_at: new Date().toISOString(),
       });
+    });
+  }
+  async saveCategory(
+    category: import('../../packages/contracts/src/index.ts').PackageCategory,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    await this.transaction(() => {
+      const old = this.state.package_categories.find((c) => c.id === category.id);
+      if ((old?.version ?? 0) !== expectedVersion) throw new Error('EDIT_CONFLICT');
+      const next = { ...category, version: (old?.version ?? 0) + 1 };
+      this.state.package_categories = this.state.package_categories
+        .filter((c) => c.id !== category.id)
+        .concat(next);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'category.changed',
+        target: category.id,
+        created_at: new Date().toISOString(),
+        detail: JSON.stringify({ before: old, after: next }),
+      });
+    });
+  }
+  async saveProfile(
+    id: string,
+    input: import('zod').infer<typeof import('../../packages/contracts/src/index.ts').ProfileInput>,
+    actor: string,
+  ) {
+    await this.transaction(() => {
+      const l = this.state.licenses.find((l) => l.id === id);
+      if (!l) throw new Error('NOT_FOUND');
+      const before = { display_name: l.display_name, notes: l.notes, tags: l.tags };
+      Object.assign(l, input);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'license.metadata.changed',
+        target: id,
+        created_at: new Date().toISOString(),
+        detail: JSON.stringify({ before, after: input }),
+      });
+    });
+  }
+  async commitPackage(
+    pkg: PackageSpec,
+    actor: string,
+    action: 'save' | 'publish' | 'archive' | 'delete' | 'restore',
+    expectedRevision?: number,
+  ) {
+    return this.transaction(() => {
+      const old = this.state.packages.find((p) => p.id === pkg.id);
+      if (expectedRevision !== undefined && (old?.revision ?? (old ? 1 : 0)) !== expectedRevision)
+        throw new Error('EDIT_CONFLICT');
+      if (old?.deleted_at) throw new Error('PACKAGE_DELETED');
+      if ((action === 'save' || action === 'restore') && pkg.status !== 'draft')
+        throw new Error('INVALID_ACTION');
+      if (action === 'publish' && pkg.status !== 'published') throw new Error('INVALID_ACTION');
+      if ((action === 'archive' || action === 'delete') && pkg.status !== 'archived')
+        throw new Error('INVALID_ACTION');
+      if (
+        action === 'delete' &&
+        this.visiblePackages().some((p) => p.id !== pkg.id && p.dependencies.includes(pkg.id))
+      )
+        throw new Error('PACKAGE_IN_USE');
+      if (
+        (action === 'save' || action === 'restore') &&
+        this.state.releases.some((r) => r.id === pkg.id && r.version === pkg.version)
+      )
+        throw new Error('RELEASE_IMMUTABLE');
+      if (this.state.packages.some((p) => p.id !== pkg.id && p.slug === pkg.slug))
+        throw new Error('SLUG_EXISTS');
+      const next = {
+        ...structuredClone(pkg),
+        revision: (old?.revision ?? (old ? 1 : 0)) + 1,
+        deleted_at: action === 'delete' ? new Date().toISOString() : null,
+      };
+      if (action === 'publish') {
+        validatePublication(next, this.visiblePackages());
+        if (old?.status !== 'draft') throw new Error('DRAFT_REQUIRED');
+        if (!this.state.package_categories.some((c) => c.id === next.category && c.enabled))
+          throw new Error('CATEGORY_UNAVAILABLE');
+        if (this.state.releases.some((r) => r.id === next.id && r.version === next.version))
+          throw new Error('RELEASE_IMMUTABLE');
+        this.state.releases.push(structuredClone(next));
+      }
+      this.state.packages = this.state.packages.filter((p) => p.id !== pkg.id).concat(next);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: action === 'save' ? 'package.draft.saved' : `package.${action}`,
+        target: pkg.id,
+        created_at: new Date().toISOString(),
+        detail: JSON.stringify({
+          before: old ? { version: old.version, status: old.status, revision: old.revision } : null,
+          after: { version: next.version, status: next.status, revision: next.revision },
+        }),
+      });
+      return structuredClone(next);
     });
   }
   async mutateLicense(id: string, action: string, actor: string, days = 30) {

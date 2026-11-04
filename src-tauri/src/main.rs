@@ -78,6 +78,22 @@ fn valid_game(path: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 #[tauri::command]
+async fn inspect_artifact(path: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        let before = fs::symlink_metadata(&path).map_err(|_| "Selected file is not readable")?;
+        if !path.is_absolute() || !before.is_file() || before.len() == 0 || before.len() > 100_000_000_000 {
+            return Err("Choose a regular non-empty file up to 100 GB".into());
+        }
+        let sha256 = security::sha256_file(&path)?;
+        let after = fs::symlink_metadata(&path).map_err(|_| "Selected file changed during hashing")?;
+        if before.len() != after.len() || before.modified().ok() != after.modified().ok() {
+            return Err("Selected file changed during hashing; retry with a stable file".into());
+        }
+        Ok(json!({"name":path.file_name().and_then(|n|n.to_str()).ok_or("Invalid file name")?,"size":after.len(),"sha256":sha256}))
+    }).await.map_err(|_| "File hashing worker failed")?
+}
+#[tauri::command]
 fn device_identity(app: tauri::AppHandle, lock: State<IdentityLock>) -> Result<Value, String> {
     let _guard = lock.0.lock().map_err(|_| "Device key lock failed")?;
     security::identity(&data_dir(&app)?)
@@ -388,6 +404,7 @@ fn main() {
             updater_preferences,
             set_updater_preferences,
             check_launcher_update,
+            inspect_artifact,
             device_identity,
             sign_challenge,
             get_settings,

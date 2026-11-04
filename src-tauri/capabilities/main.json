@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "dialog:allow-open",
+    "allow-inspect-artifact",
     "allow-device-identity",
     "allow-sign-challenge",
     "allow-get-settings",

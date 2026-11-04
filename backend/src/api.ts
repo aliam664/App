@@ -1,3 +1,4 @@
+import { packageAdmin } from './package-admin.ts';
 import { adminServices } from './admin-services.ts';
 import {
   hasPermission,
@@ -82,7 +83,13 @@ export function createApi(repo: Repository, config: ApiConfig) {
       if (request.method === 'GET' && path === '/health')
         return reply({
           mode: config.mode,
-          capabilities: ['content-packages-v2', 'admin-custom-roles-v1', 'license-window-v1'],
+          capabilities: [
+            'content-packages-v2',
+            'admin-custom-roles-v1',
+            'license-window-v1',
+            'package-admin-v1',
+            'user-profiles-v1',
+          ],
           version: '0.1.0',
           public_key: config.publicJwk,
           issuer: config.issuer,
@@ -100,7 +107,10 @@ export function createApi(repo: Repository, config: ApiConfig) {
           size: files.reduce((sum, f) => sum + f.size, 0),
           file_count: files.length,
         }));
-        return reply({ packages });
+        return reply({
+          packages,
+          categories: (await repo.list('package_categories')).map(({ id, name }) => ({ id, name })),
+        });
       }
       if (path === '/demo/session' && request.method === 'POST' && config.mode === 'demo')
         return reply(config.demoSession);
@@ -231,6 +241,15 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(403, 'LICENSE_INVALID');
         return license;
       }
+      const packageResponse = await packageAdmin({
+        path,
+        method: request.method,
+        body,
+        repo,
+        requireAdmin,
+        reply,
+      });
+      if (packageResponse) return packageResponse;
       const extended = await adminServices({
         url: request.url,
         path,
@@ -389,12 +408,17 @@ export function createApi(repo: Repository, config: ApiConfig) {
           can('analytics.read') || can('errors.read') ? await repo.list('telemetry_events') : [];
         return reply({
           admin,
-          capabilities: ['admin-custom-roles-v1', 'license-window-v1'],
+          capabilities: [
+            'admin-custom-roles-v1',
+            'license-window-v1',
+            'package-admin-v1',
+            'user-profiles-v1',
+          ],
           licenses: can('licenses.read') ? (await repo.list('licenses')).map(publicLicense) : [],
           packages: can('content.read')
-            ? (await repo.list('packages')).map((p) =>
-                can('content.update') ? p : { ...p, files: [], steps: [] },
-              )
+            ? (await repo.list('packages'))
+                .filter((p) => !p.deleted_at)
+                .map((p) => (can('content.update') ? p : { ...p, files: [], steps: [] }))
             : [],
           events: can('audit.read')
             ? (await repo.list('audit_events'))
@@ -408,6 +432,14 @@ export function createApi(repo: Repository, config: ApiConfig) {
             )
             .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
             .slice(0, 10000),
+          categories: [
+            'content.read',
+            'content.create',
+            'content.update',
+            'categories.manage',
+          ].some((p) => can(p as Permission))
+            ? await repo.list('package_categories')
+            : [],
           service: can('service.manage') ? service : null,
         });
       }
@@ -471,10 +503,14 @@ export function createApi(repo: Repository, config: ApiConfig) {
           throw new HttpError(409, 'RELEASE_IMMUTABLE');
         if (all.some((p) => p.slug === pkg.slug && p.id !== pkg.id))
           throw new HttpError(409, 'SLUG_EXISTS');
-        if (existing) await repo.update('packages', pkg.id, pkg);
-        else await repo.insert('packages', [pkg]);
-        await audit(admin.id, 'package.draft.saved', pkg.id);
-        return reply({ package: pkg });
+        if (
+          !(await repo.list('package_categories')).some(
+            (c) => c.id === pkg.category && (c.enabled || existing?.category === c.id),
+          )
+        )
+          throw new HttpError(409, 'CATEGORY_UNAVAILABLE');
+        const saved = await repo.commitPackage(pkg, admin.id, 'save', pkg.revision);
+        return reply({ package: saved });
       }
       const testing = path.match(/^\/admin\/packages\/([a-f0-9-]+)\/test-plan$/);
       if (testing && request.method === 'POST') {
@@ -486,7 +522,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
         if (admin.license_id && admin.license_id !== license.id)
           throw new HttpError(403, 'ROLE_DENIED');
         const draft = (await repo.list('packages')).find(
-          (p) => p.id === testing[1] && p.status !== 'archived',
+          (p) => p.id === testing[1] && p.status !== 'archived' && !p.deleted_at,
         );
         if (!draft) throw new HttpError(404, 'NOT_FOUND');
         const candidate = { ...draft, status: 'published' as const, channel: 'test' as const };
@@ -515,7 +551,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
       if (validation && request.method === 'POST') {
         const admin = await requireAdmin('content.publish');
         const pkg = (await repo.list('packages')).find((p) => p.id === validation[1]);
-        if (!pkg) throw new HttpError(404, 'NOT_FOUND');
+        if (!pkg || pkg.deleted_at) throw new HttpError(404, 'NOT_FOUND');
         validatePublication(pkg, await repo.published());
         await audit(admin.id, 'package.validated', pkg.id);
         return reply({
@@ -535,11 +571,20 @@ export function createApi(repo: Repository, config: ApiConfig) {
           if (pkg.status !== 'draft') throw new HttpError(409, 'DRAFT_REQUIRED');
           validatePublication(pkg, await repo.published());
         }
-        await repo.update('packages', pkg.id, {
-          status: publish[2] === 'publish' ? 'published' : 'archived',
-          released_at: new Date().toISOString(),
-        });
-        await audit(admin.id, `package.${publish[2]}`, pkg.id);
+        const input = z
+          .object({ expected_revision: z.number().int().positive().optional() })
+          .strict()
+          .parse(body);
+        await repo.commitPackage(
+          {
+            ...pkg,
+            status: publish[2] === 'publish' ? 'published' : 'archived',
+            released_at: new Date().toISOString(),
+          },
+          admin.id,
+          publish[2] as 'publish' | 'archive',
+          input.expected_revision ?? pkg.revision,
+        );
         return reply({ ok: true });
       }
       throw new HttpError(404, 'NOT_FOUND');
@@ -575,6 +620,11 @@ export function createApi(repo: Repository, config: ApiConfig) {
         'ARTIFACT_SIZE_LIMIT',
         'EDIT_CONFLICT',
         'ROLE_NAME_EXISTS',
+        'SLUG_EXISTS',
+        'PACKAGE_DELETED',
+        'PACKAGE_IN_USE',
+        'CATEGORY_UNAVAILABLE',
+        'DRAFT_REQUIRED',
       ];
       if (error instanceof Error && known.includes(error.message))
         return reply({ error: error.message, request_id: requestId }, 409);

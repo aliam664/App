@@ -6,6 +6,8 @@ import {
   Permission,
   CustomRoleInput,
   LicenseWindowInput,
+  ProfileInput,
+  licenseState,
   accessPermissions,
   EventInput,
   ServiceInput,
@@ -94,6 +96,45 @@ export async function adminServices(c: {
       })),
     );
     return reply({ accepted: input.events.map((e) => e.id) });
+  }
+  if (path === '/admin/users' && method === 'GET') {
+    await requireAdmin('users.read');
+    return reply({
+      users: (await repo.list('licenses')).map((l) => ({
+        id: l.id,
+        display_name: l.display_name || '',
+        notes: l.notes || '',
+        tags: l.tags || [],
+        tier: l.tier,
+        status: licenseState(l),
+        created_at: l.created_at,
+        expires_at: l.expires_at,
+        archived: !!l.archived,
+      })),
+    });
+  }
+  const userProfile = path.match(/^\/admin\/users\/([a-f0-9-]+)$/);
+  if (userProfile && method === 'POST') {
+    const actor = await requireAdmin('users.manage');
+    const id = Id.parse(userProfile[1]);
+    const input = ProfileInput.parse(body);
+    await repo.saveProfile(id, input, actor.id);
+    return reply({ ok: true });
+  }
+  if (path === '/admin/devices' && method === 'GET') {
+    await requireAdmin('devices.read');
+    return reply({
+      devices: (await repo.list('licenses'))
+        .filter((l) => l.device_thumbprint)
+        .map((l) => ({
+          id: l.id,
+          tier: l.tier,
+          status: licenseState(l),
+          device_thumbprint: l.device_thumbprint,
+          activated_at: l.activated_at,
+          activation_count: l.activation_count,
+        })),
+    });
   }
   if (path === '/admin/analytics' && method === 'GET') {
     await requireAdmin('analytics.read');
@@ -301,16 +342,7 @@ export async function adminServices(c: {
       .parse(body);
     const old = (await repo.list('licenses')).find((l) => l.id === id);
     if (!old) return fail('NOT_FOUND', 404);
-    await repo.update('licenses', id, input);
-    await audit(
-      actor.id,
-      'license.metadata.changed',
-      id,
-      JSON.stringify({
-        before: { display_name: old.display_name, notes: old.notes, tags: old.tags },
-        after: input,
-      }),
-    );
+    await repo.saveProfile(id, input, actor.id);
     return reply({ ok: true });
   }
   const archive = path.match(/^\/admin\/licenses\/([a-f0-9-]+)\/archive$/);

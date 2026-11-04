@@ -216,26 +216,24 @@ pub fn sign_nonce(dir: &Path, nonce: &str) -> Result<String, String> {
     Ok(URL_SAFE_NO_PAD.encode(signature.as_ref()))
 }
 pub fn verify(token: &str, kind: &str) -> Result<Value, String> {
+    let jwk: Value = serde_json::from_str(option_env!("UHM_LICENSE_PUBLIC_JWK").ok_or("This build has no trusted license public key configured")?).map_err(|e| e.to_string())?;
+    verify_with_key(token,kind,&jwk,option_env!("UHM_LICENSE_ISSUER").ok_or("Missing trusted issuer")?,option_env!("UHM_LICENSE_KEY_ID").ok_or("Missing trusted key ID")?)
+}
+// The production caller above always supplies compile-time pinned trust. Tests supply an independent disposable key.
+pub(crate) fn verify_with_key(token: &str, kind: &str, jwk: &Value, issuer: &str, kid: &str) -> Result<Value,String> {
     use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-    if token.len() > 2_000_000 {
-        return Err("Oversized authorization token".into());
-    }
-    let jwk: Value = serde_json::from_str(
-        option_env!("UHM_LICENSE_PUBLIC_JWK")
-            .ok_or("This build has no trusted license public key configured")?,
-    )
-    .map_err(|e| e.to_string())?;
+    if token.len()>2_000_000 { return Err("Oversized authorization token".into()); }
     let header = decode_header(token).map_err(|_| "Invalid token header")?;
     if header.alg != Algorithm::ES256
         || header.typ.as_deref() != Some(kind)
-        || header.kid.as_deref() != option_env!("UHM_LICENSE_KEY_ID")
+        || header.kid.as_deref() != Some(kid)
     {
         return Err("Token type, key or algorithm mismatch".into());
     }
     let mut validation = Validation::new(Algorithm::ES256);
     validation.leeway = 30;
     validation.set_audience(&["uhm-launcher"]);
-    validation.set_issuer(&[option_env!("UHM_LICENSE_ISSUER").ok_or("Missing trusted issuer")?]);
+    validation.set_issuer(&[issuer]);
     let key = DecodingKey::from_ec_components(
         jwk["x"].as_str().ok_or("Invalid public key")?,
         jwk["y"].as_str().ok_or("Invalid public key")?,

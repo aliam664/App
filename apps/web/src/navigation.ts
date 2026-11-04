@@ -10,6 +10,7 @@ export const launcherPages = [
 export const adminPages = [
   'dashboard',
   'licenses',
+  'users',
   'packages',
   'versions',
   'devices',
