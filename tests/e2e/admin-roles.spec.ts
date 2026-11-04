@@ -21,7 +21,10 @@ test('reusable roles are created in the real local API, combined on a member and
   await expect(editor.locator('[value="licenses.create"]')).not.toBeChecked();
   if (process.env.UHM_CAPTURE_GUIDE) {
     await mkdir('test-results/mission-guide', { recursive: true });
-    await page.screenshot({ path: 'test-results/mission-guide/custom-role.png', fullPage: true });
+    await page.locator('.modal-body').evaluate((el) => (el.scrollTop = 0));
+    await page
+      .getByRole('dialog')
+      .screenshot({ path: 'test-results/mission-guide/custom-role.png' });
   }
   page.once('dialog', async (d) => {
     expect(d.message()).toContain('همهٔ اعضا');
@@ -62,8 +65,12 @@ test('reusable roles are created in the real local API, combined on a member and
   await access.locator(`[name=role_ids][value="${role.id}"]`).check();
   await access.locator(`[name=role_ids][value="${secondId}"]`).check();
   await access.locator('[name=permission][value="errors.read"]').check();
-  if (process.env.UHM_CAPTURE_GUIDE)
-    await page.screenshot({ path: 'test-results/mission-guide/member-grants.png', fullPage: true });
+  if (process.env.UHM_CAPTURE_GUIDE) {
+    await page.locator('.modal-body').evaluate((el) => (el.scrollTop = 0));
+    await page
+      .getByRole('dialog')
+      .screenshot({ path: 'test-results/mission-guide/member-grants.png' });
+  }
   page.once('dialog', (d) => d.accept());
   await access.getByRole('button', { name: 'ذخیره و اعمال دسترسی', exact: true }).click();
   await expect(access).toHaveCount(0);
@@ -96,6 +103,8 @@ test('calendar license issuance and fixed expiry editing persist through the rea
   await page.locator(`[data-license="${target.id}"]`).click();
   const dates = page.locator('#license-window');
   await expect(dates.locator('[name=starts_at]')).toHaveValue(start);
+  if (process.env.UHM_CAPTURE_GUIDE)
+    await dates.screenshot({ path: 'test-results/mission-guide/license-window.png' });
   const newEnd = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 16);
   await dates.locator('[name=expires_at]').fill(newEnd);
   page.once('dialog', (d) => d.accept());
