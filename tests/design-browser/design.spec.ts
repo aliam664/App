@@ -27,6 +27,7 @@ for (const theme of ['dark', 'light'])
           ? [
               'dashboard',
               'licenses',
+              'users',
               'packages',
               'versions',
               'devices',

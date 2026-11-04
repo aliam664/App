@@ -297,9 +297,10 @@ fn download<R: Runtime>(
 }
 // Poll the same pinned network future in one-second slices; cancellation does not
 // abandon partially polled requests, and no total-file deadline breaks slow large files.
-fn interruptible<F: std::future::Future>(future: F) -> Result<F::Output, String> {
+fn interruptible<F: std::future::Future>(create: impl FnOnce() -> F) -> Result<F::Output, String> {
     tauri::async_runtime::block_on(async {
-        let mut pending = Box::pin(future);
+        // Reqwest creates Tokio timers while constructing requests, not only when polled.
+        let mut pending = Box::pin(create());
         loop {
             crate::jobs::checkpoint()?;
             if let Ok(result) = tokio::time::timeout(Duration::from_secs(1), &mut pending).await {
@@ -369,23 +370,24 @@ fn transfer<R: Runtime>(
         if addresses.is_empty() || addresses.iter().any(|a| !public_ip(a.ip())) {
             return Err("Private or unsupported download address blocked".into());
         }
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .read_timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(20))
-            .resolve_to_addrs(host, &addresses)
-            .build()
-            .map_err(|e| e.to_string())?;
-        let mut request = client
-            .get(url.clone())
-            .header("User-Agent", "UHM-Launcher/0.1")
-            .header("Accept-Encoding", "identity");
-        if received > 0 {
-            request = request.header("Range", format!("bytes={received}-"));
-        }
-        let r = interruptible(request.send())?
-            .map_err(|_| "Download connection failed; partial file retained")?;
+        let r = interruptible(|| async {
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none())
+                .read_timeout(Duration::from_secs(30))
+                .connect_timeout(Duration::from_secs(20))
+                .resolve_to_addrs(host, &addresses)
+                .build()
+                .map_err(|e| e.to_string())?;
+            let mut request = client
+                .get(url.clone())
+                .header("User-Agent", "UHM-Launcher/0.1")
+                .header("Accept-Encoding", "identity");
+            if received > 0 {
+                request = request.header("Range", format!("bytes={received}-"));
+            }
+            request.send().await.map_err(|_| "Download connection failed; partial file retained".to_string())
+        })??;
         if r.status().is_redirection() {
             let location = r
                 .headers()
@@ -421,7 +423,7 @@ fn transfer<R: Runtime>(
     let mut last = Instant::now();
     loop {
         crate::jobs::checkpoint()?;
-        let Some(chunk) = interruptible(response.chunk())?
+        let Some(chunk) = interruptible(|| response.chunk())?
             .map_err(|_| "Download interrupted; partial file retained")?
         else {
             break;
@@ -1228,9 +1230,13 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn network_futures_are_constructed_inside_the_tokio_runtime() {
+        interruptible(|| tokio::time::sleep(Duration::from_millis(1))).unwrap();
+    }
+    #[test]
     #[ignore = "Requires explicit API/PostgreSQL fixture and pinned public HTTPS archive; run separately in Windows CI"]
     fn full_package_chain_downloads_extracts_installs_and_scans() {
-        use tauri::{Listener, Manager};
+        use tauri::Listener;
         let path = std::env::var("UHM_PACKAGE_SMOKE_PATH").expect("Explicit isolated fixture required");
         let fixture: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         let verify = |token: &str, kind: &str| crate::security::verify_with_key(token,kind,&fixture["public_key"],fixture["issuer"].as_str().unwrap(),fixture["kid"].as_str().unwrap());

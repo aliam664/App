@@ -347,7 +347,7 @@ async function versionsPage(el: HTMLElement) {
         const r = releases[Number(b.dataset.release)];
         const d = modal(
           'نسخه ' + r.version,
-          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>تعداد فایل‌ها</dt><dd>${fa(r.manifest.files.length)}</dd><dt>مراحل نصب</dt><dd>${fa(r.manifest.steps.length)}</dd><dt>انتشار</dt><dd>${date(r.published_at)}</dd></dl>${(overview.capabilities?.includes('package-admin-v1') ? can('content.versions') : can('content')) ? '<button class="button full" id="fork-release">ساخت پیش‌نویس از این نسخه</button>' : ''}`,
+          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>تعداد فایل‌ها</dt><dd>${fa(r.manifest.files.length)}</dd><dt>مراحل نصب</dt><dd>${fa(r.manifest.steps.length)}</dd><dt>انتشار</dt><dd>${date(r.published_at)}</dd></dl>${(overview.capabilities?.includes('package-admin-v1') ? can('content.versions') && overview.packages.some((p) => p.id === r.package_id) : can('content')) ? '<button class="button full" id="fork-release">ساخت پیش‌نویس از این نسخه</button>' : ''}`,
         );
         d.querySelector('#fork-release')?.addEventListener('click', () => {
           void busy(d.querySelector('#fork-release')!, async () => {
@@ -516,6 +516,7 @@ function editPackage(existing?: PackageSpec) {
         (el.querySelector('[data-f=size]') as HTMLInputElement).value = String(result.size);
         const name = el.querySelector('[data-f=name]') as HTMLInputElement;
         if (!name.value) name.value = result.name;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
         refreshFiles();
         toast('هش و حجم دقیق، بدون آپلود محاسبه شد.');
       });
@@ -605,7 +606,13 @@ function editPackage(existing?: PackageSpec) {
   d.querySelector('form')!.onsubmit = (e) => {
     e.preventDefault();
     void busy(d.querySelector('button[type=submit]')!, async () => {
-      const pkg = readManifest();
+      let pkg: PackageSpec;
+      try {
+        pkg = readManifest();
+      } catch {
+        wizard.show(3);
+        throw new Error('پکیج ذخیره نشد؛ خطاهای مرحلهٔ بازبینی را اصلاح کنید.');
+      }
       const advanced = Boolean(
         pkg.short_description ||
         pkg.author ||

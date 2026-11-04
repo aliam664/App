@@ -54,6 +54,10 @@ test('four-step builder calculates a real local hash, reports validation errors 
   const headers = await owner(page, request);
   await page.locator('[data-nav=packages]').click();
   await page.getByRole('button', { name: 'پکیج جدید', exact: true }).click();
+  await page.getByRole('button', { name: 'ذخیره پیش‌نویس', exact: true }).click();
+  await expect(page.locator('[role=alert].builder-errors')).toContainText(
+    'پیش از انتشار اصلاح کنید',
+  );
   await page.getByRole('tab', { name: '۴ · بازبینی', exact: true }).click();
   await expect(page.locator('[role=alert].builder-errors')).toContainText(
     'پیش از انتشار اصلاح کنید',
