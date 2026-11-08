@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UHM Launcher",
+  "version": "0.1.2",
+  "identifier": "com.uhm.launcher",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "UHM Launcher",
+        "width": 1380,
+        "height": 920,
+        "minWidth": 880,
+        "minHeight": 640,
+        "backgroundColor": "#03050a"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: 'self' asset: http://asset.localhost; font-src 'self'; connect-src ipc: http://ipc.localhost 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; frame-src 'none'",
+      "capabilities": ["main"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": ["resources/**/*"],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["English"]
+      }
+    },
+    "icon": ["icons/icon.png", "icons/icon.ico"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBQ0JBOTFENDAwODI1NTYKUldSV0pRaEFIYW5MZWp3Zmc2R0FaZDJ4Vk5tU20xc3BFeEpnNXVoTWwzY1ZlWmdpZWFFREZkU2wK",
+      "endpoints": [
+        "https://github.com/aliam664/App/releases/download/uhm-launcher-updates/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "allowDowngrades": false,
+      "windows": {
+        "installMode": "quiet"
+      }
+    }
+  }
+}

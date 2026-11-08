@@ -1,0 +1,49 @@
+name: Publish verified production pilot installer
+on:
+  push:
+    branches: [arena/37af8e92-app]
+    paths: [.github/workflows/release-pilot.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: uhm-pilot-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: '41474918733'
+      RELEASE_TAG: uhm-platform-v0.1.0-pilot.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify installer provenance and unchanged application source
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > /tmp/run.json
+          jq -e '.conclusion == "success" and .head_branch == "arena/37af8e92-app" and .path == ".github/workflows/quality.yml"' /tmp/run.json
+          built_sha=$(jq -r .head_sha /tmp/run.json)
+          git diff --exit-code "$built_sha" HEAD -- apps backend packages public config src-tauri package.json package-lock.json vite.config.ts
+          echo "BUILT_SHA=$built_sha" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: uhm-windows-production-unsigned
+          run-id: 41474918733
+          github-token: ${{ github.token }}
+          path: release-assets
+      - name: Normalize filename and create checksum
+        run: |
+          mapfile -d '' files < <(find release-assets -type f -name '*.exe' -print0)
+          test "${#files[@]}" = 1
+          mv "${files[0]}" release-assets/UHM-Launcher-0.1.0-x64-setup.exe
+          (cd release-assets && sha256sum UHM-Launcher-0.1.0-x64-setup.exe > SHA256SUMS.txt)
+      - name: Publish explicit pilot (never replaces the legacy latest release)
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Pilot already exists; not overwriting a published installer.'
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" release-assets/* --target "$BUILT_SHA" --prerelease --title 'UHM Launcher Platform 0.1.0 — Production-connected pilot' --notes-file docs/release-pilot-fa.md

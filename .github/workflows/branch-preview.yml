@@ -1,0 +1,80 @@
+name: Refresh compiled branch preview
+on:
+  push:
+    branches: [arena/37af8e92-app]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  pages: write
+concurrency:
+  group: branch-preview
+  cancel-in-progress: true
+jobs:
+  refresh:
+    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - run: npm run build:branch
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:pages
+      - run: npm run build:live-branch
+      - name: Store generated connected UI from the shared source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pages-preview
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh generated shared UI preview [skip ci]'
+            git push origin HEAD:arena/37af8e92-app
+          fi
+      - name: Rebuild legacy Pages when that source is selected
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(gh api 'repos/${{ github.repository }}/pages' --jq '.build_type')
+          if [ "$source" = 'legacy' ]; then
+            gh api --method POST 'repos/${{ github.repository }}/pages/builds'
+          fi
+
+  native-lock:
+    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Preserve the exact verified Windows dependency lock without blocking Pages
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?head_sha=$GITHUB_SHA&per_page=1" > "$RUNNER_TEMP/native-runs.json"
+          run=$(jq -r '.workflow_runs[0].id // empty' "$RUNNER_TEMP/native-runs.json")
+          if [ -z "$run" ]; then echo 'No native run for this revision.'; exit 0; fi
+          gh run watch "$run" --exit-status
+          gh run download "$run" --name native-dependency-lock --dir "$RUNNER_TEMP/native-lock"
+          git fetch origin arena/37af8e92-app
+          if ! git diff --quiet "$GITHUB_SHA" FETCH_HEAD -- src-tauri/Cargo.toml; then
+            echo 'Newer dependency manifest exists; its own job will pin the lock.'
+            exit 0
+          fi
+          node -e 'const fs=require("fs"); fs.writeFileSync("src-tauri/Cargo.lock",fs.readFileSync(process.env.RUNNER_TEMP+"/native-lock/Cargo.lock","utf8").replace(/\r\n/g,"\n"))'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src-tauri/Cargo.lock
+          if ! git diff --cached --quiet; then
+            git commit -m 'Pin dependency lock from verified Windows build [skip ci]'
+            git pull --no-rebase origin arena/37af8e92-app
+            git push origin HEAD:arena/37af8e92-app
+          fi

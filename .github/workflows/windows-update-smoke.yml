@@ -1,0 +1,66 @@
+name: Real Windows automatic-update smoke
+on:
+  push:
+    branches: [arena/37af8e92-app]
+    paths: [.github/update-smoke-request.json]
+permissions:
+  contents: read
+jobs:
+  installed-upgrade:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: tested-source
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate explicit test request
+        id: request
+        working-directory: .
+        run: |
+          $request = Get-Content .github/update-smoke-request.json -Raw | ConvertFrom-Json
+          if ($request.version -notmatch '^\d+\.\d+\.\d+$' -or $request.source_sha -notmatch '^[a-f0-9]{40}$') { throw 'Invalid smoke request' }
+          $tag = "uhm-launcher-v$($request.version)"
+          $release = gh release view $tag --json targetCommitish,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $release.isPrerelease -or $release.targetCommitish -ne $request.source_sha) { throw 'Published candidate provenance mismatch' }
+          "source_sha=$($request.source_sha)" >> $env:GITHUB_OUTPUT
+          "APP_VERSION=$($request.version)" >> $env:GITHUB_ENV
+          "PUBLISHED_TAG=$tag" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.source_sha }}
+          path: tested-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tested-source/package-lock.json
+      - name: Parse the PowerShell harness before installing
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD '../scripts/windows-update-smoke.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - run: npm ci
+      - name: Verify actual published installer before any execution
+        run: |
+          gh release download $env:PUBLISHED_TAG --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/published-update"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/published-update/UHM-Launcher-$env:APP_VERSION-x64-setup.exe" $env:APP_VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify the immutable original public 0.1.1 installer
+        run: |
+          gh release download uhm-launcher-v0.1.1 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe" 0.1.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Real installed upgrade, process deferral, automatic restart and data preservation
+        run: ../scripts/windows-update-smoke.ps1 -ExpectedVersion $env:APP_VERSION
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-update-smoke-result
+          path: ${{ runner.temp }}/windows-update-result.json
+          if-no-files-found: ignore

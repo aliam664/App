@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dist-pages/
+target/
+.env
+.env.*
+!.env.example
+.local/
+playwright-report/
+test-results/
+*.log
+src-tauri/gen/
+*.key
+*.pem
+src-tauri/resources/extractor/*.exe
+src-tauri/resources/extractor/*.dll
+src-tauri/resources/extractor/License.txt
+src-tauri/resources/extractor/copying.txt
+
+# Private operator handoff (never publish)
+operator-private/

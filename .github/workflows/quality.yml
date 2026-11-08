@@ -1,0 +1,148 @@
+name: Platform checks
+on:
+  push:
+    branches: [main, arena/37af8e92-app]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  web-and-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run check
+      - run: npm run build:edge
+      - run: git diff --exit-code -- deployment/edge
+      - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Responsive design, keyboard and WCAG regression checks
+        run: npm run test:design
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-accessibility-evidence
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-traces
+          path: test-results/
+  windows-native:
+    runs-on: windows-latest
+    env:
+      VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      UHM_LICENSE_PUBLIC_JWK: ${{ vars.UHM_LICENSE_PUBLIC_JWK }}
+      UHM_LICENSE_ISSUER: ${{ vars.UHM_LICENSE_ISSUER }}
+      UHM_LICENSE_KEY_ID: ${{ vars.UHM_LICENSE_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Load versioned public production configuration
+        run: npx tsx scripts/public-ci-env.ts
+      - name: Prepare integrity-pinned archive tools
+        shell: pwsh
+        run: ./scripts/prepare-extractor.ps1
+      - run: npm run build
+      - name: Native security and recovery tests
+        working-directory: src-tauri
+        run: |
+          cargo test --locked 2>&1 | Tee-Object -FilePath native-test.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content native-test.log -Tail 100) -join "`n"
+            if ($tail.Length -gt 3500) { $tail = $tail.Substring($tail.Length - 3500) }
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Native test output::$tail"
+            exit $code
+          }
+      - name: Real isolated PostgreSQL API to native package-install chain
+        run: |
+          npx tsx scripts/package-chain-smoke.ts "$env:RUNNER_TEMP/package-chain" 2>&1 | Tee-Object -FilePath package-api-smoke.log
+          $code = $LASTEXITCODE
+          if ($code -eq 0) {
+            $env:UHM_PACKAGE_SMOKE_PATH = "$env:RUNNER_TEMP/package-chain/package-chain.json"
+            Push-Location src-tauri
+            cargo test --locked full_package_chain_downloads_extracts_installs_and_scans -- --ignored --nocapture 2>&1 | Tee-Object -FilePath ../package-native-smoke.log
+            $code = $LASTEXITCODE
+            Pop-Location
+          }
+          if ($code -ne 0) {
+            $tail = (@(Get-Content package-api-smoke.log -Tail 30 -ErrorAction SilentlyContinue) + @(Get-Content package-native-smoke.log -Tail 45 -ErrorAction SilentlyContinue)) -join "`n"
+            if ($tail.Length -gt 3800) { $tail = $tail.Substring($tail.Length - 3800) }
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Isolated package-chain output::$tail"
+          }
+          exit $code
+      - uses: taiki-e/install-action@cargo-audit
+      - name: Audit native dependencies
+        working-directory: src-tauri
+        run: |
+          cargo audit 2>&1 | Tee-Object -FilePath native-audit.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content native-audit.log -Tail 100) -join "`n"
+            if ($tail.Length -gt 3500) { $tail = $tail.Substring($tail.Length - 3500) }
+            $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Native dependency audit::$tail"
+            exit $code
+          }
+      - name: Build production-connected unsigned installer
+        run: npm run desktop:build
+      - name: Parse both disposable Windows installation harnesses
+        shell: pwsh
+        run: |
+          foreach ($file in @('scripts/windows-installer-upgrade.ps1','scripts/windows-update-smoke.ps1')) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+          }
+      - name: Fresh NSIS install and upgrade from the exact public 0.1.1 installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download uhm-launcher-v0.1.1 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe" 0.1.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installer = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*0.1.2*x64*setup.exe)
+          if ($installer.Count -ne 1) { throw 'Exactly one 0.1.2 candidate required' }
+          try { ./scripts/windows-installer-upgrade.ps1 -Candidate $installer[0].FullName -ExpectedVersion 0.1.2 } catch {
+            $message = $_.ToString().Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Public-installer compatibility::$message"
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-upgrade-evidence
+          path: ${{ runner.temp }}/installer-upgrade-result.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uhm-windows-production-unsigned
+          path: src-tauri/target/release/bundle/nsis/*.exe
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-dependency-lock
+          path: src-tauri/Cargo.lock
