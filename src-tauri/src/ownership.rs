@@ -168,8 +168,8 @@ mod tests {
     fn identical_shared_files_have_independent_claims_and_hashes() {
         let mut library = Library::new();
         let op = operation("content/shared.ini", "a");
-        install(&mut library, "a", "1.0.0", &[op.clone()], &BTreeMap::new());
-        install(&mut library, "b", "1.0.0", &[op.clone()], &BTreeMap::new());
+        install(&mut library, "a", "1.0.0", std::slice::from_ref(&op), &BTreeMap::new());
+        install(&mut library, "b", "1.0.0", std::slice::from_ref(&op), &BTreeMap::new());
         assert_eq!(claims(&library, &op.path, "a").len(), 1);
         let changed = operation(&op.path, "b");
         assert!(check_shared(&library, "a", &[changed]).is_err());

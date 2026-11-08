@@ -916,7 +916,7 @@ pub fn install<R: Runtime>(
                 return Err("Invalid or duplicate artifact filename".into());
             }
         }
-        activity(app, &package, "install_started", None, None);
+        activity(app, package, "install_started", None, None);
         let transaction_id = uuid::Uuid::new_v4().to_string();
         let dir = safe_target(&control, &format!("transactions/{transaction_id}"))?;
         fs::create_dir_all(dir.join("downloads")).map_err(|e| e.to_string())?;
@@ -967,7 +967,6 @@ pub fn install<R: Runtime>(
                         .iter()
                         .map(|file| {
                             let stats = &stats;
-                            let package = &package;
                             scope.spawn(crate::jobs::inherit(move || -> Result<(), String> {
                                 activity(app, package, "download_started", Some(file), None);
                                 let cached = safe_target(cache, &format!("{}.part", file.sha256))?;
@@ -1024,7 +1023,7 @@ pub fn install<R: Runtime>(
                 fs::copy(cached, dir.join("downloads").join(&file.name))
                     .map_err(|e| e.to_string())?;
             }
-            activity(app, &package, "package_download_completed", None, None);
+            activity(app, package, "package_download_completed", None, None);
             let mut operations: Vec<(PathBuf, String, String)> = Vec::new();
             let mut destinations = HashSet::new();
             let mut done_steps = HashSet::new();
@@ -1278,13 +1277,19 @@ pub fn install<R: Runtime>(
                 let index = journal.entries.len();
                 let backup = format!("backups/{index}");
                 journal.entries.push(Entry {
-                    target: removed.path.clone(), backup: backup.clone(), existed: true, ready: true,
+                    target: removed.path.clone(), backup: backup.clone(), existed: true, ready: false,
                     before_sha256: Some(removed.sha256.clone()), after_sha256: None,
                 });
                 save_journal(&dir, &journal)?;
                 fs::copy(&target, dir.join(&backup)).map_err(|e| e.to_string())?;
                 fs::OpenOptions::new().write(true).open(dir.join(&backup)).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
                 if sha256_file(&dir.join(&backup))? != removed.sha256 { return Err("Obsolete-file backup changed".into()); }
+                if file_hash(&target)?.as_ref() != Some(&removed.sha256) {
+                    return Err("Obsolete file changed during backup; removal cancelled".into());
+                }
+                // A crash before this point leaves the original in place; no backup is required yet.
+                journal.entries.last_mut().unwrap().ready = true;
+                save_journal(&dir, &journal)?;
                 fs::remove_file(&target).map_err(|e| e.to_string())?;
             }
             library.insert(package.id.clone(), plan.installed);
@@ -1302,10 +1307,10 @@ pub fn install<R: Runtime>(
         match result {
             Ok(()) => {
                 progress(app, &package.id, "نصب تأیید شد", 99.0, 0, 0);
-                activity(app, &package, "install_completed", None, None);
+                activity(app, package, "install_completed", None, None);
             }
             Err(error) => {
-                activity(app, &package, "install_failed", None, Some(&error));
+                activity(app, package, "install_failed", None, Some(&error));
                 match rollback(root, &dir, &mut journal) {
                     Ok(conflicts) => {
                         journal.state = if conflicts == 0 { "rolled_back" } else { "needs_review" }.into();
@@ -1608,6 +1613,22 @@ mod crash_and_archive_tests {
         let mut journal: Journal = serde_json::from_value(json!({"package_id":"p","state":"applying","entries":[{"target":"a","backup":"backups/0","existed":true,"ready":true}]})).unwrap();
         assert_eq!(rollback(&root, &dir, &mut journal).unwrap(), 1);
         assert_eq!(fs::read(root.join("a")).unwrap(), b"current");
+    }
+    #[test]
+    fn unready_obsolete_backup_does_not_block_recovery_or_touch_original() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("game"); let dir = temp.path().join("tx");
+        fs::create_dir_all(&root).unwrap(); fs::create_dir_all(dir.join("backups")).unwrap();
+        fs::write(root.join("obsolete.ini"), "original").unwrap();
+        let mut journal = Journal {
+            package_id: "p".into(), state: "applying".into(), conflicts: Vec::new(),
+            entries: vec![Entry {
+                target: "obsolete.ini".into(), backup: "backups/0".into(), existed: true, ready: false,
+                before_sha256: Some(sha256_file(&root.join("obsolete.ini")).unwrap()), after_sha256: None,
+            }],
+        };
+        assert_eq!(rollback(&root, &dir, &mut journal).unwrap(), 0);
+        assert_eq!(fs::read(root.join("obsolete.ini")).unwrap(), b"original");
     }
     #[test]
     fn corrupt_recovery_backup_is_rejected_before_mutation() {

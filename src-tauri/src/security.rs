@@ -126,7 +126,7 @@ fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>, String> {
     let result = unsafe {
         if decrypt {
             CryptUnprotectData(
-                &mut input,
+                &input,
                 std::ptr::null_mut(),
                 std::ptr::null(),
                 std::ptr::null_mut(),
@@ -136,7 +136,7 @@ fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>, String> {
             )
         } else {
             CryptProtectData(
-                &mut input,
+                &input,
                 std::ptr::null(),
                 std::ptr::null(),
                 std::ptr::null_mut(),

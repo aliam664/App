@@ -85,6 +85,9 @@ jobs:
             if ($tail.Length -gt 3500) { $tail = $tail.Substring($tail.Length - 3500) }
             $tail = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
             Write-Output "::error title=Native lint::$tail"
+            $locations = (Select-String -Path native-clippy.log -Pattern '^error|^\s*-->' | ForEach-Object { $_.Line }) -join "`n"
+            $locations = $locations.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=All native lint locations::$locations"
             exit $code
           }
       - name: Real isolated PostgreSQL API to native package-install chain

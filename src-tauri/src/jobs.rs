@@ -135,6 +135,25 @@ pub fn approval(id: &str, emit: impl FnOnce()) -> Result<(), String> {
         Ok(())
     })
 }
+/// Propagate one job's cancellation/approval state into bounded transfer workers.
+pub fn inherit<F: FnOnce() -> R, R>(task: F) -> impl FnOnce() -> R {
+    let job = CURRENT.with(|c| c.borrow().clone());
+    move || {
+        CURRENT.with(|c| *c.borrow_mut() = job);
+        let result = task();
+        CURRENT.with(|c| *c.borrow_mut() = None);
+        result
+    }
+}
+pub fn active() -> bool {
+    JOBS.get_or_init(Default::default)
+        .lock()
+        .map(|jobs| {
+            jobs.values()
+                .any(|j| j.state.lock().map(|s| !s.done).unwrap_or(true))
+        })
+        .unwrap_or(true)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,23 +180,4 @@ mod tests {
         control("test-job", "cancel", None).unwrap();
         assert!(checkpoint().is_err());
     }
-}
-/// Propagate one job's cancellation/approval state into bounded transfer workers.
-pub fn inherit<F: FnOnce() -> R, R>(task: F) -> impl FnOnce() -> R {
-    let job = CURRENT.with(|c| c.borrow().clone());
-    move || {
-        CURRENT.with(|c| *c.borrow_mut() = job);
-        let result = task();
-        CURRENT.with(|c| *c.borrow_mut() = None);
-        result
-    }
-}
-pub fn active() -> bool {
-    JOBS.get_or_init(Default::default)
-        .lock()
-        .map(|jobs| {
-            jobs.values()
-                .any(|j| j.state.lock().map(|s| !s.done).unwrap_or(true))
-        })
-        .unwrap_or(true)
 }
