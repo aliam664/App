@@ -9,7 +9,7 @@
 ## Edge Functions
 
 - `api`: نسخهٔ 12، ACTIVE، `verify_jwt:false`؛ کنترل دسترسی داخل تابع انجام می‌شود.
-- `update-key-broker`: نسخهٔ 3، ACTIVE، `verify_jwt:false`؛ فقط OIDC معتبر گیت‌هاب بامخزن/owner/ref/workflow/build سبز را می‌پذیرد.
+- `update-key-broker`: نسخهٔ 3، ACTIVE، `verify_jwt:false`؛ فقط OIDC معتبر گیت‌هاب با مخزن/owner/ref/workflow/build سبز را می‌پذیرد.
 - باندلهای محلی مستقرشده: API `c7f8141a988caf4760e3cf3963ed48f49c0be25274904a478b79a3e9781a7f5a` (40928 بایت)، broker `d8fd4ba70ee855e9af4c0f17bfad224cd5c3baaabf607008f63adf356114352c` (4080 بایت). وابستگیها pinned: zod 4.6.7، jose 6.2.14، supabase-js 2.118.0.
 - آزمون زندهٔ CI `42507833091` نسخه/کلید/issuer، CORS، کاتالوگ، رد ناشناس و رد broker را تأیید کرد.
 
@@ -26,6 +26,10 @@
 ## انتشار و زنجیرهٔ اعتماد
 
 کلید عمومی لایسنس و issuer تغییر نکردند. کلید خصوصی به‌روزرسانی در secret ابری است و broker آن را تنها به job واجد شرایط می‌دهد. نصب‌کنندهٔ 0.1.3 با امضای minisign/version binding منتشر شد. feed اختصاصی prerelease است و جایگزین Latest قدیمی `v1.0.0` نشده است.
+
+## ادغام و پایش پس از انتشار
+
+PR #9 با merge commit `5d1bd1aebb7fe3cefe3ed723ccf3e1e8f21dc4ad` در `main` ادغام شد. Platform checks `42508952720`، Pages `42508952787` و آزمون زندهٔ `42508952746` روی `main` پس از ادغام SUCCESS بودند.
 
 ## Rollback و نگهداری
 
