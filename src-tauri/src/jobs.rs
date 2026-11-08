@@ -20,12 +20,15 @@ struct Job {
 }
 static JOBS: OnceLock<Mutex<BTreeMap<String, Arc<Job>>>> = OnceLock::new();
 thread_local! {static CURRENT:RefCell<Option<Arc<Job>>>=const {RefCell::new(None)};}
-pub struct Guard(Arc<Job>, std::sync::RwLockReadGuard<'static, ()>);
+pub struct Guard {
+    job: Arc<Job>,
+    _lifecycle: std::sync::RwLockReadGuard<'static, ()>,
+}
 impl Drop for Guard {
     fn drop(&mut self) {
-        if let Ok(mut f) = self.0.state.lock() {
+        if let Ok(mut f) = self.job.state.lock() {
             f.done = true;
-            self.0.wake.notify_all();
+            self.job.wake.notify_all();
         }
         CURRENT.with(|c| *c.borrow_mut() = None);
     }
@@ -48,7 +51,7 @@ pub fn begin(id: &str) -> Result<Guard, String> {
     });
     jobs.insert(id.into(), job.clone());
     CURRENT.with(|c| *c.borrow_mut() = Some(job.clone()));
-    Ok(Guard(job, lifecycle))
+    Ok(Guard { job, _lifecycle: lifecycle })
 }
 pub fn mode(mode: &str) {
     CURRENT.with(|c| {

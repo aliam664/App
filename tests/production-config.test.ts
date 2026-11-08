@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi, afterEach } from 'vitest';
+import { SupabaseRepository } from '../backend/src/supabase-repository';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import config from '../config/production-public.json';
@@ -35,4 +36,44 @@ it('pins the exact body-only cloud entry without relative or HTTPS module import
   expect(body.length).toBe(record.api.bytes);
   expect(body.toString()).not.toMatch(/from["'](?:\.\.|https?:)/);
   for (const specifier of Object.values(record.npm)) expect(body.toString()).toContain(specifier);
+});
+
+it('pins the standalone update broker artifact as well as the API', () => {
+  const body = readFileSync('deployment/edge/update-key-broker.js');
+  const record = JSON.parse(readFileSync('deployment/edge/cloud-integrity.json', 'utf8'));
+  expect(createHash('sha256').update(body).digest('hex')).toBe(record.updateKeyBroker.sha256);
+  expect(body.length).toBe(record.updateKeyBroker.bytes);
+  expect(body.toString()).not.toMatch(/from["'](?:\.\.|https?:)/);
+});
+afterEach(() => vi.unstubAllGlobals());
+it('release history paginates past 500 using only real release-table columns', async () => {
+  const ranges: string[] = [];
+  const orders: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      ranges.push(`${url.searchParams.get('offset')}:${url.searchParams.get('limit')}`);
+      orders.push(url.searchParams.get('order') || '');
+      const offset = Number(url.searchParams.get('offset'));
+      const rows = Array.from({ length: offset === 0 ? 500 : 1 }, (_, i) => ({
+        package_id: null,
+        version: `1.0.${offset + i}`,
+        manifest: {},
+        published_at: '2026-11-08T00:00:00Z',
+      }));
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Range': `${offset}-${offset + rows.length - 1}/*`,
+        },
+      });
+    }),
+  );
+  const repo = new SupabaseRepository('https://pagination.invalid', 'test-only-not-a-secret');
+  const rows = await repo.releases();
+  expect(rows).toHaveLength(501);
+  expect(ranges).toEqual(['0:500', '500:500']);
+  expect(orders[0]).toBe('published_at.desc,package_id.desc,version.desc');
 });

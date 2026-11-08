@@ -59,7 +59,8 @@ export class SupabaseRepository implements Repository {
         .from('package_releases')
         .select('*')
         .order('published_at', { ascending: false })
-        .order('id', { ascending: false })
+        .order('package_id', { ascending: false })
+        .order('version', { ascending: false })
         .range(offset, offset + 499);
       this.check(error);
       rows.push(...((data || []) as typeof rows));

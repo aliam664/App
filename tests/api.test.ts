@@ -299,6 +299,24 @@ describe('immutable content publishing', () => {
       (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
     ).toBe('1.1.0');
   });
+  it('rejects publishing a downgrade or an already released version', async () => {
+    const pkg = await publishFixture();
+    const saved = await request('/admin/packages', { ...pkg, version: '0.9.0' }, repo.adminToken);
+    expect(saved.status).toBe(200);
+    const rejected = await request(`/admin/packages/${pkg.id}/publish`, {}, repo.adminToken);
+    expect(rejected.status).toBe(409);
+    expect(rejected.data.error).toBe('VERSION_MUST_INCREASE');
+    const repeated = await request(
+      '/admin/packages',
+      { ...pkg, version: '1.0.0' },
+      repo.adminToken,
+    );
+    expect(repeated.status).toBe(409);
+    expect(repeated.data.error).toBe('RELEASE_IMMUTABLE');
+    expect(
+      (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
+    ).toBe('1.0.0');
+  });
   it('keeps stable catalog during scheduled/test updates and preserves richer snapshots', async () => {
     const pkg = await publishFixture();
     await request(

@@ -283,9 +283,10 @@ pub fn recover(root: &Path) -> Result<usize, String> {
     let control = regular_control(root)?;
     let lock = fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
-        .open(control.join("install.lock"))
+        .open(safe_target(&control, "install.lock")?)
         .map_err(|e| e.to_string())?;
     lock.try_lock_exclusive()
         .map_err(|_| "Another installation is running")?;
@@ -325,7 +326,6 @@ fn download<R: Runtime>(
     pkg: &str,
     file: &Artifact,
     out: &Path,
-    completed: u64,
     total: u64,
     stats: &TransferStats,
 ) -> Result<(), String> {
@@ -352,7 +352,7 @@ fn download<R: Runtime>(
     for source in std::iter::once(&file.url).chain(file.mirrors.iter()) {
         for attempt in 0..3_u32 {
             crate::jobs::checkpoint()?;
-            match transfer(app, pkg, file, source, out, completed, total, stats) {
+            match transfer(app, pkg, file, source, out, total, stats) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
                     last_error = e;
@@ -427,7 +427,6 @@ fn transfer<R: Runtime>(
     file: &Artifact,
     source: &str,
     out: &Path,
-    _completed: u64,
     total: u64,
     stats: &TransferStats,
 ) -> Result<(), String> {
@@ -707,6 +706,7 @@ fn extract_external_password<R: Runtime>(
         .join("resources/extractor");
     extract_external_with_password(&dir, source, destination, password)
 }
+#[cfg(test)]
 fn extract_external_with_tools(
     dir: &Path,
     source: &Path,
@@ -975,7 +975,6 @@ pub fn install<R: Runtime>(
                                     &package.id,
                                     file,
                                     &cached,
-                                    0,
                                     transfer_total,
                                     stats,
                                 );

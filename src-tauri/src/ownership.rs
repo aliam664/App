@@ -40,7 +40,6 @@ pub struct Removed {
 pub struct Plan {
     pub installed: Installed,
     pub removed: Vec<Removed>,
-    pub retained: Vec<String>,
 }
 pub fn compare_versions(a: &str, b: &str) -> Result<std::cmp::Ordering, String> {
     fn parts(value: &str) -> Result<Vec<u64>, String> {
@@ -150,7 +149,7 @@ pub fn plan_update(
             version: version.into(), installed_at: installed_at.into(), files,
             transaction_id: transaction_id.into(), records,
         },
-        removed, retained,
+        removed,
     })
 }
 #[cfg(test)]
@@ -189,7 +188,7 @@ mod tests {
         let current = BTreeMap::from([(old.path.clone(), "old".into()), (edited.path.clone(), "user edit".into())]);
         let plan = install(&mut library, "a", "2.0.0", &[operation("content/new.ini", "new")], &current);
         assert_eq!(plan.removed.len(), 1);
-        assert_eq!(plan.retained, vec![edited.path.clone()]);
+        assert!(plan.installed.files.contains(&edited.path));
         assert_eq!(library["a"].records[&edited.path].sha256, "installed");
     }
     #[test]
