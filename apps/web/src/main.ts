@@ -695,7 +695,7 @@ function settings(el: HTMLElement) {
     void downloadPreferences(el).catch(handleError);
     void updateStatusPanel(el).catch(handleError);
   });
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">PREFERENCES / 04</p><h1>گاراژ، به سلیقهٔ تو.</h1><p class="muted">مسیر بازی، نمایش و اطلاعات اتصال را مدیریت کن.</p></div></div><div class="settings-layout"><section class="panel"><div class="section-heading"><h2>محل نصب بازی</h2>${icon('folder-open')}</div><p class="muted">پوشه‌ای را انتخاب کن که فایل acs.exe و پوشه content در آن قرار دارند.</p><div class="path-box"><code dir="ltr" id="game-path">${esc(gamePath || 'هنوز مسیری انتخاب نشده')}</code><button class="button secondary" id="choose-path">${icon('folder')}انتخاب پوشه</button></div><div class="notice">${icon('shield-check')}${native ? 'اعتبار مسیر در لایه Native بررسی می‌شود.' : 'در پیش‌نمایش مرورگر امکان دسترسی به پوشه بازی وجود ندارد.'}</div></section><section class="panel"><div class="section-heading"><h2>نمایش و دسترس‌پذیری</h2>${icon('sliders-horizontal')}</div><label class="setting-row"><div><b>چیدمان فشرده</b><p>فاصله‌های کمتر برای پنجره‌های کوچک‌تر</p></div><input id="compact" type="checkbox" ${compact ? 'checked' : ''}></label><label class="setting-row"><div><b>جهت نمایش</b><p>محتوا در این نسخه فارسی است؛ تغییر جهت برای بررسی چیدمان</p></div><select id="language"><option value="fa" ${language === 'fa' ? 'selected' : ''}>راست به چپ</option><option value="en" ${language === 'en' ? 'selected' : ''}>چپ به راست</option></select></label></section><section class="panel"><div class="section-heading"><h2>وضعیت اتصال</h2>${icon('radio')}</div><dl class="definition"><dt>محیط</dt><dd>${demo ? 'توسعه / داده محلی' : 'API عملیاتی'}</dd><dt>اجرای برنامه</dt><dd>${native ? 'دسکتاپ Tauri' : 'مرورگر / پیش‌نمایش'}</dd><dt>کلید خصوصی</dt><dd>${native ? 'محافظت‌شده توسط ویندوز' : 'WebCrypto آزمایشی در همین مرورگر'}</dd><dt>نسخه</dt><dd><code>${appVersion}</code></dd></dl><button class="text-button" id="recover">${icon('folder-check')}بررسی و بازیابی نصب نیمه‌تمام</button><br><button class="text-button" id="check-api">${icon('refresh-cw')}بررسی اتصال</button></section></div>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">PREFERENCES / 04</p><h1>گاراژ، به سلیقهٔ تو.</h1><p class="muted">مسیر بازی، نمایش و اطلاعات اتصال را مدیریت کن.</p></div></div><div class="settings-layout"><section class="panel"><div class="section-heading"><h2>محل نصب بازی</h2>${icon('folder-open')}</div><p class="muted">پوشه‌ای را انتخاب کن که فایل acs.exe و پوشه content در آن قرار دارند.</p><div class="path-box"><code dir="ltr" id="game-path">${esc(gamePath || 'هنوز مسیری انتخاب نشده')}</code><button class="button secondary" id="choose-path">${icon('folder')}انتخاب پوشه</button></div><div class="notice">${icon('shield-check')}${native ? 'اعتبار مسیر در لایه Native بررسی می‌شود.' : 'در پیش‌نمایش مرورگر امکان دسترسی به پوشه بازی وجود ندارد.'}</div></section><section class="panel"><div class="section-heading"><h2>نمایش و دسترس‌پذیری</h2>${icon('sliders-horizontal')}</div><label class="setting-row"><div><b>چیدمان فشرده</b><p>فاصله‌های کمتر برای پنجره‌های کوچک‌تر</p></div><input id="compact" type="checkbox" ${compact ? 'checked' : ''}></label><label class="setting-row"><div><b>جهت نمایش</b><p>محتوا در این نسخه فارسی است؛ تغییر جهت برای بررسی چیدمان</p></div><select id="language"><option value="fa" ${language === 'fa' ? 'selected' : ''}>راست به چپ</option><option value="en" ${language === 'en' ? 'selected' : ''}>چپ به راست</option></select></label></section><section class="panel"><div class="section-heading"><h2>وضعیت اتصال</h2>${icon('radio')}</div><dl class="definition"><dt>محیط</dt><dd>${demo ? 'توسعه / داده محلی' : 'API عملیاتی'}</dd><dt>اجرای برنامه</dt><dd>${native ? 'دسکتاپ Tauri' : 'مرورگر / پیش‌نمایش'}</dd><dt>کلید خصوصی</dt><dd>${native ? 'محافظت‌شده توسط ویندوز' : 'WebCrypto آزمایشی در همین مرورگر'}</dd><dt>نسخه</dt><dd><code>${appVersion}</code></dd></dl><button class="text-button" id="recover">${icon('folder-check')}بررسی و بازیابی نصب نیمه‌تمام</button><br><button class="text-button" id="check-api">${icon('refresh-cw')}بررسی اتصال</button><br><button class="text-button" id="copy-diagnostics">${icon('scroll-text')}کپی گزارش تشخیصی بدون اطلاعات خصوصی</button></section></div>`;
   el.querySelector<HTMLButtonElement>('#choose-path')!.onclick = function () {
     void busy(this as HTMLButtonElement, async () => {
       if (!native) throw new Error('انتخاب مسیر واقعی فقط در برنامه ویندوز امکان‌پذیر است.');
@@ -722,6 +722,19 @@ function settings(el: HTMLElement) {
     language = (e.target as HTMLSelectElement).value;
     localStore.setItem('uhm-language', language);
     void render();
+  });
+  el.querySelector<HTMLButtonElement>('#copy-diagnostics')!.addEventListener('click', function () {
+    void busy(this as HTMLButtonElement, async () => {
+      const report = {
+        version: appVersion,
+        runtime: native ? 'windows-native' : 'browser',
+        online,
+        pending_events: (await pendingEvents()).length,
+        generated_at: new Date().toISOString(),
+      };
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+      toast('گزارش تشخیصی کپی شد؛ مسیر فایل، لایسنس و کلیدها در آن نیست.');
+    });
   });
   el.querySelector<HTMLButtonElement>('#recover')!.addEventListener('click', function () {
     void busy(this as HTMLButtonElement, async () => {

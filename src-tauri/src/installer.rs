@@ -172,8 +172,7 @@ fn rollback(root: &Path, dir: &Path, journal: &mut Journal) -> Result<usize, Str
         let current = file_hash(&target)?;
         if current == entry.before_sha256 { continue; }
         if !entry.existed && current.is_none() { continue; }
-        let trusted = entry.before_sha256.is_some()
-            && (entry.after_sha256.is_some() || !entry.existed);
+        let trusted = if entry.existed { entry.before_sha256.is_some() } else { entry.after_sha256.is_some() };
         if !trusted || current != entry.after_sha256 {
             let conflict = Conflict {
                 target: entry.target.clone(), backup: entry.backup.clone(),
