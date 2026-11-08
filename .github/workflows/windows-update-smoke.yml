@@ -1,7 +1,7 @@
 name: Real Windows automatic-update smoke
 on:
   push:
-    branches: [arena/37af8e92-app]
+    branches: [arena/0b78cac4-app]
     paths: [.github/update-smoke-request.json]
 permissions:
   contents: read
@@ -50,11 +50,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/published-update/UHM-Launcher-$env:APP_VERSION-x64-setup.exe" $env:APP_VERSION
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify the immutable original public 0.1.1 installer
+      - name: Verify the immutable original public 0.1.2 installer
         run: |
-          gh release download uhm-launcher-v0.1.1 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.1"
+          gh release download uhm-launcher-v0.1.2 --pattern '*.exe' --pattern '*.exe.sig' --dir "$env:RUNNER_TEMP/public-0.1.2"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe" 0.1.1
+          npx tsx scripts/verify-update-artifact.ts "$env:RUNNER_TEMP/public-0.1.2/UHM-Launcher-0.1.2-x64-setup.exe" 0.1.2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Real installed upgrade, process deferral, automatic restart and data preservation
         run: ../scripts/windows-update-smoke.ps1 -ExpectedVersion $env:APP_VERSION

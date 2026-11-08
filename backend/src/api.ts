@@ -14,6 +14,7 @@ import {
   Proof,
   PublicJwk,
   Id,
+  compareVersions,
   resolvePlan,
   validatePublication,
   type License,
@@ -32,10 +33,12 @@ import {
   type SigningConfig,
 } from './crypto.ts';
 import type { Repository } from './repository.ts';
+import { version as appVersion } from '../../package.json';
 export type ApiConfig = SigningConfig & {
   mode: 'demo' | 'production';
   allowedOrigins: string[];
   demoSession?: { token: string; license: string };
+  offlineLeaseDays?: number;
 };
 class HttpError extends Error {
   constructor(
@@ -90,7 +93,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
             'package-admin-v1',
             'user-profiles-v1',
           ],
-          version: '0.1.0',
+          version: appVersion,
           public_key: config.publicJwk,
           issuer: config.issuer,
           kid: config.kid,
@@ -340,6 +343,7 @@ export function createApi(repo: Repository, config: ApiConfig) {
             l.device_thumbprint === thumb &&
             l.status === 'active' &&
             !l.archived &&
+            (!l.starts_at || Date.parse(l.starts_at) <= Date.now()) &&
             Date.parse(l.expires_at!) > Date.now(),
         );
         if (!license) throw new HttpError(403, 'LICENSE_INVALID');
@@ -569,7 +573,18 @@ export function createApi(repo: Repository, config: ApiConfig) {
         if (!pkg) throw new HttpError(404, 'NOT_FOUND');
         if (publish[2] === 'publish') {
           if (pkg.status !== 'draft') throw new HttpError(409, 'DRAFT_REQUIRED');
-          validatePublication(pkg, await repo.published());
+          const published = await repo.published();
+          const previous = published.find((p) => p.id === pkg.id);
+          const history = (await repo.releases())
+            .filter((r) => r.package_id === pkg.id)
+            .map((r) => r.version);
+          if (
+            [...(previous ? [previous.version] : []), ...history].some(
+              (v) => compareVersions(pkg.version, v) <= 0,
+            )
+          )
+            throw new HttpError(409, 'VERSION_MUST_INCREASE');
+          validatePublication(pkg, published);
         }
         const input = z
           .object({ expected_revision: z.number().int().positive().optional() })

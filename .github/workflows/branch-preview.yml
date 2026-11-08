@@ -1,7 +1,5 @@
 name: Refresh compiled branch preview
 on:
-  push:
-    branches: [arena/37af8e92-app]
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   refresh:
-    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    if: github.ref == 'refs/heads/arena/0b78cac4-app'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +33,7 @@ jobs:
           git add pages-preview
           if ! git diff --cached --quiet; then
             git commit -m 'Refresh generated shared UI preview [skip ci]'
-            git push origin HEAD:arena/37af8e92-app
+            git push origin HEAD:arena/0b78cac4-app
           fi
       - name: Rebuild legacy Pages when that source is selected
         env:
@@ -47,7 +45,7 @@ jobs:
           fi
 
   native-lock:
-    if: github.ref == 'refs/heads/arena/37af8e92-app'
+    if: github.ref == 'refs/heads/arena/0b78cac4-app'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -64,7 +62,7 @@ jobs:
           if [ -z "$run" ]; then echo 'No native run for this revision.'; exit 0; fi
           gh run watch "$run" --exit-status
           gh run download "$run" --name native-dependency-lock --dir "$RUNNER_TEMP/native-lock"
-          git fetch origin arena/37af8e92-app
+          git fetch origin arena/0b78cac4-app
           if ! git diff --quiet "$GITHUB_SHA" FETCH_HEAD -- src-tauri/Cargo.toml; then
             echo 'Newer dependency manifest exists; its own job will pin the lock.'
             exit 0
@@ -75,6 +73,6 @@ jobs:
           git add src-tauri/Cargo.lock
           if ! git diff --cached --quiet; then
             git commit -m 'Pin dependency lock from verified Windows build [skip ci]'
-            git pull --no-rebase origin arena/37af8e92-app
-            git push origin HEAD:arena/37af8e92-app
+            git pull --no-rebase origin arena/0b78cac4-app
+            git push origin HEAD:arena/0b78cac4-app
           fi

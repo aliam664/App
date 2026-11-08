@@ -73,10 +73,13 @@ export async function renderAdmin(
   page: string,
   adminToken: string,
   reload: () => Promise<void>,
+  isCurrent: () => boolean = () => true,
 ) {
   token = adminToken;
   refreshPage = reload;
-  overview = await api<Overview>('/admin/overview', undefined, token);
+  const data = await api<Overview>('/admin/overview', undefined, token);
+  if (!isCurrent()) return;
+  overview = data;
   for (const c of overview.categories || []) category[c.id] = c.name;
   const navPermissions: Record<string, Permission> = {
     licenses: 'licenses.read',

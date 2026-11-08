@@ -1,6 +1,6 @@
 [package]
 name = "uhm-launcher"
-version = "0.1.2"
+version = "0.1.3"
 description = "UHM Windows launcher and transactional package installer"
 authors = ["UHM"]
 edition = "2021"

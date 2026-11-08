@@ -486,7 +486,7 @@ export function validatePublication(pkg: PackageSpec, all: PackageSpec[]) {
     new Set(pkg.steps.map((s) => s.id)).size !== pkg.steps.length
   )
     throw new Error('DUPLICATE_ID');
-  const targets = new Set<string>();
+  const targets = new Map<string, string>();
   const completed = new Set<string>();
   for (const step of pkg.steps) {
     if ((step.depends_on || []).some((id) => !completed.has(id)))
@@ -497,9 +497,16 @@ export function validatePublication(pkg: PackageSpec, all: PackageSpec[]) {
     if (!file) throw new Error('UNKNOWN_FILE');
     if (step.action === 'extract' && !['zip', 'rar', '7z'].includes(file.format))
       throw new Error('FORMAT_MISMATCH');
-    if (step.action === 'copy' && targets.has(step.destination.toLowerCase()))
-      throw new Error('DESTINATION_CONFLICT');
-    targets.add(step.destination.toLowerCase());
+    const destination = step.destination.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+    for (const [other, action] of targets) {
+      const nested =
+        destination === other ||
+        destination.startsWith(`${other}/`) ||
+        other.startsWith(`${destination}/`);
+      if (nested && (action === 'extract' || step.action === 'extract' || destination === other))
+        throw new Error('DESTINATION_CONFLICT');
+    }
+    targets.set(destination, step.action);
   }
   resolvePlan(
     pkg.id,

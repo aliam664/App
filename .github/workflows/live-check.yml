@@ -1,0 +1,23 @@
+name: Non-destructive production verification
+on:
+  push:
+    branches: [main, arena/0b78cac4-app]
+    paths:
+      - .github/workflows/live-check.yml
+      - scripts/check-live-public.ts
+      - config/production-public.json
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/check-live-public.ts

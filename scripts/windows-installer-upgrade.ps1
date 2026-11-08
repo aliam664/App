@@ -1,13 +1,13 @@
-# Only disposable CI. Installs the immutable PUBLIC 0.1.1 installer, never a fabricated older build.
+# Only disposable CI. Installs the immutable PUBLIC 0.1.2 installer, never a fabricated older build.
 param([Parameter(Mandatory=$true)][string]$Candidate,[Parameter(Mandatory=$true)][string]$ExpectedVersion)
 $ErrorActionPreference='Stop'
 function Assert($value,[string]$message){if(-not $value){throw $message}}
 function Version([string]$path){if(Test-Path $path){[regex]::Match((Get-Item $path).VersionInfo.ProductVersion,'^\d+\.\d+\.\d+').Value}else{''}}
 function Wait-Until([scriptblock]$test,[string]$message){$end=[DateTime]::UtcNow.AddSeconds(90);do{if(& $test){return};Start-Sleep -Seconds 1}while([DateTime]::UtcNow -lt $end);throw $message}
 Assert ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_OS -eq 'Windows' -and $env:GITHUB_REPOSITORY -eq 'aliam664/App') 'Disposable Windows CI only'
-Assert ($ExpectedVersion -eq '0.1.2') 'Explicit candidate version required'
-$old=Join-Path $env:RUNNER_TEMP 'public-0.1.1/UHM-Launcher-0.1.1-x64-setup.exe'
-Assert ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -eq '1064de0500e37fece771f5ab26b838984353916ca7a7cf0576c6f7348aed17dd') 'Published 0.1.1 bytes changed'
+Assert ($ExpectedVersion -eq '0.1.3') 'Explicit candidate version required'
+$old=Join-Path $env:RUNNER_TEMP 'public-0.1.2/UHM-Launcher-0.1.2-x64-setup.exe'
+Assert ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -eq 'c13afbcc883fed9b484df4ab9b0103da38844981c9b77c6813c8ef7c8d84b395') 'Published 0.1.2 bytes changed'
 $target=Join-Path $env:RUNNER_TEMP 'uhm-public-installer-upgrade'
 $data=Join-Path $env:LOCALAPPDATA 'com.uhm.launcher'
 Assert (-not (Test-Path "$data/settings.json")) 'Requires fresh disposable profile'
@@ -25,7 +25,7 @@ function Open-Close {
  try {Wait-Until {$app.Refresh();$app.MainWindowHandle -ne 0} 'Actual application window did not open';Assert ($app.CloseMainWindow()) 'Window close failed';Assert ($app.WaitForExit(30000)) 'Application did not exit safely'} finally {if(-not $app.HasExited){Stop-Process $app.Id -Force}}
 }
 Install $old
-Assert ((Version $exe) -eq '0.1.1') 'Not the original public installer'
+Assert ((Version $exe) -eq '0.1.2') 'Not the original public installer'
 Open-Close
 $identity=if(Test-Path "$data/device.dpapi"){(Get-FileHash "$data/device.dpapi").Hash}else{''}
 # Force a genuine Windows write/delete-sharing failure against ONLY the disposable old EXE.
@@ -35,7 +35,7 @@ $lock=[IO.File]::Open($exe,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileSha
 try {
  $failedSetup=Start-Process (Resolve-Path $Candidate).Path -ArgumentList @('/S',"/D=$target") -PassThru
  Assert ($failedSetup.WaitForExit(60000)) 'Locked-target silent NSIS did not terminate'
- Assert ((Version $exe) -eq '0.1.1') 'Locked-target installer unexpectedly replaced the protected executable'
+ Assert ((Version $exe) -eq '0.1.2') 'Locked-target installer unexpectedly replaced the protected executable'
  Assert ((Get-FileHash "$data/settings.json").Hash -eq $settings) 'Failed install changed settings'
  Assert ((Get-FileHash "$game/content/preserve.txt").Hash -eq $content) 'Failed install changed game content'
 } finally {
@@ -60,4 +60,4 @@ Assert (-not(Test-Path $data)) 'Fresh installation must have a fresh application
 Install (Resolve-Path $Candidate).Path
 Assert ((Version $exe) -eq $ExpectedVersion) 'Fresh install version differs'
 Open-Close
-@{ok=$true;failed_installer_exit_code=$failedSetup.ExitCode;from='public 0.1.1';to=$ExpectedVersion;checks=@('Exact original installer SHA256 and signature','Actual locked-EXE NSIS failure, old-app startup, and successful retry','Actual silent NSIS upgrade','Actual native window startup/close','Settings and synthetic content preservation','Device identity preservation when present','Fresh NSIS install and startup');limits='No active license activation, no real game, no claim of public-feed automatic rollout yet'}|ConvertTo-Json -Depth 4|Tee-Object "$env:RUNNER_TEMP/installer-upgrade-result.json"
+@{ok=$true;failed_installer_exit_code=$failedSetup.ExitCode;from='public 0.1.2';to=$ExpectedVersion;checks=@('Exact original installer SHA256 and signature','Actual locked-EXE NSIS failure, old-app startup, and successful retry','Actual silent NSIS upgrade','Actual native window startup/close','Settings and synthetic content preservation','Device identity preservation when present','Fresh NSIS install and startup');limits='No active license activation, no real game, no claim of public-feed automatic rollout yet'}|ConvertTo-Json -Depth 4|Tee-Object "$env:RUNNER_TEMP/installer-upgrade-result.json"

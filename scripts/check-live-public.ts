@@ -1,5 +1,6 @@
 /** Non-destructive production checks; never activates/changes the owner's license. */
 import config from '../config/production-public.json';
+import { version as appVersion } from '../package.json';
 import { BROKER_URL } from '../backend/src/update-key-broker';
 const checks: string[] = [];
 const origin = 'https://aliam664.github.io';
@@ -22,6 +23,7 @@ async function request(path: string, expected: number, post = false, requestOrig
 const health = await (await request('/health', 200)).json();
 check(
   health.mode === 'production' &&
+    health.version === appVersion &&
     health.kid === config.license_key_id &&
     health.issuer === config.license_issuer,
   'production identity',
@@ -39,7 +41,7 @@ for (const capability of [
 ])
   check(health.capabilities.includes(capability), `deployed ${capability}`);
 checks.push(
-  'Production identity, unchanged license trust, package v2 and all 0.1.2 admin capabilities',
+  'Matching application version, production identity, unchanged license trust and backward-compatible capabilities',
 );
 check(Array.isArray((await (await request('/catalog', 200)).json()).packages), 'live catalog');
 await request('/admin/overview', 401);

@@ -33,6 +33,7 @@ fn main() {
             "restore_quarantine",
             "install_plan",
             "recover_installations",
+            "recovery_status",
             "verify_offline_grant",
         ]),
     ))

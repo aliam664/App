@@ -115,7 +115,7 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 #[cfg(windows)]
 fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>, String> {
     use windows_sys::Win32::Security::Cryptography::*;
-    let mut input = CRYPT_INTEGER_BLOB {
+    let input = CRYPT_INTEGER_BLOB {
         cbData: bytes.len() as u32,
         pbData: bytes.as_ptr() as *mut u8,
     };
@@ -126,7 +126,7 @@ fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>, String> {
     let result = unsafe {
         if decrypt {
             CryptUnprotectData(
-                &mut input,
+                &input,
                 std::ptr::null_mut(),
                 std::ptr::null(),
                 std::ptr::null_mut(),
@@ -136,7 +136,7 @@ fn protect(bytes: &[u8], decrypt: bool) -> Result<Vec<u8>, String> {
             )
         } else {
             CryptProtectData(
-                &mut input,
+                &input,
                 std::ptr::null(),
                 std::ptr::null(),
                 std::ptr::null_mut(),

@@ -3,6 +3,7 @@ mod content;
 mod content_rules;
 mod discovery;
 mod installer;
+mod ownership;
 mod jobs;
 mod lifecycle;
 mod quarantine;
@@ -326,6 +327,13 @@ fn verify_offline_grant(app: tauri::AppHandle, grant: String) -> Result<Value, S
     verified_grant(&app, &grant)
 }
 #[tauri::command]
+async fn recovery_status(app: tauri::AppHandle) -> Result<Value, String> {
+    let root = valid_game(&settings(&app)?.game_path)?;
+    tauri::async_runtime::spawn_blocking(move || installer::recovery_status(&root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn recover_installations(app: tauri::AppHandle) -> Result<usize, String> {
     let root = valid_game(&settings(&app)?.game_path)?;
     tauri::async_runtime::spawn_blocking(move || installer::recover(&root))
@@ -423,6 +431,7 @@ fn main() {
             restore_quarantine,
             verify_offline_grant,
             recover_installations,
+            recovery_status,
             install_plan
         ])
         .run(tauri::generate_context!())

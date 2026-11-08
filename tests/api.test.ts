@@ -299,6 +299,24 @@ describe('immutable content publishing', () => {
       (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
     ).toBe('1.1.0');
   });
+  it('rejects publishing a downgrade or an already released version', async () => {
+    const pkg = await publishFixture();
+    const saved = await request('/admin/packages', { ...pkg, version: '0.9.0' }, repo.adminToken);
+    expect(saved.status).toBe(200);
+    const rejected = await request(`/admin/packages/${pkg.id}/publish`, {}, repo.adminToken);
+    expect(rejected.status).toBe(409);
+    expect(rejected.data.error).toBe('VERSION_MUST_INCREASE');
+    const repeated = await request(
+      '/admin/packages',
+      { ...pkg, version: '1.0.0' },
+      repo.adminToken,
+    );
+    expect(repeated.status).toBe(409);
+    expect(repeated.data.error).toBe('RELEASE_IMMUTABLE');
+    expect(
+      (await request('/catalog')).data.packages.find((p: any) => p.id === pkg.id).version,
+    ).toBe('1.0.0');
+  });
   it('keeps stable catalog during scheduled/test updates and preserves richer snapshots', async () => {
     const pkg = await publishFixture();
     await request(
@@ -698,4 +716,41 @@ it('accepts real PostgreSQL timezone offsets in history cursors', async () => {
     (await request(`/admin/licenses/${id}/activity?cursor=${cursor}`, undefined, repo.adminToken))
       .status,
   ).toBe(200);
+});
+
+describe('0.1.3 license and publication regressions', () => {
+  it('reports the actual application version on health', async () => {
+    const r = await request('/health');
+    expect(r.status).toBe(200);
+    expect(r.data.version).toBe('0.1.3');
+  });
+  it('honors a bounded configurable offline lease without exceeding license expiry', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    const license = repo.state.licenses[0];
+    const claims = await verifyToken(
+      await grant(license, { ...config, offlineLeaseDays: 2 }),
+      config,
+      'uhm-offline+jwt',
+    );
+    expect(Number(claims.offline_until)).toBeLessThanOrEqual(Date.now() + 2 * 86400000);
+    expect(Number(claims.refresh_after)).toBeLessThan(Number(claims.offline_until));
+    await expect(grant(license, { ...config, offlineLeaseDays: 31 })).rejects.toThrow(
+      'INVALID_OFFLINE_LEASE_DAYS',
+    );
+    await expect(grant(license, { ...config, offlineLeaseDays: 1.5 })).rejects.toThrow(
+      'INVALID_OFFLINE_LEASE_DAYS',
+    );
+  });
+  it('refresh refuses a license whose start window moved into the future', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    repo.state.licenses[0].starts_at = new Date(Date.now() + 86400000).toISOString();
+    const r = await request('/licenses/refresh', {
+      license_id: repo.state.licenses[0].id,
+      ...(await proof(d, 'refresh')),
+    });
+    expect(r.status).toBe(403);
+    expect(r.data.error).toBe('LICENSE_INVALID');
+  });
 });
