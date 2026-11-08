@@ -43,7 +43,7 @@
 
 ## ۱۰. انتشار و امضا
 
-اجرای release `42508550397`: SUCCESS. تگ `uhm-launcher-v0.1.3` به‌صورت prerelease و non-latest روی `cfb5122` منتشر شد. نصب‌کننده 16,496,588 بایت با SHA-256 `799b9d0ac06902715a097cc6b87a98440d6d91bfe85c0ac940a4a3f4cb733f50`. feed اختصاصی `uhm-launcher-updates` به‌روزرسانی شد؛ `v1.0.0` همچنان Latestlegacy دست‌نخورده است.
+اجرای release `42508550397`: SUCCESS. تگ `uhm-launcher-v0.1.3` به‌صورت prerelease و non-latest روی `cfb5122` منتشر شد. نصب‌کننده 16,496,588 بایت با SHA-256 `799b9d0ac06902715a097cc6b87a98440d6d91bfe85c0ac940a4a3f4cb733f50`. feed اختصاصی `uhm-launcher-updates` به‌روزرسانی شد؛ `v1.0.0` همچنان Latest قدیمی دست‌نخورده است.
 
 ## ۱۱. اثبات به‌روزرسانی واقعی
 
