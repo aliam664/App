@@ -2,8 +2,9 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import updater from '../../config/updater-public.json';
 export const BROKER_URL = 'https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/update-key-broker';
+export const RELEASE_REFS = ['refs/heads/main', 'refs/heads/arena/0b78cac4-app'] as const;
 export const RELEASE_WORKFLOW =
-  'aliam664/App/.github/workflows/release-launcher.yml@refs/heads/arena/37af8e92-app';
+  'aliam664/App/.github/workflows/release-launcher.yml@refs/heads/main';
 const githubKeys = createRemoteJWKSet(
   new URL('https://token.actions.githubusercontent.com/.well-known/jwks'),
   { timeoutDuration: 8000 },
@@ -13,23 +14,23 @@ export function assertReleaseIdentity(claims: JWTPayload) {
     repository_id: '1363261683',
     repository_owner_id: '259944690',
     repository: 'aliam664/App',
-    ref: 'refs/heads/arena/37af8e92-app',
     ref_type: 'branch',
-    workflow_ref: RELEASE_WORKFLOW,
     runner_environment: 'github-hosted',
   })) {
     if (claims[key] !== value) throw new Error('Release identity rejected');
   }
+  const ref = claims.ref as string;
   if (
+    !RELEASE_REFS.includes(ref as (typeof RELEASE_REFS)[number]) ||
+    claims.workflow_ref !== `aliam664/App/.github/workflows/release-launcher.yml@${ref}` ||
     !['workflow_dispatch', 'push'].includes(claims.event_name as string) ||
     typeof claims.sha !== 'string' ||
     !/^[a-f0-9]{40}$/.test(claims.sha) ||
     typeof claims.run_id !== 'string' ||
     !/^\d{1,20}$/.test(claims.run_id) ||
-    ![
-      'repo:aliam664@259944690/App@1363261683:ref:refs/heads/arena/37af8e92-app',
-      'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app',
-    ].includes(claims.sub ?? '') ||
+    ![`repo:aliam664@259944690/App@1363261683:ref:${ref}`, `repo:aliam664/App:ref:${ref}`].includes(
+      claims.sub ?? '',
+    ) ||
     typeof claims.iat !== 'number' ||
     typeof claims.exp !== 'number' ||
     claims.exp <= claims.iat ||
@@ -64,7 +65,7 @@ export async function verifyBuild(runId: string, releaseSha: string) {
     run.status !== 'completed' ||
     run.conclusion !== 'success' ||
     run.path !== '.github/workflows/quality.yml' ||
-    run.head_branch !== 'arena/37af8e92-app' ||
+    !RELEASE_REFS.includes(`refs/heads/${run.head_branch}` as (typeof RELEASE_REFS)[number]) ||
     run.event !== 'push' ||
     run.repository?.id !== 1363261683 ||
     !/^[a-f0-9]{40}$/.test(run.head_sha)

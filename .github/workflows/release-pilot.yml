@@ -1,8 +1,5 @@
 name: Publish verified production pilot installer
 on:
-  push:
-    branches: [arena/37af8e92-app]
-    paths: [.github/workflows/release-pilot.yml]
   workflow_dispatch:
 permissions:
   contents: write
@@ -24,7 +21,7 @@ jobs:
       - name: Verify installer provenance and unchanged application source
         run: |
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > /tmp/run.json
-          jq -e '.conclusion == "success" and .head_branch == "arena/37af8e92-app" and .path == ".github/workflows/quality.yml"' /tmp/run.json
+          jq -e '.conclusion == "success" and .head_branch == "arena/0b78cac4-app" and .path == ".github/workflows/quality.yml"' /tmp/run.json
           built_sha=$(jq -r .head_sha /tmp/run.json)
           git diff --exit-code "$built_sha" HEAD -- apps backend packages public config src-tauri package.json package-lock.json vite.config.ts
           echo "BUILT_SHA=$built_sha" >> "$GITHUB_ENV"

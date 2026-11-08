@@ -16,6 +16,9 @@ const repository = new SupabaseRepository(
 );
 const api = createApi(repository, {
   mode: 'production',
+  offlineLeaseDays: Deno.env.has('UHM_OFFLINE_LEASE_DAYS')
+    ? Number(Deno.env.get('UHM_OFFLINE_LEASE_DAYS'))
+    : 10,
   privateJwk: signingJwk('LICENSE_SIGNING_JWK'),
   publicJwk: signingJwk('LICENSE_PUBLIC_JWK'),
   pepper: required('LICENSE_PEPPER'),

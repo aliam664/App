@@ -113,10 +113,12 @@ export const date = (s: string | null) =>
   s
     ? new Date(s).toLocaleDateString('fa-IR', { month: 'short', day: 'numeric', year: 'numeric' })
     : '—';
-export const size = (bytes: number) =>
-  bytes
-    ? `${(bytes / (bytes >= 1e9 ? 1e9 : 1e6)).toFixed(1)} ${bytes >= 1e9 ? 'GB' : 'MB'}`
-    : 'فایل متصل نشده';
+export const size = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1000) return `${fa(Math.round(bytes))} B`;
+  if (bytes < 1e6) return `${(bytes / 1000).toFixed(1)} KB`;
+  return `${(bytes / (bytes >= 1e9 ? 1e9 : 1e6)).toFixed(1)} ${bytes >= 1e9 ? 'GB' : 'MB'}`;
+};
 export const tierLabel = (tier: string) =>
   ({ normal: 'Normal', pro: 'Pro', vip: 'VIP' })[tier] || tier;
 export const badge = (tier: string) =>

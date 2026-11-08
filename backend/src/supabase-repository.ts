@@ -48,18 +48,24 @@ export class SupabaseRepository implements Repository {
     }
   }
   async releases() {
-    const { data, error } = await this.db
-      .from('package_releases')
-      .select('*')
-      .order('published_at', { ascending: false })
-      .limit(500);
-    this.check(error);
-    return (data || []) as {
+    const rows: {
       package_id: string;
       version: string;
       manifest: import('../../packages/contracts/src/index.ts').PackageSpec;
       published_at: string;
-    }[];
+    }[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await this.db
+        .from('package_releases')
+        .select('*')
+        .order('published_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + 499);
+      this.check(error);
+      rows.push(...((data || []) as typeof rows));
+      if (!data || data.length < 500) break;
+    }
+    return rows;
   }
   async list<T extends Table>(table: T): Promise<Tables[T][]> {
     const rows: Tables[T][] = [];

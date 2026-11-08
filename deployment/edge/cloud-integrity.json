@@ -1,11 +1,11 @@
 {
   "api": {
-    "sha256": "a87f5e2e02325bfc1f960d28688000f85bd26100cc768dd8963474431b62cc9b",
-    "bytes": 40164
+    "sha256": "240190ef841bb12af5c7f3a5255894826a415220fa4e735b675b593fb4cb604a",
+    "bytes": 40888
   },
   "updateKeyBroker": {
-    "sha256": "5ecb6dec22cf9073e726157e71dcbc18cb0a7a160976b73e2d491ebd9a5882a2",
-    "bytes": 4098
+    "sha256": "d8fd4ba70ee855e9af4c0f17bfad224cd5c3baaabf607008f63adf356114352c",
+    "bytes": 4080
   },
   "npm": {
     "zod": "npm:zod@4.6.7",

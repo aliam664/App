@@ -91,6 +91,7 @@ export const messages: Record<string, string> = {
   PACKAGE_IN_USE: 'یک پکیج منتشرشده به این بسته وابسته است؛ ابتدا وابستگی را اصلاح کنید.',
   PACKAGE_DELETED: 'این پکیج حذف منطقی شده و دیگر قابل ویرایش نیست.',
   CONFIRMATION_REQUIRED: 'شناسهٔ تأیید با پکیج انتخابی مطابقت ندارد.',
+  DESTINATION_CONFLICT: 'مقصد استخراج با فایل یا پوشهٔ دیگری هم‌پوشانی دارد.',
   VERSION_MUST_INCREASE: 'شمارهٔ نسخهٔ جدید باید از تمام نسخه‌های قبلی بالاتر باشد.',
   DRAFT_REQUIRED: 'فقط پیش‌نویس ذخیره‌شده قابل انتشار است.',
   INSTALL_PLAN_LIMIT: 'نصب هم‌زمان بیش از ۳۰ پکیج مجاز نیست.',

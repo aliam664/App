@@ -81,16 +81,23 @@ export async function verifyToken(token: string, config: SigningConfig, kind: st
   if (protectedHeader.kid !== config.kid) throw new Error('INVALID_KEY');
   return payload;
 }
-export async function grant(license: License, config: SigningConfig) {
+export async function grant(
+  license: License,
+  config: SigningConfig & { offlineLeaseDays?: number },
+) {
+  const days = config.offlineLeaseDays ?? 10;
+  if (!Number.isInteger(days) || days < 1 || days > 30)
+    throw new Error('INVALID_OFFLINE_LEASE_DAYS');
   const now = Date.now(),
-    end = Math.min(now + 10 * 86400000, Date.parse(license.expires_at!));
+    leaseMs = days * 86400000,
+    end = Math.min(now + leaseMs, Date.parse(license.expires_at!));
   return signPayload(
     {
       license_id: license.id,
       device_thumbprint: license.device_thumbprint,
       tier: license.tier,
       entitlement_version: license.entitlement_version,
-      refresh_after: Math.min(now + 3 * 86400000, end),
+      refresh_after: Math.min(now + 3 * 86400000, now + Math.floor(leaseMs / 3), end),
       offline_until: end,
       schema_version: 1,
     },

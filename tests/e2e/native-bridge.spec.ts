@@ -45,6 +45,7 @@ async function bridge(page: Page) {
             parallel_downloads: 2,
           };
         if (cmd === 'installed_packages') return {};
+        if (cmd === 'recovery_status') return [];
         if (cmd === 'scan_content')
           return {
             items: [
@@ -97,6 +98,16 @@ async function bridge(page: Page) {
         if (cmd === 'set_autoscan' || cmd === 'set_download_preferences') return;
         if (cmd === 'download_cache_status')
           return { path: 'C:\\Games\\AC\\.uhm\\download-cache', bytes: 1024, files: 1 };
+        if (cmd === 'install_plan' && args.token === 'partial-batch') {
+          queueMicrotask(() =>
+            w.emitNative('install-progress', {
+              package_id: 'dep',
+              phase: 'نصب تأیید شد',
+              progress: 99,
+            }),
+          );
+          return Promise.reject(new Error('MAIN_PACKAGE_FAILED'));
+        }
         if (cmd === 'install_plan')
           return new Promise((resolve, fail) => {
             finish = () => resolve({ success: true });
@@ -110,7 +121,14 @@ async function bridge(page: Page) {
             );
           });
         if (cmd === 'control_job') {
-          if (args.action === 'approve') finish?.();
+          if (args.action === 'approve') {
+            w.emitNative('install-progress', {
+              package_id: 'pkg-bridge',
+              phase: 'نصب تأیید شد',
+              progress: 99,
+            });
+            finish?.();
+          }
           if (args.action === 'cancel') reject?.(new Error('CANCELLED_BY_USER'));
           return {
             paused: args.action === 'pause',
@@ -199,9 +217,7 @@ async function startBridgeInstall(page: Page) {
       }),
     ),
   );
-  await expect(
-    page.getByRole('heading', { name: 'IPC contract package', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: /IPC contract package/ })).toBeVisible();
 }
 test('installation awaits native file preview approval and transfer controls use the active package ID', async ({
   page,
@@ -228,8 +244,21 @@ test('installation awaits native file preview approval and transfer controls use
       name: 'Staged package',
       required: 100,
       free: 1000,
+      version: '1.0.0',
+      destination: 'C:\\Games\\AC',
+      download_bytes: 100,
+      dependencies: [],
+      warnings: [],
       files: [
-        { path: 'content/cars/real/model.kn5', bytes: 100, overwrite: true, executable: false },
+        {
+          path: 'content/cars/real/model.kn5',
+          bytes: 100,
+          overwrite: true,
+          shared: false,
+          owners: [],
+          sha256: 'a'.repeat(64),
+          executable: false,
+        },
       ],
     }),
   );
@@ -259,6 +288,11 @@ test('closing the staged preview cancels rather than authorizing game changes', 
       name: 'Staged package',
       required: 1,
       free: 100,
+      version: '1.0.0',
+      destination: 'C:\\Games\\AC',
+      download_bytes: 0,
+      dependencies: [],
+      warnings: [],
       files: [],
     }),
   );
@@ -270,4 +304,32 @@ test('closing the staged preview cancels rather than authorizing game changes', 
       .map((c: any) => c.args.action),
   );
   expect(controls).toEqual(['cancel']);
+});
+
+test('a failed batch keeps confirmed dependency success and reports only the failed package', async ({
+  page,
+}) => {
+  await bridge(page);
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent('uhm-test-install', {
+        detail: {
+          plan: 'partial-batch',
+          packages: [
+            { id: 'dep', name: 'Confirmed dependency', version: '1.0.0' },
+            { id: 'main', name: 'Failed main package', version: '2.0.0' },
+          ],
+        },
+      }),
+    ),
+  );
+  const tasks = page.locator('.task');
+  await expect(tasks.filter({ hasText: 'Confirmed dependency' })).toContainText('نصب تکمیل شد');
+  await expect(tasks.filter({ hasText: 'Confirmed dependency' })).toContainText('۱۰۰٪');
+  await expect(tasks.filter({ hasText: 'Failed main package' })).toContainText(
+    'MAIN_PACKAGE_FAILED',
+  );
+  await expect(tasks.filter({ hasText: 'Failed main package' })).not.toContainText('۱۰۰٪');
+  await page.getByRole('button', { name: 'پاک کردن تاریخچه' }).click();
+  await expect(page.locator('.task')).toHaveCount(0);
 });

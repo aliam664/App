@@ -1166,7 +1166,7 @@ pub fn install<R: Runtime>(
             let mut warnings = Vec::new();
             let mut current = BTreeMap::new();
             if let Some(previous) = library.get(&package.id) {
-                if compare_versions(&package.version, &previous.version)? == std::cmp::Ordering::Less {
+                if crate::ownership::compare_versions(&package.version, &previous.version)? == std::cmp::Ordering::Less {
                     warnings.push(format!("Downgrade from {} to {} requires explicit approval", previous.version, package.version));
                 }
                 for old in &previous.files {

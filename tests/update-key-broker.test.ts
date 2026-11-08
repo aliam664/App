@@ -13,7 +13,7 @@ function claims() {
     repository_id: '1363261683',
     repository_owner_id: '259944690',
     repository: 'aliam664/App',
-    ref: 'refs/heads/arena/37af8e92-app',
+    ref: 'refs/heads/main',
     ref_type: 'branch',
     workflow_ref: RELEASE_WORKFLOW,
     event_name: 'workflow_dispatch',
@@ -21,7 +21,7 @@ function claims() {
     sha: 'a'.repeat(40),
     run_id: '123',
     run_attempt: '1',
-    sub: 'repo:aliam664@259944690/App@1363261683:ref:refs/heads/arena/37af8e92-app',
+    sub: 'repo:aliam664@259944690/App@1363261683:ref:refs/heads/main',
     iat: now,
     exp: now + 300,
   };
@@ -51,19 +51,46 @@ describe('release signing credential trust boundary', () => {
       expect(() => assertReleaseIdentity({ ...claims(), [field]: 'untrusted' })).toThrow();
     });
   }
-  it('accepts the exact legacy subject only with pinned numeric repository and owner claims', () => {
+  it('accepts the exact legacy-format subject only with pinned numeric repository and owner claims', () => {
     expect(() =>
       assertReleaseIdentity({
         ...claims(),
-        sub: 'repo:aliam664/App:ref:refs/heads/arena/37af8e92-app',
+        sub: 'repo:aliam664/App:ref:refs/heads/main',
       }),
     ).not.toThrow();
+  });
+  it('accepts the fixed session branch with its matching workflow and subject', () => {
+    const ref = 'refs/heads/arena/0b78cac4-app';
+    expect(() =>
+      assertReleaseIdentity({
+        ...claims(),
+        ref,
+        workflow_ref: `aliam664/App/.github/workflows/release-launcher.yml@${ref}`,
+        sub: `repo:aliam664@259944690/App@1363261683:ref:${ref}`,
+      }),
+    ).not.toThrow();
+  });
+  it('retires the old session branch and rejects unrelated refs', () => {
+    for (const ref of [
+      'refs/heads/arena/37af8e92-app',
+      'refs/heads/feature',
+      'refs/tags/uhm-launcher-v0.1.3',
+    ]) {
+      expect(() =>
+        assertReleaseIdentity({
+          ...claims(),
+          ref,
+          workflow_ref: `aliam664/App/.github/workflows/release-launcher.yml@${ref}`,
+          sub: `repo:aliam664@259944690/App@1363261683:ref:${ref}`,
+        }),
+      ).toThrow();
+    }
   });
   it('rejects a modern subject with different immutable IDs even when the name matches', () => {
     expect(() =>
       assertReleaseIdentity({
         ...claims(),
-        sub: 'repo:aliam664@259944690/App@999:ref:refs/heads/arena/37af8e92-app',
+        sub: 'repo:aliam664@259944690/App@999:ref:refs/heads/main',
       }),
     ).toThrow();
   });

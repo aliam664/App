@@ -171,3 +171,40 @@ it('validates ordered step prerequisites and forbids subtrees on copy', () => {
     validatePublication({ ...p, steps: [{ ...a, action: 'copy', source_subdir: 'inner' }] }, []),
   ).toThrow('INVALID_SOURCE_SUBDIR');
 });
+
+it('rejects extract subtrees that overlap any other installation destination', () => {
+  const base = PackageSpec.parse({ ...seedPackages()[2], dependencies: [] });
+  const file = {
+    id: crypto.randomUUID(),
+    name: 'a.zip',
+    url: 'https://example.com/a.zip',
+    size: 100,
+    sha256: 'a'.repeat(64),
+    format: 'zip' as const,
+  };
+  const extract = {
+    id: crypto.randomUUID(),
+    file_id: file.id,
+    action: 'extract' as const,
+    destination: 'content/cars',
+    overwrite: 'backup' as const,
+  };
+  const pkg = { ...base, files: [file], steps: [extract] };
+  for (const destination of ['content/cars', 'content/cars/inner', 'content']) {
+    const copy = {
+      id: crypto.randomUUID(),
+      file_id: file.id,
+      action: 'copy' as const,
+      destination,
+      overwrite: 'backup' as const,
+    };
+    expect(() => validatePublication({ ...pkg, steps: [extract, copy] }, [])).toThrow(
+      'DESTINATION_CONFLICT',
+    );
+    expect(() => validatePublication({ ...pkg, steps: [copy, extract] }, [])).toThrow(
+      'DESTINATION_CONFLICT',
+    );
+  }
+  const sibling = { ...extract, id: crypto.randomUUID(), destination: 'content/tracks' };
+  expect(() => validatePublication({ ...pkg, steps: [extract, sibling] }, [])).not.toThrow();
+});

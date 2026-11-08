@@ -132,7 +132,7 @@ pub fn plan_update(
             match old.records.get(&key).and_then(|record| {
                 current.get(&key).filter(|hash| *hash == &record.sha256).map(|hash| (record, hash))
             }) {
-                Some((record, hash)) => removed.push(Removed { path: path.clone(), sha256: hash.clone() }),
+                Some((_record, hash)) => removed.push(Removed { path: path.clone(), sha256: hash.clone() }),
                 None if !current.contains_key(&key) => {}
                 None => {
                     retained.push(path.clone());
@@ -189,7 +189,7 @@ mod tests {
         let current = BTreeMap::from([(old.path.clone(), "old".into()), (edited.path.clone(), "user edit".into())]);
         let plan = install(&mut library, "a", "2.0.0", &[operation("content/new.ini", "new")], &current);
         assert_eq!(plan.removed.len(), 1);
-        assert_eq!(plan.retained, vec![edited.path]);
+        assert_eq!(plan.retained, vec![edited.path.clone()]);
         assert_eq!(library["a"].records[&edited.path].sha256, "installed");
     }
     #[test]

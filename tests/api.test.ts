@@ -699,3 +699,40 @@ it('accepts real PostgreSQL timezone offsets in history cursors', async () => {
       .status,
   ).toBe(200);
 });
+
+describe('0.1.3 license and publication regressions', () => {
+  it('reports the actual application version on health', async () => {
+    const r = await request('/health');
+    expect(r.status).toBe(200);
+    expect(r.data.version).toBe('0.1.3');
+  });
+  it('honors a bounded configurable offline lease without exceeding license expiry', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    const license = repo.state.licenses[0];
+    const claims = await verifyToken(
+      await grant(license, { ...config, offlineLeaseDays: 2 }),
+      config,
+      'uhm-offline+jwt',
+    );
+    expect(Number(claims.offline_until)).toBeLessThanOrEqual(Date.now() + 2 * 86400000);
+    expect(Number(claims.refresh_after)).toBeLessThan(Number(claims.offline_until));
+    await expect(grant(license, { ...config, offlineLeaseDays: 31 })).rejects.toThrow(
+      'INVALID_OFFLINE_LEASE_DAYS',
+    );
+    await expect(grant(license, { ...config, offlineLeaseDays: 1.5 })).rejects.toThrow(
+      'INVALID_OFFLINE_LEASE_DAYS',
+    );
+  });
+  it('refresh refuses a license whose start window moved into the future', async () => {
+    const d = await device();
+    await request('/licenses/activate', { code, ...(await proof(d, 'activate')) });
+    repo.state.licenses[0].starts_at = new Date(Date.now() + 86400000).toISOString();
+    const r = await request('/licenses/refresh', {
+      license_id: repo.state.licenses[0].id,
+      ...(await proof(d, 'refresh')),
+    });
+    expect(r.status).toBe(403);
+    expect(r.data.error).toBe('LICENSE_INVALID');
+  });
+});
