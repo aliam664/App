@@ -46,6 +46,8 @@ pub struct Package {
     pub version: String,
     pub files: Vec<Artifact>,
     pub steps: Vec<Step>,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Installed {
@@ -54,6 +56,8 @@ pub struct Installed {
     pub files: Vec<String>,
     #[serde(default)]
     pub transaction_id: String,
+    #[serde(default)]
+    pub records: BTreeMap<String, crate::ownership::FileRecord>,
 }
 pub type Library = BTreeMap<String, Installed>;
 #[derive(Clone, Serialize, Deserialize)]
@@ -62,12 +66,26 @@ struct Entry {
     backup: String,
     existed: bool,
     ready: bool,
+    #[serde(default)]
+    before_sha256: Option<String>,
+    #[serde(default)]
+    after_sha256: Option<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+struct Conflict {
+    target: String,
+    backup: String,
+    reason: String,
+    expected_sha256: Option<String>,
+    current_sha256: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 struct Journal {
     package_id: String,
     state: String,
     entries: Vec<Entry>,
+    #[serde(default)]
+    conflicts: Vec<Conflict>,
 }
 fn progress<R: Runtime>(app: &AppHandle<R>, pkg: &str, phase: &str, percent: f64, bytes: u64, total: u64) {
     let _=app.emit("install-progress",json!({"package_id":pkg,"phase":phase,"progress":percent.clamp(0.0,99.0),"bytes":bytes,"total":total}));
@@ -121,33 +139,65 @@ fn save_journal(dir: &Path, journal: &Journal) -> Result<(), String> {
         &serde_json::to_vec(journal).map_err(|e| e.to_string())?,
     )
 }
-fn rollback(root: &Path, dir: &Path, journal: &Journal) -> Result<(), String> {
-    for entry in journal.entries.iter().rev().filter(|e| e.ready) {
+fn file_hash(path: &Path) -> Result<Option<String>, String> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() => sha256_file(path).map(Some),
+        Ok(_) => Err("Recovery target is not a regular file".into()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+/// Hash-guarded rollback: a user edit, deletion or replacement after the journal
+/// intent is preserved in place. Its original remains in backups and is listed
+/// in the journal for explicit review. Legacy journals have no trusted hashes,
+/// so they never authorize replacing an existing file.
+fn rollback(root: &Path, dir: &Path, journal: &mut Journal) -> Result<usize, String> {
+    let entries: Vec<_> = journal.entries.iter().filter(|e| e.ready).cloned().collect();
+    // Validate every required backup before the first recovery mutation.
+    for entry in &entries {
+        if !entry.existed { continue; }
+        let name = entry.backup.strip_prefix("backups/").ok_or("Invalid recovery backup path")?;
+        if name.is_empty() || name.contains('/') || name.contains('\\') {
+            return Err("Invalid recovery backup path".into());
+        }
+        let backup = safe_target(dir, &entry.backup)?;
+        let hash = file_hash(&backup)?.ok_or("Recovery backup is missing; manual repair required")?;
+        if let Some(expected) = &entry.before_sha256 {
+            if &hash != expected { return Err("Recovery backup checksum mismatch; manual repair required".into()); }
+        }
+    }
+    let mut conflicts = journal.conflicts.clone();
+    for entry in entries.iter().rev() {
         let target = safe_target(root, &entry.target)?;
+        let current = file_hash(&target)?;
+        if current == entry.before_sha256 { continue; }
+        if !entry.existed && current.is_none() { continue; }
+        let trusted = entry.before_sha256.is_some()
+            && (entry.after_sha256.is_some() || !entry.existed);
+        if !trusted || current != entry.after_sha256 {
+            let conflict = Conflict {
+                target: entry.target.clone(), backup: entry.backup.clone(),
+                reason: if trusted { "Target changed or was deleted after installation; current state preserved" }
+                    else { "Legacy or incomplete journal cannot prove a safe overwrite; current state preserved" }.into(),
+                expected_sha256: entry.after_sha256.clone(), current_sha256: current,
+            };
+            if !conflicts.iter().any(|c| c.target.eq_ignore_ascii_case(&entry.target)) { conflicts.push(conflict); }
+            continue;
+        }
         if entry.existed {
-            if !entry.backup.starts_with("backups/") {
-                return Err("Invalid recovery backup path".into());
-            }
             let backup = safe_target(dir, &entry.backup)?;
-            if !backup.is_file() {
-                return Err("Recovery backup is missing; manual repair required".into());
-            }
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            let restoring = dir.join(format!("restore-{}", uuid::Uuid::new_v4()));
+            if let Some(parent) = target.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+            let restoring = safe_target(dir, &format!("restore-{}", uuid::Uuid::new_v4()))?;
             fs::copy(backup, &restoring).map_err(|e| e.to_string())?;
-            fs::OpenOptions::new()
-                .write(true)
-                .open(&restoring)
-                .and_then(|f| f.sync_all())
-                .map_err(|e| e.to_string())?;
+            fs::OpenOptions::new().write(true).open(&restoring).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
+            if file_hash(&target)? != current { return Err("Target changed during recovery; retry required".into()); }
             replace_file(&restoring, &target)?;
-        } else if target.exists() {
+        } else if current.is_some() {
             fs::remove_file(target).map_err(|e| e.to_string())?;
         }
     }
-    Ok(())
+    journal.conflicts = conflicts;
+    Ok(journal.conflicts.len())
 }
 fn cleanup_staging(dir: &Path) -> Result<(), String> {
     for e in fs::read_dir(dir).map_err(|e| e.to_string())? {
@@ -184,7 +234,7 @@ fn recover_locked(root: &Path, control: &Path) -> Result<usize, String> {
             .to_string_lossy();
         uuid::Uuid::parse_str(&name).map_err(|_| "Unknown recovery directory")?;
         safe_target(control, &format!("transactions/{name}"))?;
-        let file = dir.join("journal.json");
+        let file = safe_target(&dir, "journal.json")?;
         if !file.exists() {
             continue;
         }
@@ -202,13 +252,32 @@ fn recover_locked(root: &Path, control: &Path) -> Result<usize, String> {
             }
         }
         if j.state == "applying" || j.state == "committing" {
-            rollback(root, &dir, &j)?;
-            j.state = "rolled_back".into();
+            let conflicts = rollback(root, &dir, &mut j)?;
+            j.state = if conflicts == 0 { "rolled_back" } else { "needs_review" }.into();
             save_journal(&dir, &j)?;
             count += 1;
         }
     }
     Ok(count)
+}
+pub fn recovery_status(root: &Path) -> Result<Value, String> {
+    let _lock = content_lock(root)?;
+    let parent = safe_target(&regular_control(root)?, "transactions")?;
+    let mut rows = Vec::new();
+    if !parent.exists() { return Ok(json!(rows)); }
+    for item in fs::read_dir(parent).map_err(|e| e.to_string())? {
+        let dir = item.map_err(|e| e.to_string())?.path();
+        let id = dir.file_name().ok_or("Invalid recovery directory")?.to_string_lossy().into_owned();
+        uuid::Uuid::parse_str(&id).map_err(|_| "Unknown recovery directory")?;
+        let file = safe_target(&dir, "journal.json")?;
+        if !file.is_file() { continue; }
+        let j: Journal = serde_json::from_slice(&fs::read(file).map_err(|e| e.to_string())?)
+            .map_err(|_| "Recovery journal is damaged")?;
+        if j.state == "needs_review" || j.state == "applying" || j.state == "committing" {
+            rows.push(json!({"id":id,"package_id":j.package_id,"state":j.state,"conflicts":j.conflicts}));
+        }
+    }
+    Ok(json!(rows))
 }
 pub fn recover(root: &Path) -> Result<usize, String> {
     let _lifecycle = crate::lifecycle::operation()?;
@@ -282,18 +351,36 @@ fn download<R: Runtime>(
     }
     let mut last_error = String::from("No download source available");
     for source in std::iter::once(&file.url).chain(file.mirrors.iter()) {
-        for _ in 0..3 {
+        for attempt in 0..3_u32 {
             crate::jobs::checkpoint()?;
             match transfer(app, pkg, file, source, out, completed, total, stats) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
                     last_error = e;
                     crate::jobs::checkpoint()?;
+                    if permanent_source_error(&last_error) { break; }
+                    if attempt < 2 {
+                        interruptible(|| tokio::time::sleep(Duration::from_millis(retry_delay_ms(attempt))))?;
+                    }
                 }
             }
         }
     }
     Err(last_error)
+}
+fn retry_delay_ms(attempt: u32) -> u64 { 500_u64.saturating_mul(1_u64 << attempt.min(2)) }
+fn permanent_source_error(error: &str) -> bool {
+    error.contains("SHA-256 mismatch") || error.contains("Invalid Content-Range")
+        || error.contains("Content length does not match") || error.contains("exceeds declared size")
+        || error.contains("HTTPS") || error.contains("address blocked")
+        || error.contains("DISK_FULL") || error.contains("Invalid download URL")
+}
+fn check_write_space(directory: &Path, incoming: usize) -> Result<(), String> {
+    if fs2::available_space(directory).map_err(|e| e.to_string())?
+        < (incoming as u64).saturating_add(64_000_000) {
+        return Err("DISK_FULL: insufficient space while downloading; partial data retained".into());
+    }
+    Ok(())
 }
 // Poll the same pinned network future in one-second slices; cancellation does not
 // abandon partially polled requests, and no total-file deadline breaks slow large files.
@@ -345,6 +432,7 @@ fn transfer<R: Runtime>(
     total: u64,
     stats: &TransferStats,
 ) -> Result<(), String> {
+    let parent = out.parent().ok_or("Download destination missing")?;
     let mut received = if out.exists() {
         fs::metadata(out).map_err(|e| e.to_string())?.len()
     } else {
@@ -431,6 +519,7 @@ fn transfer<R: Runtime>(
         if received + chunk.len() as u64 > file.size {
             return Err("Download exceeds declared size".into());
         }
+        check_write_space(parent, chunk.len())?;
         output.write_all(&chunk).map_err(|e| e.to_string())?;
         received += chunk.len() as u64;
         if last.elapsed() > Duration::from_millis(250) {
@@ -715,6 +804,7 @@ fn extract_external_with_password(
         &[
             "x".into(),
             "-y".into(),
+            "-snl".into(),
             "-bd".into(),
             "-bb0".into(),
             "-mmt=1".into(),
@@ -727,6 +817,11 @@ fn extract_external_with_password(
     )?;
     let mut files = Vec::new();
     collect_files(&output, &output, &mut files)?;
+    let mut names = HashSet::new();
+    for path in &files {
+        let relative = path.strip_prefix(&output).map_err(|_| "Extractor escaped its destination")?.to_string_lossy().replace('\\', "/");
+        if !names.insert(relative.to_lowercase()) { return Err("Archive has case-insensitive duplicate paths".into()); }
+    }
     let actual: u64 = files
         .iter()
         .map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(MAX_EXPANDED + 1))
@@ -801,7 +896,7 @@ pub fn install<R: Runtime>(
         .map_err(|_| "Download cache is in use")?;
     recover_locked(root, &control)?;
     let mut library = library(root)?;
-    for package in packages {
+    for package in &packages {
         let _job = crate::jobs::begin(&package.id)?;
         let _ = app.emit(
             "install-job-state",
@@ -831,11 +926,11 @@ pub fn install<R: Runtime>(
             package_id: package.id.clone(),
             state: "applying".into(),
             entries: Vec::new(),
+            conflicts: Vec::new(),
         };
         save_journal(&dir, &journal)?;
-        let result = (|| -> Result<Vec<String>, String> {
+        let result = (|| -> Result<(), String> {
             let total: u64 = package.files.iter().map(|f| f.size).sum();
-            let completed = total;
             let stats = TransferStats::default();
             if total > MAX_EXPANDED
                 || fs2::available_space(root).map_err(|e| e.to_string())?
@@ -853,6 +948,8 @@ pub fn install<R: Runtime>(
                 }
             }
             let transfer_total: u64 = unique.values().map(|f| f.size).sum();
+            let total = transfer_total;
+            let completed = total;
             let mut cache_needed = 0u64;
             for file in unique.values() {
                 let path = safe_target(cache, &format!("{}.part", file.sha256))?;
@@ -1014,7 +1111,8 @@ pub fn install<R: Runtime>(
             if operations.len() > MAX_FILES {
                 return Err("Too many installation operations".into());
             }
-            for (_, relative, overwrite) in &operations {
+            let mut op_records = Vec::new();
+            for (source, relative, overwrite) in &operations {
                 if !destinations.insert(relative.to_lowercase()) {
                     return Err("Conflicting installation destinations".into());
                 }
@@ -1022,12 +1120,12 @@ pub fn install<R: Runtime>(
                 if target.exists() && overwrite == "fail" {
                     return Err(format!("File already exists: {relative}"));
                 }
-                if library.iter().any(|(id, p)| {
-                    id != &package.id && p.files.iter().any(|f| f.eq_ignore_ascii_case(relative))
-                }) {
-                    return Err("Another package owns an installation target".into());
-                }
+                op_records.push(crate::ownership::Operation {
+                    path: relative.clone(), sha256: sha256_file(source)?,
+                    bytes: fs::metadata(source).map_err(|e| e.to_string())?.len(),
+                });
             }
+            crate::ownership::check_shared(&library, &package.id, &op_records)?;
             // Include existing targets in the backup budget; a tiny patch may replace a huge game file.
             let mut required = 128_000_000u64;
             for (source, relative, _) in &operations {
@@ -1054,7 +1152,7 @@ pub fn install<R: Runtime>(
             // The preview is built from the staged archive, never guessed from the package title.
             let mut fingerprints = Vec::new();
             let mut preview_files = Vec::new();
-            for (source, relative, _) in &operations {
+            for (index, (source, relative, _)) in operations.iter().enumerate() {
                 let target = safe_target(root, relative)?;
                 let hash = if target.exists() {
                     Some(sha256_file(&target)?)
@@ -1062,18 +1160,34 @@ pub fn install<R: Runtime>(
                     None
                 };
                 fingerprints.push(hash.clone());
-                preview_files.push(json!({"path":relative,"bytes":fs::metadata(source).map_err(|e|e.to_string())?.len(),"overwrite":hash.is_some(),"executable":relative.to_lowercase().ends_with(".exe")}));
+                let owners = crate::ownership::claims(&library, relative, &package.id);
+                preview_files.push(json!({"path":relative,"bytes":fs::metadata(source).map_err(|e|e.to_string())?.len(),"overwrite":hash.is_some(),"shared":!owners.is_empty(),"owners":owners.iter().map(|o| o.package_id.clone()).collect::<Vec<_>>(),"sha256":op_records[index].sha256,"executable":relative.to_lowercase().ends_with(".exe")}));
+            }
+            let mut warnings = Vec::new();
+            let mut current = BTreeMap::new();
+            if let Some(previous) = library.get(&package.id) {
+                if compare_versions(&package.version, &previous.version)? == std::cmp::Ordering::Less {
+                    warnings.push(format!("Downgrade from {} to {} requires explicit approval", previous.version, package.version));
+                }
+                for old in &previous.files {
+                    if operations.iter().any(|(_, p, _)| p.eq_ignore_ascii_case(old)) { continue; }
+                    let hash = file_hash(&safe_target(root, old)?)?;
+                    if let Some(hash) = &hash {
+                        let known = previous.records.get(&old.to_lowercase()).map(|r| &r.sha256);
+                        if known != Some(hash) { warnings.push(format!("Modified previous file will be preserved: {old}")); }
+                        current.insert(old.to_lowercase(), hash.clone());
+                    }
+                }
             }
             let preview_id = uuid::Uuid::new_v4().to_string();
             let free = fs2::available_space(root).map_err(|e| e.to_string())?;
             crate::jobs::approval(&preview_id, || {
-                let _=app.emit("install-preview",json!({"id":preview_id,"package_id":package.id,"name":package.name,"files":preview_files,"required":required,"free":free}));
+                let _=app.emit("install-preview",json!({"id":preview_id,"package_id":package.id,"name":package.name,"files":preview_files,"required":required,"free":free,"version":package.version,"destination":root,"download_bytes":total,"dependencies":package.dependencies.iter().map(|id| packages.iter().find(|p| &p.id == id).map(|p| json!({"id":p.id,"name":p.name,"version":p.version})).unwrap_or(json!({"id":id,"name":"Unknown dependency"}))).collect::<Vec<_>>(),"warnings":warnings}));
             })?;
             crate::jobs::mode("apply");
             if fs2::available_space(root).map_err(|e| e.to_string())? < required {
                 return Err("Disk space changed after preview".into());
             }
-            let mut ownership = Vec::new();
             for (index, (source, relative, _)) in operations.iter().enumerate() {
                 crate::jobs::checkpoint()?;
                 let target = safe_target(root, relative)?;
@@ -1095,6 +1209,8 @@ pub fn install<R: Runtime>(
                     backup: backup.clone(),
                     existed,
                     ready: false,
+                    before_sha256: fingerprints[index].clone(),
+                    after_sha256: Some(op_records[index].sha256.clone()),
                 });
                 save_journal(&dir, &journal)?;
                 if existed {
@@ -1134,10 +1250,9 @@ pub fn install<R: Runtime>(
                 save_journal(&dir, &journal)?;
                 // Source and destination share the game filesystem; replacement is atomic on Windows.
                 replace_file(&temp, &target)?;
-                if sha256_file(&target)? != sha256_file(source)? {
+                if sha256_file(&target)? != op_records[index].sha256 {
                     return Err("Installed file verification failed".into());
                 }
-                ownership.push(relative.clone());
                 progress(
                     app,
                     &package.id,
@@ -1147,56 +1262,63 @@ pub fn install<R: Runtime>(
                     total,
                 );
             }
-            Ok(ownership)
+            let installed_at = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs().to_string();
+            let mut current = BTreeMap::new();
+            if let Some(previous) = library.get(&package.id) {
+                for old in &previous.files {
+                    if op_records.iter().any(|op| op.path.eq_ignore_ascii_case(old)) { continue; }
+                    if let Some(hash) = file_hash(&safe_target(root, old)?)? { current.insert(old.to_lowercase(), hash); }
+                }
+            }
+            let plan = crate::ownership::plan_update(&library, &package.id, &package.version, &transaction_id, &installed_at, &op_records, &current)?;
+            for removed in &plan.removed {
+                let target = safe_target(root, &removed.path)?;
+                if file_hash(&target)?.as_ref() != Some(&removed.sha256) {
+                    return Err("repair_required: an obsolete file changed during commit; review the journal".into());
+                }
+                let index = journal.entries.len();
+                let backup = format!("backups/{index}");
+                journal.entries.push(Entry {
+                    target: removed.path.clone(), backup: backup.clone(), existed: true, ready: true,
+                    before_sha256: Some(removed.sha256.clone()), after_sha256: None,
+                });
+                save_journal(&dir, &journal)?;
+                fs::copy(&target, dir.join(&backup)).map_err(|e| e.to_string())?;
+                fs::OpenOptions::new().write(true).open(dir.join(&backup)).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
+                if sha256_file(&dir.join(&backup))? != removed.sha256 { return Err("Obsolete-file backup changed".into()); }
+                fs::remove_file(&target).map_err(|e| e.to_string())?;
+            }
+            library.insert(package.id.clone(), plan.installed);
+            // Keep a pre-commit state copy for crash recovery; commit record follows verified files.
+            journal.state = "committing".into();
+            save_journal(&dir, &journal)?;
+            atomic_write(
+                &control.join("installed.json"),
+                &serde_json::to_vec(&library).map_err(|e| e.to_string())?,
+            )?;
+            journal.state = "committed".into();
+            let _ = save_journal(&dir, &journal);
+            Ok(())
         })();
         match result {
-            Ok(mut files) => {
-                if let Some(previous) = library.get(&package.id) {
-                    for old in &previous.files {
-                        if !files.iter().any(|f| f.eq_ignore_ascii_case(old)) {
-                            files.push(old.clone());
-                        }
-                    }
-                }
-                library.insert(
-                    package.id.clone(),
-                    Installed {
-                        version: package.version.clone(),
-                        installed_at: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .map_err(|e| e.to_string())?
-                            .as_secs()
-                            .to_string(),
-                        files,
-                        transaction_id,
-                    },
-                );
-                // Keep a pre-commit state copy for crash recovery; commit record follows verified files.
-                journal.state = "committing".into();
-                save_journal(&dir, &journal)?;
-                atomic_write(
-                    &control.join("installed.json"),
-                    &serde_json::to_vec(&library).map_err(|e| e.to_string())?,
-                )?;
-                journal.state = "committed".into();
-                save_journal(&dir, &journal)?;
-                let _ = cleanup_staging(&dir);
+            Ok(()) => {
                 progress(app, &package.id, "نصب تأیید شد", 99.0, 0, 0);
                 activity(app, &package, "install_completed", None, None);
             }
             Err(error) => {
                 activity(app, &package, "install_failed", None, Some(&error));
-                match rollback(root, &dir, &journal) {
-                    Ok(()) => {
-                        journal.state = "rolled_back".into();
+                match rollback(root, &dir, &mut journal) {
+                    Ok(conflicts) => {
+                        journal.state = if conflicts == 0 { "rolled_back" } else { "needs_review" }.into();
                         save_journal(&dir, &journal)?;
                         let _ = cleanup_staging(&dir);
-                        return Err(error);
+                        return Err(if conflicts == 0 { error } else {
+                            format!("{error}; repair_required: {conflicts} changed files were preserved for review")
+                        });
                     }
-                    Err(_) => {
-                        return Err(format!(
-                            "{error}; repair_required: automatic recovery was incomplete"
-                        ))
+                    Err(recovery_error) => {
+                        let _ = save_journal(&dir, &journal);
+                        return Err(format!("{error}; repair_required: {recovery_error}"));
                     }
                 }
             }
@@ -1286,6 +1408,14 @@ mod tests {
         assert!(d.path().join("journal.json").exists());
     }
     #[test]
+    fn retries_are_bounded_and_policy_failures_skip_pointless_retries() {
+        assert_eq!((0..3).map(retry_delay_ms).collect::<Vec<_>>(), vec![500, 1000, 2000]);
+        assert_eq!(retry_delay_ms(100), 2000);
+        assert!(permanent_source_error("SHA-256 mismatch; no game files were modified"));
+        assert!(permanent_source_error("Invalid Content-Range; resume refused"));
+        assert!(!permanent_source_error("Download connection failed; partial file retained"));
+    }
+    #[test]
     fn range_resume_requires_exact_offset_size_and_length() {
         assert_eq!(
             response_offset(206, Some("bytes 50-99/100"), Some(50), 50, 100).unwrap(),
@@ -1331,16 +1461,22 @@ mod tests {
                     backup: "backups/0".into(),
                     existed: true,
                     ready: true,
+                    before_sha256: Some(sha256_file(&dir.join("backups/0")).unwrap()),
+                    after_sha256: Some(sha256_file(&root.join("old.ini")).unwrap()),
                 },
                 Entry {
                     target: "new.ini".into(),
                     backup: "backups/1".into(),
                     existed: false,
                     ready: true,
+                    before_sha256: None,
+                    after_sha256: Some(sha256_file(&root.join("new.ini")).unwrap()),
                 },
             ],
+            conflicts: Vec::new(),
         };
-        rollback(&root, &dir, &j).unwrap();
+        let mut j = j;
+        assert_eq!(rollback(&root, &dir, &mut j).unwrap(), 0);
         assert_eq!(
             fs::read_to_string(root.join("old.ini")).unwrap(),
             "original"
@@ -1372,7 +1508,10 @@ mod crash_and_archive_tests {
                     backup: "backups/0".into(),
                     existed: true,
                     ready: true,
+                    before_sha256: Some(sha256_file(&dir.join("backups/0")).unwrap()),
+                    after_sha256: Some(sha256_file(&root.join("settings.ini")).unwrap()),
                 }],
+                conflicts: Vec::new(),
             },
         )
         .unwrap();
@@ -1385,6 +1524,7 @@ mod crash_and_archive_tests {
                     installed_at: "0".into(),
                     files: vec!["settings.ini".into()],
                     transaction_id: transaction,
+                    records: BTreeMap::new(),
                 },
             );
             atomic_write(
@@ -1425,6 +1565,57 @@ mod crash_and_archive_tests {
         let j: Journal =
             serde_json::from_slice(&fs::read(dir.join("journal.json")).unwrap()).unwrap();
         assert_eq!(j.state, "committed");
+    }
+    #[test]
+    fn crash_recovery_preserves_user_edits_and_reports_the_original_backup() {
+        let (_temp, root, dir) = interrupted("applying", false);
+        fs::write(root.join("settings.ini"), "user edited after crash").unwrap();
+        assert_eq!(recover(&root).unwrap(), 1);
+        assert_eq!(fs::read(root.join("settings.ini")).unwrap(), b"user edited after crash");
+        assert_eq!(fs::read(dir.join("backups/0")).unwrap(), b"original");
+        let status = recovery_status(&root).unwrap();
+        assert_eq!(status[0]["state"], "needs_review");
+        assert_eq!(status[0]["conflicts"][0]["target"], "settings.ini");
+        assert_eq!(recover(&root).unwrap(), 0);
+    }
+    #[test]
+    fn rollback_removes_only_files_whose_installed_hash_still_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("game");
+        let dir = temp.path().join("tx");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(dir.join("backups")).unwrap();
+        fs::write(root.join("untouched.ini"), "installed").unwrap();
+        fs::write(root.join("edited.ini"), "user bytes").unwrap();
+        let mut journal = Journal {
+            package_id: "p".into(), state: "applying".into(), conflicts: Vec::new(),
+            entries: ["untouched.ini", "edited.ini"].iter().map(|name| Entry {
+                target: (*name).into(), backup: String::new(), existed: false, ready: true,
+                before_sha256: None,
+                after_sha256: Some(sha256_file(&root.join(name)).unwrap()),
+            }).collect(),
+        };
+        fs::write(root.join("edited.ini"), "user edited").unwrap();
+        assert_eq!(rollback(&root, &dir, &mut journal).unwrap(), 1);
+        assert!(!root.join("untouched.ini").exists());
+        assert_eq!(fs::read(root.join("edited.ini")).unwrap(), b"user edited");
+    }
+    #[test]
+    fn legacy_journal_never_overwrites_an_existing_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("game"); let dir = temp.path().join("tx");
+        fs::create_dir_all(&root).unwrap(); fs::create_dir_all(dir.join("backups")).unwrap();
+        fs::write(root.join("a"), "current").unwrap(); fs::write(dir.join("backups/0"), "old").unwrap();
+        let mut journal: Journal = serde_json::from_value(json!({"package_id":"p","state":"applying","entries":[{"target":"a","backup":"backups/0","existed":true,"ready":true}]})).unwrap();
+        assert_eq!(rollback(&root, &dir, &mut journal).unwrap(), 1);
+        assert_eq!(fs::read(root.join("a")).unwrap(), b"current");
+    }
+    #[test]
+    fn corrupt_recovery_backup_is_rejected_before_mutation() {
+        let (_temp, root, dir) = interrupted("applying", false);
+        fs::write(dir.join("backups/0"), "corrupt backup").unwrap();
+        assert!(recover(&root).is_err());
+        assert_eq!(fs::read(root.join("settings.ini")).unwrap(), b"new");
     }
     #[test]
     fn rejects_missing_recovery_backup() {
