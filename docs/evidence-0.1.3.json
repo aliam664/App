@@ -1,0 +1,206 @@
+{
+  "generated_at": "2026-11-08T18:30:00Z",
+  "application_version": "0.1.3",
+  "source_sha": "cfb51224420c07c655a995b0f8f396dc09dba0a3",
+  "branch": "arena/0b78cac4-app",
+  "pull_request": {
+    "mergeCommit": {
+      "oid": "5d1bd1aebb7fe3cefe3ed723ccf3e1e8f21dc4ad"
+    },
+    "mergedAt": "2026-11-08T18:14:04Z",
+    "number": 9,
+    "state": "MERGED",
+    "url": "https://github.com/aliam664/App/pull/9"
+  },
+  "runs": {
+    "platform_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:01:10Z",
+      "databaseId": 42507833044,
+      "headBranch": "arena/0b78cac4-app",
+      "headSha": "cfb51224420c07c655a995b0f8f396dc09dba0a3",
+      "name": "Platform checks",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:08:45Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42507833044"
+    },
+    "pages_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:01:10Z",
+      "databaseId": 42507833088,
+      "headBranch": "arena/0b78cac4-app",
+      "headSha": "cfb51224420c07c655a995b0f8f396dc09dba0a3",
+      "name": "Publish shared app UI to GitHub Pages",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:02:24Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42507833088"
+    },
+    "live_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:01:10Z",
+      "databaseId": 42507833091,
+      "headBranch": "arena/0b78cac4-app",
+      "headSha": "cfb51224420c07c655a995b0f8f396dc09dba0a3",
+      "name": "Non-destructive production verification",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:01:31Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42507833091"
+    },
+    "release": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:09:29Z",
+      "databaseId": 42508550397,
+      "headBranch": "arena/0b78cac4-app",
+      "headSha": "c21dd03232e657c71d59e02656a64ea247395572",
+      "name": "Sign verified launcher candidate",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:10:00Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42508550397"
+    },
+    "update_smoke": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:10:12Z",
+      "databaseId": 42508612506,
+      "headBranch": "arena/0b78cac4-app",
+      "headSha": "26da1714a0cf0532129a5b7bafac2499b9634fe2",
+      "name": "Real Windows automatic-update smoke",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:11:13Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42508612506"
+    },
+    "platform_main": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:14:07Z",
+      "databaseId": 42508952720,
+      "headBranch": "main",
+      "headSha": "5d1bd1aebb7fe3cefe3ed723ccf3e1e8f21dc4ad",
+      "name": "Platform checks",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:20:50Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42508952720"
+    },
+    "pages_main": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:14:07Z",
+      "databaseId": 42508952787,
+      "headBranch": "main",
+      "headSha": "5d1bd1aebb7fe3cefe3ed723ccf3e1e8f21dc4ad",
+      "name": "Publish shared app UI to GitHub Pages",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:15:40Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42508952787"
+    },
+    "live_main": {
+      "conclusion": "success",
+      "createdAt": "2026-11-08T18:14:07Z",
+      "databaseId": 42508952746,
+      "headBranch": "main",
+      "headSha": "5d1bd1aebb7fe3cefe3ed723ccf3e1e8f21dc4ad",
+      "name": "Non-destructive production verification",
+      "status": "completed",
+      "updatedAt": "2026-11-08T18:14:34Z",
+      "url": "https://github.com/aliam664/App/actions/runs/42508952746"
+    }
+  },
+  "supabase": {
+    "project_ref": "ewjvnqlqacljflvjbpbv",
+    "api_version": 12,
+    "broker_version": 3,
+    "migrations_applied_for_0_1_3": 0,
+    "local_bundle_sha256": {
+      "api": "c7f8141a988caf4760e3cf3963ed48f49c0be25274904a478b79a3e9781a7f5a",
+      "update_key_broker": "d8fd4ba70ee855e9af4c0f17bfad224cd5c3baaabf607008f63adf356114352c"
+    }
+  },
+  "release": {
+    "assets": [
+      {
+        "apiUrl": "https://api.github.com/repos/aliam664/App/releases/assets/724773616",
+        "contentType": "application/json",
+        "createdAt": "2026-11-08T18:09:52Z",
+        "downloadCount": 0,
+        "id": "RA_kwDOUUG4884rMyrw",
+        "label": "",
+        "name": "latest.json",
+        "size": 745,
+        "state": "uploaded",
+        "updatedAt": "2026-11-08T18:09:52Z",
+        "url": "https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.3/latest.json"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/aliam664/App/releases/assets/724773615",
+        "contentType": "text/plain; charset=utf-8",
+        "createdAt": "2026-11-08T18:09:52Z",
+        "downloadCount": 0,
+        "id": "RA_kwDOUUG4884rMyrv",
+        "label": "",
+        "name": "SHA256SUMS.txt",
+        "size": 99,
+        "state": "uploaded",
+        "updatedAt": "2026-11-08T18:09:52Z",
+        "url": "https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.3/SHA256SUMS.txt"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/aliam664/App/releases/assets/724773613",
+        "contentType": "application/octet-stream",
+        "createdAt": "2026-11-08T18:09:52Z",
+        "downloadCount": 3,
+        "id": "RA_kwDOUUG4884rMyrt",
+        "label": "",
+        "name": "UHM-Launcher-0.1.3-x64-setup.exe",
+        "size": 16496588,
+        "state": "uploaded",
+        "updatedAt": "2026-11-08T18:09:53Z",
+        "url": "https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.3/UHM-Launcher-0.1.3-x64-setup.exe"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/aliam664/App/releases/assets/724773614",
+        "contentType": "application/pgp-signature",
+        "createdAt": "2026-11-08T18:09:52Z",
+        "downloadCount": 1,
+        "id": "RA_kwDOUUG4884rMyru",
+        "label": "",
+        "name": "UHM-Launcher-0.1.3-x64-setup.exe.sig",
+        "size": 444,
+        "state": "uploaded",
+        "updatedAt": "2026-11-08T18:09:52Z",
+        "url": "https://github.com/aliam664/App/releases/download/uhm-launcher-v0.1.3/UHM-Launcher-0.1.3-x64-setup.exe.sig"
+      }
+    ],
+    "isDraft": false,
+    "isPrerelease": true,
+    "tagName": "uhm-launcher-v0.1.3",
+    "targetCommitish": "cfb51224420c07c655a995b0f8f396dc09dba0a3",
+    "url": "https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.3"
+  },
+  "update_feed": {
+    "assets": [
+      {
+        "apiUrl": "https://api.github.com/repos/aliam664/App/releases/assets/724773698",
+        "contentType": "application/json",
+        "createdAt": "2026-11-08T18:09:55Z",
+        "downloadCount": 2,
+        "id": "RA_kwDOUUG4884rMytC",
+        "label": "",
+        "name": "latest.json",
+        "size": 745,
+        "state": "uploaded",
+        "updatedAt": "2026-11-08T18:09:55Z",
+        "url": "https://github.com/aliam664/App/releases/download/uhm-launcher-updates/latest.json"
+      }
+    ],
+    "isPrerelease": true,
+    "tagName": "uhm-launcher-updates",
+    "targetCommitish": "09ee6a4b52f3c793a6a56cdaba665defb5761daf",
+    "url": "https://github.com/aliam664/App/releases/tag/uhm-launcher-updates"
+  },
+  "installer_sha256": "799b9d0ac06902715a097cc6b87a98440d6d91bfe85c0ac940a4a3f4cb733f50",
+  "feed_sha256": "b86c880fd21aaf1d5e6baf7e9ddd73224fa4147c04892d721c31a64b288f8bed",
+  "limits": [
+    "No real Assetto Corsa execution",
+    "No interactive user-PC validation",
+    "No Authenticode claim",
+    "No production load test",
+    "Remote Edge body not independently byte-compared; live behavior verified"
+  ]
+}
