@@ -1,0 +1,45 @@
+name: Security and package permission audit
+on:
+  push:
+    branches: [arena/37af8e92-app]
+    paths:
+      - .github/workflows/security-audit.yml
+      - tests/security-audit.test.ts
+      - tests/security-browser/**
+      - playwright.security.config.ts
+      - docs/security-audit-2026-11-03-fa.md
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm audit --audit-level=high
+      - name: API boundaries and documented expected-failure findings
+        run: npm run audit:security
+      - run: npx playwright install --with-deps chromium
+      - name: Real local staff login and package permission UI
+        run: npm run audit:browser
+      - name: Read-only production health, CORS, access isolation and anonymous broker denial
+        run: npx tsx scripts/check-live-public.ts
+      - name: Explain the result without hiding expected failures
+        if: always()
+        run: |
+          echo '## Security audit' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Known expected failures are OPEN FINDINGS, not fixes or security passes. API: 32 normal + 4 expected failures; browser: 3 normal permission regressions (AUD-02/03 fixed in UI). See docs/security-audit-2026-11-03-fa.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No owner license activation, production mutation, signing credential or new release in this workflow.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-browser-evidence
+          path: test-results/
+          if-no-files-found: ignore
