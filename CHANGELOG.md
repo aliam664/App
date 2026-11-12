@@ -12,13 +12,13 @@
 ### Licensing / backend
 
 - Health reports the real application version; the API, Edge bundle and UI version are asserted to match `package.json` by `tests/release-version.test.ts`.
-- Update-key broker accepts only `refs/heads/main` and the fixed session branch `refs/heads/arena/a81c9815-app` with matching workflow_ref/subject; the retired `arena/0b78cac4-app` and `arena/37af8e92-app` are rejected. Numeric repository/owner pins, RS256/OIDC checks and green-build provenance remain mandatory.
+- Update-key broker accepts only `refs/heads/main` and the fixed session branch `refs/heads/arena/0274db12-app` with matching workflow_ref/subject; the retired `arena/a81c9815-app`, `arena/0b78cac4-app` and `arena/37af8e92-app` are rejected. Numeric repository/owner pins, RS256/OIDC checks and green-build provenance remain mandatory.
 
 ### Release / CI
 
 - Version aligned to 0.1.4 across npm, lockfiles, Tauri and Cargo manifests.
-- Release/CI/workflow branch pins moved to `arena/a81c9815-app`; the historical `0.1.0` pilot workflow keeps its own distinct pins.
-- The Windows installer-upgrade harness now derives the candidate version from `src-tauri/tauri.conf.json` instead of a hardcoded literal, so the guard cannot drift from the built artifact. The post-release automatic-update smoke targets the reviewed 0.1.2 → 0.1.4 rollout.
+- Release/CI/workflow branch pins moved to `arena/0274db12-app`; the historical `0.1.0` pilot workflow keeps its own distinct pins.
+- Both Windows installer-upgrade and automatic-update harnesses derive the candidate version from `src-tauri/tauri.conf.json` inside the tested source tree instead of a hardcoded literal or outer branch checkout, fixing the cross-version harness mismatch that broke `0.1.3` smoke re-runs (`43201107637`). The post-release automatic-update smoke targets the reviewed 0.1.2 → 0.1.4 rollout.
 
 ### Not included / deferred
 

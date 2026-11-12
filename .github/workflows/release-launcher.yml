@@ -1,7 +1,7 @@
 name: Sign verified launcher candidate
 on:
   push:
-    branches: [arena/a81c9815-app]
+    branches: [arena/0274db12-app]
     paths: [.github/release-request.json]
   workflow_dispatch:
     inputs:
@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   sign:
-    if: github.ref == 'refs/heads/arena/a81c9815-app'
+    if: github.ref == 'refs/heads/arena/0274db12-app'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -50,7 +50,7 @@ jobs:
         run: |
           [[ "$BUILD_RUN" =~ ^[0-9]{1,20}$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > "$RUNNER_TEMP/build-run.json"
-          jq -e '.status == "completed" and .conclusion == "success" and .path == ".github/workflows/quality.yml" and .head_branch == "arena/a81c9815-app" and .event == "push"' "$RUNNER_TEMP/build-run.json"
+          jq -e '.status == "completed" and .conclusion == "success" and .path == ".github/workflows/quality.yml" and .head_branch == "arena/0274db12-app" and .event == "push"' "$RUNNER_TEMP/build-run.json"
           built_sha=$(jq -r .head_sha "$RUNNER_TEMP/build-run.json")
           git diff --name-only "$built_sha" HEAD > "$RUNNER_TEMP/source-diff.txt"
           if grep -Ev '^(docs/|pages-preview/|README\.md$|\.github/release-request\.json$)' "$RUNNER_TEMP/source-diff.txt"; then

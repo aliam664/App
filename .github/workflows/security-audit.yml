@@ -1,7 +1,7 @@
 name: Security and package permission audit
 on:
   push:
-    branches: [arena/a81c9815-app]
+    branches: [arena/0274db12-app]
     paths:
       - .github/workflows/security-audit.yml
       - tests/security-audit.test.ts
