@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-11-12T10:35:00Z",
+  "application_version": "0.1.4",
+  "source_sha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+  "branch": "arena/a81c9815-app",
+  "status": "candidate_ready_api_deploy_pending",
+  "runs": {
+    "platform_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T10:17:51Z",
+      "databaseId": 43199096479,
+      "headBranch": "arena/a81c9815-app",
+      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "name": "Platform checks",
+      "status": "completed",
+      "updatedAt": "2026-11-12T10:24:36Z",
+      "url": "https://github.com/aliam664/App/actions/runs/43199096479",
+      "jobs": {
+        "web-and-api": "success",
+        "windows-native": "success"
+      },
+      "covered": [
+        "format:check, typecheck and full test suite",
+        "reproducible build:edge with clean git diff on deployment/edge",
+        "npm audit --audit-level=high",
+        "Playwright browser suites (E2E, responsive, keyboard, WCAG)",
+        "native Rust security/recovery tests and clippy with warnings as errors",
+        "real isolated PostgreSQL to native package-install chain",
+        "cargo audit",
+        "production-connected unsigned NSIS installer build",
+        "fresh NSIS install and upgrade from the exact public 0.1.2 installer"
+      ]
+    },
+    "pages_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T10:17:51Z",
+      "databaseId": 43199096183,
+      "headBranch": "arena/a81c9815-app",
+      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "name": "Publish shared app UI to GitHub Pages",
+      "status": "completed",
+      "updatedAt": "2026-11-12T10:18:55Z",
+      "url": "https://github.com/aliam664/App/actions/runs/43199096183"
+    },
+    "platform_followup": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T10:21:27Z",
+      "databaseId": 43199638035,
+      "headBranch": "arena/a81c9815-app",
+      "headSha": "0cc80a44",
+      "name": "Platform checks",
+      "status": "completed",
+      "updatedAt": "2026-11-12T10:29:04Z",
+      "url": "https://github.com/aliam664/App/actions/runs/43199638035",
+      "note": "Re-ran after the migration filename correction; same result."
+    },
+    "live_source": {
+      "conclusion": "failure",
+      "databaseId": 43199096347,
+      "headBranch": "arena/a81c9815-app",
+      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "name": "Non-destructive production verification",
+      "status": "completed",
+      "url": "https://github.com/aliam664/App/actions/runs/43199096347",
+      "reason": "check-live-public.ts asserts health.version === package.json version (0.1.4) while the deployed production API is still v12 reporting 0.1.3. Expected until the API body is deployed; not an application defect."
+    },
+    "security_audit": {
+      "conclusion": "failure",
+      "databaseId": 43199096401,
+      "headBranch": "arena/a81c9815-app",
+      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "name": "Security and package permission audit",
+      "status": "completed",
+      "url": "https://github.com/aliam664/App/actions/runs/43199096401",
+      "reason": "Same live-version assertion as live_source; local tests/security-audit.test.ts passes 37/37."
+    }
+  },
+  "supabase": {
+    "project_ref": "ewjvnqlqacljflvjbpbv",
+    "api_version": 12,
+    "api_version_expected": "0.1.4 bundle pending deploy",
+    "broker_version": 5,
+    "broker_body_sha256": "6c099c18d24b5a2346b87adb8847437bd622913ed51e571e8f8b47ff58c954eb",
+    "broker_body_byte_verified": true,
+    "migration": {
+      "version": "20261112101846",
+      "name": "contact_settings",
+      "applied": true,
+      "file": "supabase/migrations/20261112101846_contact_settings.sql",
+      "function_body_matches_file": true,
+      "rls_enabled": true,
+      "table_privileges": "service_role only (public/anon/authenticated revoked)",
+      "function_privileges": "service_role only (public/anon/authenticated revoked)",
+      "rollback_verified": "insert then update inside a rolled-back transaction produced version 2 and one audit row; no residue remained"
+    },
+    "production_data_unchanged": {
+      "licenses": 6,
+      "packages": 2,
+      "package_releases": 0,
+      "package_categories": 4,
+      "telemetry_events": 35,
+      "audit_events": 47,
+      "contact_settings": 0
+    }
+  },
+  "local_verification": {
+    "vitest": "235/235",
+    "security_audit_tests": "37/37",
+    "typecheck": "pass",
+    "format_check": "pass",
+    "production_build_and_verify": "pass",
+    "edge_bundles_reproducible": true,
+    "npm_audit_high": "0 vulnerabilities",
+    "browser_suites_local": "not run (sandbox could not install Playwright Chromium); CI covered them"
+  },
+  "limits": [
+    "Remote API Edge body was not byte-compared; byte verification was applied to the update-key-broker only.",
+    "Live API still reports 0.1.3 until the 0.1.4 API body is deployed through a body-transmitting client.",
+    "Pages remains legacy-served from arena/37af8e92-app; the redesigned UI is not yet published to the public site.",
+    "No real Assetto Corsa execution, no interactive user-PC validation, no Authenticode claim, no production load test.",
+    "Signed candidate, update feed and real Windows automatic-update smoke are not yet run for 0.1.4."
+  ]
+}
