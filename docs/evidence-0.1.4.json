@@ -1,28 +1,27 @@
 {
-  "generated_at": "2026-11-12T10:35:00Z",
+  "generated_at": "2026-11-12T12:38:00Z",
   "application_version": "0.1.4",
-  "source_sha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
-  "branch": "arena/a81c9815-app",
-  "status": "candidate_ready_api_deploy_pending",
+  "source_sha": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
+  "branch": "arena/0274db12-app",
+  "status": "released_and_smoke_verified",
   "runs": {
     "platform_source": {
       "conclusion": "success",
-      "createdAt": "2026-11-12T10:17:51Z",
-      "databaseId": 43199096479,
-      "headBranch": "arena/a81c9815-app",
-      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "createdAt": "2026-11-12T12:25:16Z",
+      "databaseId": 43217722448,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
       "name": "Platform checks",
       "status": "completed",
-      "updatedAt": "2026-11-12T10:24:36Z",
-      "url": "https://github.com/aliam664/App/actions/runs/43199096479",
+      "url": "https://github.com/aliam664/App/actions/runs/43217722448",
       "jobs": {
         "web-and-api": "success",
         "windows-native": "success"
       },
       "covered": [
-        "format:check, typecheck and full test suite",
+        "format:check, typecheck and 235 unit/integration tests",
         "reproducible build:edge with clean git diff on deployment/edge",
-        "npm audit --audit-level=high",
+        "npm audit --audit-level=high (0 vulnerabilities)",
         "Playwright browser suites (E2E, responsive, keyboard, WCAG)",
         "native Rust security/recovery tests and clippy with warnings as errors",
         "real isolated PostgreSQL to native package-install chain",
@@ -31,70 +30,86 @@
         "fresh NSIS install and upgrade from the exact public 0.1.2 installer"
       ]
     },
-    "pages_source": {
-      "conclusion": "success",
-      "createdAt": "2026-11-12T10:17:51Z",
-      "databaseId": 43199096183,
-      "headBranch": "arena/a81c9815-app",
-      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
-      "name": "Publish shared app UI to GitHub Pages",
-      "status": "completed",
-      "updatedAt": "2026-11-12T10:18:55Z",
-      "url": "https://github.com/aliam664/App/actions/runs/43199096183"
-    },
-    "platform_followup": {
-      "conclusion": "success",
-      "createdAt": "2026-11-12T10:21:27Z",
-      "databaseId": 43199638035,
-      "headBranch": "arena/a81c9815-app",
-      "headSha": "0cc80a44",
-      "name": "Platform checks",
-      "status": "completed",
-      "updatedAt": "2026-11-12T10:29:04Z",
-      "url": "https://github.com/aliam664/App/actions/runs/43199638035",
-      "note": "Re-ran after the migration filename correction; same result."
-    },
     "live_source": {
-      "conclusion": "failure",
-      "databaseId": 43199096347,
-      "headBranch": "arena/a81c9815-app",
-      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T12:25:16Z",
+      "databaseId": 43217722524,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
       "name": "Non-destructive production verification",
       "status": "completed",
-      "url": "https://github.com/aliam664/App/actions/runs/43199096347",
-      "reason": "check-live-public.ts asserts health.version === package.json version (0.1.4) while the deployed production API is still v12 reporting 0.1.3. Expected until the API body is deployed; not an application defect."
+      "url": "https://github.com/aliam664/App/actions/runs/43217722524"
     },
     "security_audit": {
-      "conclusion": "failure",
-      "databaseId": 43199096401,
-      "headBranch": "arena/a81c9815-app",
-      "headSha": "bc850766c6bd8684b5a22b976028812fe84e9edf",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T12:25:16Z",
+      "databaseId": 43217722452,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
       "name": "Security and package permission audit",
       "status": "completed",
-      "url": "https://github.com/aliam664/App/actions/runs/43199096401",
-      "reason": "Same live-version assertion as live_source; local tests/security-audit.test.ts passes 37/37."
+      "url": "https://github.com/aliam664/App/actions/runs/43217722452"
+    },
+    "pages_source": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T12:25:17Z",
+      "databaseId": 43217725482,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
+      "name": "Publish shared app UI to GitHub Pages",
+      "status": "completed",
+      "url": "https://github.com/aliam664/App/actions/runs/43217725482"
+    },
+    "release": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T12:32:37Z",
+      "databaseId": 43218849299,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "b2ed10b527e414f268e0156f7cbc5494db5719d2",
+      "name": "Sign verified launcher candidate",
+      "status": "completed",
+      "updatedAt": "2026-11-12T12:33:04Z",
+      "url": "https://github.com/aliam664/App/actions/runs/43218849299"
+    },
+    "update_smoke": {
+      "conclusion": "success",
+      "createdAt": "2026-11-12T12:34:22Z",
+      "databaseId": 43219122785,
+      "headBranch": "arena/0274db12-app",
+      "headSha": "837837daf7aa0cdeff08a36592a78c133310ee61",
+      "name": "Real Windows automatic-update smoke",
+      "status": "completed",
+      "updatedAt": "2026-11-12T12:35:43Z",
+      "url": "https://github.com/aliam664/App/actions/runs/43219122785"
     }
   },
   "supabase": {
     "project_ref": "ewjvnqlqacljflvjbpbv",
-    "api_version": 12,
-    "api_version_expected": "0.1.4 bundle pending deploy",
-    "broker_version": 5,
-    "broker_body_sha256": "6c099c18d24b5a2346b87adb8847437bd622913ed51e571e8f8b47ff58c954eb",
+    "api_version": 13,
+    "api_status": "ACTIVE",
+    "api_verify_jwt": false,
+    "broker_version": 6,
+    "broker_status": "ACTIVE",
+    "broker_verify_jwt": false,
+    "local_bundle_sha256": {
+      "api": "acfb55905df1d7e6b921d363a3e47a505b58da6f7b787be55c860b71d53fd9c0",
+      "update_key_broker": "8b47eda9df4e86f65b96afc0d99566c6f609cbbba3dfea3bc9bb7de22d023c55"
+    },
     "broker_body_byte_verified": true,
+    "rollback_bundle": "deployment/rollback/uhm-0.1.3",
     "migration": {
       "version": "20261112101846",
       "name": "contact_settings",
       "applied": true,
       "file": "supabase/migrations/20261112101846_contact_settings.sql",
-      "function_body_matches_file": true,
       "rls_enabled": true,
       "table_privileges": "service_role only (public/anon/authenticated revoked)",
-      "function_privileges": "service_role only (public/anon/authenticated revoked)",
-      "rollback_verified": "insert then update inside a rolled-back transaction produced version 2 and one audit row; no residue remained"
+      "function_privileges": "service_role only (public/anon/authenticated revoked)"
     },
     "production_data_unchanged": {
       "licenses": 6,
+      "active_licenses": 2,
+      "bound_devices": 5,
       "packages": 2,
       "package_releases": 0,
       "package_categories": 4,
@@ -103,21 +118,64 @@
       "contact_settings": 0
     }
   },
-  "local_verification": {
-    "vitest": "235/235",
-    "security_audit_tests": "37/37",
-    "typecheck": "pass",
-    "format_check": "pass",
-    "production_build_and_verify": "pass",
-    "edge_bundles_reproducible": true,
-    "npm_audit_high": "0 vulnerabilities",
-    "browser_suites_local": "not run (sandbox could not install Playwright Chromium); CI covered them"
+  "release": {
+    "tagName": "uhm-launcher-v0.1.4",
+    "targetCommitish": "a62aada3793c0bcc74d4aaf0585ac0f84c5ff745",
+    "isPrerelease": true,
+    "publishedAt": "2026-11-12T12:32:58Z",
+    "url": "https://github.com/aliam664/App/releases/tag/uhm-launcher-v0.1.4",
+    "assets": [
+      {
+        "name": "UHM-Launcher-0.1.4-x64-setup.exe",
+        "size": 5068402,
+        "sha256": "7a9702580113feb705e6711d2c884b39cb60e7867ae7b18ed8d0c7bcfaf78a2c"
+      },
+      {
+        "name": "UHM-Launcher-0.1.4-x64-setup.exe.sig",
+        "size": 444,
+        "sha256": "e6d7174e0c3009b2c9903a5532d84811fa90f521a88cd489b7dcca168b22274d"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "size": 99,
+        "sha256": "534ebfa7d30f4c3ec10ec132f46d2a3fcb0824df378ee68ef47611f07b41fea0"
+      },
+      {
+        "name": "latest.json",
+        "size": 745,
+        "sha256": "8361f1b2012cbb3ccc161097b79bc0871617dc0a3c1e0bd50643137c7984f1fa"
+      }
+    ]
+  },
+  "update_feed": {
+    "tagName": "uhm-launcher-updates",
+    "url": "https://github.com/aliam664/App/releases/tag/uhm-launcher-updates",
+    "updatedAt": "2026-11-12T12:33:00Z",
+    "latest_json_sha256": "8361f1b2012cbb3ccc161097b79bc0871617dc0a3c1e0bd50643137c7984f1fa"
+  },
+  "installer_sha256": "7a9702580113feb705e6711d2c884b39cb60e7867ae7b18ed8d0c7bcfaf78a2c",
+  "feed_sha256": "8361f1b2012cbb3ccc161097b79bc0871617dc0a3c1e0bd50643137c7984f1fa",
+  "investigations": {
+    "windows_smoke_0_1_3_failure": {
+      "failed_run": 43201107637,
+      "root_cause": "windows-update-smoke.yml executed ../scripts/windows-update-smoke.ps1 from outer HEAD (which hardcoded ExpectedVersion == 0.1.4) instead of ./scripts/windows-update-smoke.ps1 inside tested-source.",
+      "resolution": "Updated windows-update-smoke.yml to parse and execute ./scripts/windows-update-smoke.ps1 inside tested-source, and updated both windows-update-smoke.ps1 and windows-installer-upgrade.ps1 to read configuredVersion dynamically from ../src-tauri/tauri.conf.json. Verified in runs 43217722448 and 43219122785."
+    },
+    "github_pages_legacy_branch": {
+      "current_config": {
+        "build_type": "legacy",
+        "source_branch": "arena/37af8e92-app",
+        "source_path": "/",
+        "latest_build_id": 1340271066,
+        "latest_build_commit": "2a5ce138ba86bc896daa039f15912c19479435d9"
+      },
+      "root_cause": "Repository Pages settings remain on legacy branch arena/37af8e92-app (2026-11-04), so pages.yml skips deploy (pages_source != 'workflow') and PUT /repos/aliam664/App/pages returns HTTP 403 for the GitHub App integration token.",
+      "owner_action": "In GitHub Settings -> Pages -> Build and deployment -> Source, select 'GitHub Actions' (recommended; pages.yml already builds and uploads dist-pages on push and workflow_dispatch) or 'Deploy from a branch' -> main / after merging the PR."
+    }
   },
   "limits": [
-    "Remote API Edge body was not byte-compared; byte verification was applied to the update-key-broker only.",
-    "Live API still reports 0.1.3 until the 0.1.4 API body is deployed through a body-transmitting client.",
-    "Pages remains legacy-served from arena/37af8e92-app; the redesigned UI is not yet published to the public site.",
     "No real Assetto Corsa execution, no interactive user-PC validation, no Authenticode claim, no production load test.",
-    "Signed candidate, update feed and real Windows automatic-update smoke are not yet run for 0.1.4."
+    "Remote 46 KB API Edge body read-back truncates in the management connector; prefix/suffix, version 13 metadata, and live production endpoints (/health 0.1.4, /catalog, /contact, /admin/contact, RLS) were verified.",
+    "Switching GitHub Pages build_type from legacy (arena/37af8e92-app) to GitHub Actions requires owner permission in Repository Settings -> Pages (HTTP 403 via integration token)."
   ]
 }

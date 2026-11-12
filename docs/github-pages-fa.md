@@ -18,9 +18,9 @@
 
 ## صفحه سفید و تنظیم فعلی
 
-تنظیم موجود Pages روی legacy source از ریشه همین شاخه است. ریشه TypeScript کامپایل‌نشده را به مرورگر نمی‌دهد؛ redirect به خروجی کامپایل‌شده `pages-preview/`، hash پنل را حفظ می‌کند. فونت‌ها، تصویر و ویدیو از `public/` مشترک خوانده می‌شوند. `.nojekyll` فعال است. تغییر دستی Settings برای مشاهده سایت لازم نیست. مجوز اتصال برای تغییر نوع Pages کافی نبود؛ تنظیم قبلی حفظ و مسیر انتشار موجود تعمیر شد. `/Uhm/` تغییر نکرد.
+تنظیم فعلی Pages در مخزن (`GET /repos/aliam664/App/pages`) روی `build_type: "legacy"` و شاخهٔ قدیمی `arena/37af8e92-app` (`/`) مانده است (آخرین ساخت ثبت‌شده: `1340271066` روی کامیت `2a5ce138` در تاریخ `2026-11-04`)؛ به همین دلیل سایت عمومی هنوز نسخهٔ قبلی را نشان می‌دهد و توکن یکپارچه‌سازی GitHub اجازهٔ تغییر مستقیم `PUT /repos/aliam664/App/pages` را ندارد (`HTTP 403 Resource not accessible by integration`).
 
-با push به شاخه فعال، workflow «Refresh compiled branch preview» ابتدا sandbox را build و چهار تست استاتیک را اجرا می‌کند، سپس `build:live-branch` را می‌سازد و generatedها را با bot روی **همان شاخه** ثبت می‌کند. درخواست legacy build داده می‌شود. workflow اصلی نیز پس از تست، `build:live-pages` می‌سازد؛ اگر بعدها Pages رسماً روی Actions تنظیم شود، همان artifact را deploy می‌کند.
+برای انتشار دائمی نسخهٔ جدید (`0.1.4` و نسخه‌های بعدی) بدون وابستگی به نام شاخه‌های موقت، مالک مخزن کافی است یک‌بار در **Settings → Pages → Build and deployment → Source** گزینهٔ **GitHub Actions** را انتخاب کند؛ workflow آمادهٔ `.github/workflows/pages.yml` در هر push به `main` (و همچنین اجرای دستی `workflow_dispatch`) خروجی `dist-pages/` (`connected-production`) را مستقیماً منتشر می‌کند. (در صورت تمایل به حفظ حالت `Deploy from a branch`، پس از ادغام PR در `main`، تغییر شاخهٔ Pages به `main` و مسیر `/` نیز از طریق redirect به `pages-preview/` کار می‌کند.)
 
 خروجی generated را دستی ویرایش نکنید. `build-info.json` mode، revision و ورودی مشترک را ثبت می‌کند. برای legacy آن را در `/App/pages-preview/build-info.json` بخوانید؛ برای Actions در `/App/build-info.json`. نمایش تغییر پس از push، پایان workflow و build/CDN است، نه هم‌زمان با تایپ.
 
