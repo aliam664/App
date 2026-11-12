@@ -1,5 +1,5 @@
 {
-  "build_run": "43199096479",
+  "build_run": "43199638035",
   "publish_candidate": true,
-  "request_note": "Publish signed 0.1.4 from bc850766c6bd8684b5a22b976028812fe84e9edf. Platform checks 43199096479 passed web/API/native/strict lint/real PostgreSQL chain/audits/fresh NSIS and the immutable public 0.1.2 upgrade. Contact settings migration 20261112101846 applied additively with unchanged license/catalog/telemetry data. update-key-broker upgraded to v5 and byte-verified against deployment/edge/update-key-broker.js; live API v12 still serves 0.1.3 until the API body is deployed. Postpublication real automatic-update smoke required."
+  "request_note": "Publish signed 0.1.4 from 0cc80a445c5cf09b673deb255885802990e3c9ac. Platform checks 43199638035 passed web/API/native/strict lint/real PostgreSQL chain/audits/fresh NSIS and the immutable public 0.1.2 upgrade; Platform checks 43199096479 passed identically on bc85076, the commit before the migration filename correction. Contact settings migration 20261112101846 applied additively; license/catalog/telemetry data unchanged. update-key-broker upgraded to v5 and byte-verified against deployment/edge/update-key-broker.js. Live API v12 still serves 0.1.3 until the API body is deployed. Postpublication real automatic-update smoke required."
 }
