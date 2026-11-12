@@ -20,6 +20,7 @@ export const emptyState = (): State => ({
   admin_access: [],
   telemetry_events: [],
   service_settings: [],
+  contact_settings: [],
   custom_roles: [],
   package_categories: defaultCategories(),
 });
@@ -361,6 +362,34 @@ export class LocalRepository implements Repository {
         created_at: new Date().toISOString(),
         detail: JSON.stringify({ before, after: input }),
       });
+    });
+  }
+  async saveContact(
+    contact: import('../../packages/contracts/src/index.ts').ContactSettings,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    return this.transaction(() => {
+      const old = this.state.contact_settings.find((c) => c.id === contact.id);
+      if ((old?.version ?? 0) !== expectedVersion) throw new Error('EDIT_CONFLICT');
+      const next = {
+        ...structuredClone(contact),
+        version: (old?.version ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+        updated_by: actor,
+      };
+      this.state.contact_settings = this.state.contact_settings
+        .filter((c) => c.id !== contact.id)
+        .concat(next);
+      this.state.audit_events.push({
+        id: crypto.randomUUID(),
+        actor,
+        action: 'contact.settings.changed',
+        target: contact.id,
+        created_at: next.updated_at,
+        detail: JSON.stringify({ before: old ?? null, after: next }),
+      });
+      return structuredClone(next);
     });
   }
   async commitPackage(

@@ -15,6 +15,7 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/20261104085627_custom_roles.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261104085636_license_windows.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261104085700_package_workflows.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/202611090001_contact_settings.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -23,7 +24,7 @@ it('installs all tables and enforces RLS on each', async () => {
   const result = await db.query<{ tablename: string; rowsecurity: boolean }>(
     "select tablename,rowsecurity from pg_tables where schemaname='uhm'",
   );
-  expect(result.rows.length).toBe(16);
+  expect(result.rows.length).toBe(17);
   expect(result.rows.every((r) => r.rowsecurity)).toBe(true);
 });
 it('has no anon/public RPC execution privilege', async () => {
@@ -508,5 +509,64 @@ it('rechecks the live graph inside publication after a dependency disappears or 
   await expect(commitSql({ ...cyclic, status: 'published' }, 'publish', 6)).rejects.toThrow(
     'DEPENDENCY_CYCLE',
   );
+  await db.exec('reset role');
+});
+it('contact settings enforce RLS, CAS optimistic concurrency and atomic audit history', async () => {
+  await db.exec('set role anon');
+  await expect(db.query('select * from uhm.contact_settings')).rejects.toThrow();
+  await expect(
+    db.query('select uhm.save_contact_settings($1::jsonb,$2,$3)', [
+      JSON.stringify({ id: '00000000-0000-4000-8000-000000000002', email: 'a@example.com' }),
+      'attacker',
+      0,
+    ]),
+  ).rejects.toThrow();
+  await db.exec('reset role; set role service_role');
+  const first = (
+    await db.query<{ value: { version: number; email: string } }>(
+      'select uhm.save_contact_settings($1::jsonb,$2,$3) as value',
+      [
+        JSON.stringify({
+          id: '00000000-0000-4000-8000-000000000002',
+          email: 'support@example.com',
+          telegram: '@atelier_support',
+          extra_links: [],
+        }),
+        'contact-owner',
+        0,
+      ],
+    )
+  ).rows[0].value;
+  expect(first.version).toBe(1);
+  expect(first.email).toBe('support@example.com');
+  await expect(
+    db.query('select uhm.save_contact_settings($1::jsonb,$2,$3)', [
+      JSON.stringify({ id: '00000000-0000-4000-8000-000000000002', email: 'stale@example.com' }),
+      'contact-owner',
+      0,
+    ]),
+  ).rejects.toThrow('EDIT_CONFLICT');
+  const second = (
+    await db.query<{ value: { version: number } }>(
+      'select uhm.save_contact_settings($1::jsonb,$2,$3) as value',
+      [
+        JSON.stringify({
+          id: '00000000-0000-4000-8000-000000000002',
+          email: 'desk@example.com',
+          extra_links: [],
+        }),
+        'contact-owner',
+        1,
+      ],
+    )
+  ).rows[0].value;
+  expect(second.version).toBe(2);
+  const audits = await db.query<{ action: string }>(
+    "select action from uhm.audit_events where target='00000000-0000-4000-8000-000000000002' order by created_at asc",
+  );
+  expect(audits.rows.map((r) => r.action)).toEqual([
+    'contact.settings.changed',
+    'contact.settings.changed',
+  ]);
   await db.exec('reset role');
 });

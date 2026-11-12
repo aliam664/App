@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 0.1.4 — 2026-11-11
+
+### UI / UX
+
+- Public redesign of the Assetto Corsa Launcher: new editorial garage identity, modular CSS (`apps/web/src/styles/`), refreshed brand assets (`mark.svg`, `icon.png`, hero and track artwork) and a rebuilt home/library/package/admin surfaces.
+- Full runtime bilingual localization (FA/EN) through `apps/web/src/i18n.ts`; every visible string now switches language without reload.
+- Added the Contact Us flow (`apps/web/src/contact.ts`) backed by the new `202611090001_contact_settings` migration, with an admin-side read path.
+- Responsive and WCAG fixes: keyboard focus, contrast, and mobile layout regressions addressed.
+
+### Licensing / backend
+
+- Health reports the real application version; the API, Edge bundle and UI version are asserted to match `package.json` by `tests/release-version.test.ts`.
+- Update-key broker accepts only `refs/heads/main` and the fixed session branch `refs/heads/arena/a81c9815-app` with matching workflow_ref/subject; the retired `arena/0b78cac4-app` and `arena/37af8e92-app` are rejected. Numeric repository/owner pins, RS256/OIDC checks and green-build provenance remain mandatory.
+
+### Release / CI
+
+- Version aligned to 0.1.4 across npm, lockfiles, Tauri and Cargo manifests.
+- Release/CI/workflow branch pins moved to `arena/a81c9815-app`; the historical `0.1.0` pilot workflow keeps its own distinct pins.
+- The Windows installer-upgrade harness now derives the candidate version from `src-tauri/tauri.conf.json` instead of a hardcoded literal, so the guard cannot drift from the built artifact. The post-release automatic-update smoke targets the reviewed 0.1.2 → 0.1.4 rollout.
+
+### Not included / deferred
+
+- The historical `0.1.0` pilot workflow and its `uhm-platform-v0.1.0-pilot.1` release are unchanged historical records, not part of this release.
+- No staged percentage rollout, Authenticode signing claim, real-game validation, or guarantee against a local administrator tampering with offline clock state.
+
 ## 0.1.3 — 2026-11-08
 
 ### Installer / package manager

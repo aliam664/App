@@ -5,7 +5,7 @@ test('launcher catalog is searchable, filterable and never fabricates installati
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /دقت مهندسی برای/ })).toBeVisible();
   await expect(page.locator('.package-card')).toHaveCount(6);
   await page.getByRole('tab', { name: 'مسیرها', exact: true }).click();
   await expect(page.locator('.package-card')).toHaveCount(1);
@@ -73,42 +73,130 @@ test('responsive launcher has no horizontal overflow at phone width', async ({ p
 test('corrupt cached license cannot prevent launcher startup', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('uhm-license', 'invalid-json'));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /دقت مهندسی برای/ })).toBeVisible();
 });
 
-test('UHM reference identity, original media and persistent theme work together', async ({
+test('Assetto Corsa Launcher brand identity, editorial art, FA/EN toggle and persistent theme work together', async ({
   page,
 }) => {
   await page.goto('/');
   await expect(page.locator('.reference-header .brand img')).toHaveAttribute(
     'src',
-    '/brand/logo.png',
+    '/brand/mark.svg',
   );
-  await expect(page.locator('.hero .hero-highlight')).toHaveText('یک سطح بالاتر');
+  await expect(page.locator('.reference-header .brand')).toContainText('Assetto Corsa Launcher');
+  await expect(page.locator('.reference-header')).not.toContainText('UHM');
+  await expect(page.locator('.hero .hero-highlight')).toHaveText('گاراژ استو کورسا');
   expect(
     await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase(),
     ),
-  ).toBe('#03050a');
+  ).toBe('#0B0C0E');
   expect(
     await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--cyan').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().toUpperCase(),
     ),
-  ).toBe('#00d4ff');
-  await expect(page.locator('.hero-video source')).toHaveAttribute(
-    'src',
-    '/brand/media/uhm-showcase.mp4',
-  );
+  ).toBe('#C81E2B');
+  expect(
+    await page.evaluate(() => {
+      const img = document.querySelector<HTMLImageElement>('.hero-visual img');
+      return !!img && img.complete && img.naturalWidth > 0;
+    }),
+  ).toBe(true);
   await page.getByRole('button', { name: 'تغییر تم', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByRole('button', { name: 'پکیج‌های UHM', exact: false }).click();
+  await page.locator('#header-lang').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.getByRole('heading', { name: /Engineered Precision for/ })).toBeVisible();
+  await page.locator('#header-lang').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+  await page.getByRole('button', { name: /مرور کاتالوگ پکیج‌ها/ }).click();
   await expect(page.locator('#package-catalog')).toBeInViewport();
-  await page.getByRole('button', { name: 'منوی بخش‌ها' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'کتابخانه من', exact: true }).click();
+  await page.locator('[data-nav="library"]').click();
   await expect(page.getByRole('heading', { name: 'کتابخانه محلی در نسخه ویندوز' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('Contact Us starts empty cleanly, lets admin configure channels and publishes safely', async ({
+  page,
+  request,
+}) => {
+  const token = (await (await request.post('/api/demo/session', { data: {} })).json()).token;
+  const resetContact = async () => {
+    const cur = await (
+      await request.get('/api/admin/contact', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).json();
+    if (cur.configured) {
+      await request.post('/api/admin/contact', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          headline_fa: '',
+          headline_en: '',
+          intro_fa: '',
+          intro_en: '',
+          email: '',
+          phone: '',
+          telegram: '',
+          discord: '',
+          instagram: '',
+          youtube: '',
+          website: '',
+          support_hours_fa: '',
+          support_hours_en: '',
+          location_fa: '',
+          location_en: '',
+          response_note_fa: '',
+          response_note_en: '',
+          extra_links: [],
+          expected_version: cur.contact.version,
+        },
+      });
+    }
+  };
+  await resetContact();
+  try {
+    await page.goto('/');
+    await expect(page.locator('.home-contact-band')).toHaveCount(0);
+    await page.locator('[data-nav="contact"]').click();
+    await expect(
+      page.getByRole('heading', { name: 'هنوز راه ارتباطی ثبت نشده است' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'پنل مدیریت', exact: true }).click();
+    await page.getByRole('button', { name: 'ورود به پنل نمایشی' }).click();
+    await page.locator('[data-nav="contact"]').click();
+    await expect(page.getByRole('heading', { name: 'مدیریت اطلاعات تماس با ما' })).toBeVisible();
+
+    await page.locator('[name=headline_fa]').fill('پشتیبانی فنی استو کورسا');
+    await page.locator('[name=headline_en]').fill('Assetto Corsa Technical Desk');
+    await page.locator('[name=email]').fill('support@example.com');
+    await page.locator('[name=telegram]').fill('@ac_support_desk');
+    await page.locator('[name=discord]').fill('https://discord.gg/ac-desk');
+    await page.getByRole('button', { name: 'ذخیره و انتشار در تماس با ما', exact: true }).click();
+    await expect(page.locator('.toast').last()).toContainText('ذخیره');
+
+    await page.getByRole('button', { name: 'بازگشت به لانچر', exact: true }).click();
+    await expect(page.locator('.home-contact-band')).toBeVisible();
+    await page.locator('#home-open-contact').click();
+    await expect(page.getByRole('heading', { name: 'پشتیبانی فنی استو کورسا' })).toBeVisible();
+    await expect(page.locator('.contact-grid')).toContainText('support@example.com');
+    await expect(page.locator('.contact-grid a[href="mailto:support@example.com"]')).toBeVisible();
+    await expect(
+      page.locator('.contact-grid a[href="https://t.me/ac_support_desk"]'),
+    ).toBeVisible();
+    await expect(page.locator('.contact-grid')).not.toContainText('اینستاگرام');
+
+    await page.locator('#header-lang').click();
+    await expect(page.getByRole('heading', { name: 'Assetto Corsa Technical Desk' })).toBeVisible();
+    await page.locator('#header-lang').click();
+  } finally {
+    await resetContact();
+  }
 });
 
 test('moving the HTML entry to the repository root does not expose local secrets', async ({

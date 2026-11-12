@@ -248,7 +248,17 @@ describe('regressions for the four previously open findings', () => {
   it("AUD-01: an anonymous flood must not exhaust another user's production unknown-IP bucket", async () => {
     for (let i = 0; i < 120; i++)
       expect((await request('/catalog', undefined, '')).status).toBe(200);
-    expect((await request('/admin/overview')).status).toBe(200); // current actual: 429
+    // The 121st anonymous public read from the same bucket is throttled cleanly...
+    expect((await request('/catalog', undefined, '')).status).toBe(429);
+    // ...without starving admin endpoints or licensed device challenge/activation/plan operations!
+    expect((await request('/admin/overview')).status).toBe(200);
+    const d = await activate();
+    const p = { ...pkg(), status: 'published' as const };
+    repo.state.packages.push(p);
+    expect(
+      (await request('/install/plan', { package_id: p.id, ...(await d.proof('plan')) }, d.grant))
+        .status,
+    ).toBe(200);
   });
   it('AUD-04: a dependency plan exceeding the native 30-package limit should fail before signing', async () => {
     const chain = Array.from({ length: 31 }, () => ({ ...pkg(), status: 'published' as const }));
@@ -279,7 +289,88 @@ describe('regressions for the four previously open findings', () => {
     await repo.insert('packages', [p]);
     expect((await request(`/admin/packages/${p.id}/publish`, {})).status).toBe(409); // actual: 200
   });
-  it('AUD-06: benchmarking-only IPv4 is not a public uploader URL', () => {
-    expect(DownloadUrl.safeParse('https://198.18.0.1/file.zip').success).toBe(false); // actual: true
+  it('AUD-06: benchmarking-only IPv4 and trailing-dot local hostnames are rejected', () => {
+    expect(DownloadUrl.safeParse('https://198.18.0.1/file.zip').success).toBe(false);
+    expect(DownloadUrl.safeParse('https://localhost./file.zip').success).toBe(false);
+    expect(DownloadUrl.safeParse('https://127.0.0.1./file.zip').success).toBe(false);
+    expect(DownloadUrl.safeParse('https://100.64.0.1/file.zip').success).toBe(false);
+  });
+});
+
+describe('Contact Us configuration security, permissions, CAS and audit trail', () => {
+  it('starts empty by default, rejects unsafe URLs, enforces contact.manage & CAS, and hides updated_by publicly', async () => {
+    const initial = await request('/contact', undefined, '');
+    expect(initial.status).toBe(200);
+    expect(initial.data.configured).toBe(false);
+    expect(initial.data.contact.email).toBe('');
+    expect(initial.data.contact.phone).toBe('');
+    expect(initial.data.contact).not.toHaveProperty('updated_by');
+
+    // Non-contact-admin staff cannot read or mutate /admin/contact
+    repo.admin = async () => ({
+      id: 'svc-only',
+      role: 'viewer',
+      permissions: ['service.manage'],
+      aal: 'aal2',
+    });
+    expect((await request('/admin/contact', undefined)).status).toBe(403);
+    expect(
+      (
+        await request('/admin/contact', {
+          email: 'team@example.com',
+          expected_version: 0,
+        })
+      ).status,
+    ).toBe(403);
+
+    // Owner or contact.manage delegate can save with CAS
+    repo.admin = async () => ({ id: 'owner-1', role: 'owner', aal: 'aal2' });
+    expect(
+      (
+        await request('/admin/contact', {
+          website: 'javascript:alert(1)',
+          expected_version: 0,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request('/admin/contact', {
+          telegram: 'https://evil.invalid/phish',
+          expected_version: 0,
+        })
+      ).status,
+    ).toBe(400);
+
+    const saved = await request('/admin/contact', {
+      headline_fa: 'پشتیبانی فنی',
+      headline_en: 'Technical Desk',
+      email: 'support@example.com',
+      telegram: '@ac_atelier',
+      discord: 'https://discord.gg/example-team',
+      extra_links: [
+        { label_fa: 'مستندات نصب', label_en: 'Install Docs', url: 'https://docs.example.com' },
+      ],
+      expected_version: 0,
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.data.configured).toBe(true);
+    expect(saved.data.contact.version).toBe(1);
+    expect(saved.data.audit[0].action).toBe('contact.settings.changed');
+
+    // Stale expected_version returns 409 EDIT_CONFLICT
+    const conflict = await request('/admin/contact', {
+      email: 'stale@example.com',
+      expected_version: 0,
+    });
+    expect(conflict.status).toBe(409);
+    expect(conflict.data.error).toBe('EDIT_CONFLICT');
+
+    // Public response returns configured channels without internal updated_by
+    const pub = await request('/contact', undefined, '');
+    expect(pub.status).toBe(200);
+    expect(pub.data.configured).toBe(true);
+    expect(pub.data.contact.email).toBe('support@example.com');
+    expect(pub.data.contact).not.toHaveProperty('updated_by');
   });
 });

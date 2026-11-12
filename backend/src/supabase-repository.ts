@@ -76,6 +76,14 @@ export class SupabaseRepository implements Repository {
         .from(table)
         .select('*')
         .range(offset, offset + 999);
+      if (
+        error &&
+        table === 'contact_settings' &&
+        (error.code === '42P01' ||
+          error.code === 'PGRST205' ||
+          error.message.includes('contact_settings'))
+      )
+        return [];
       this.check(error);
       rows.push(...((data || []) as unknown as Tables[T][]));
       if (!data || data.length < 1000) break;
@@ -260,6 +268,19 @@ export class SupabaseRepository implements Repository {
       p_actor: actor,
     });
     this.check(error);
+  }
+  async saveContact(
+    contact: import('../../packages/contracts/src/index.ts').ContactSettings,
+    actor: string,
+    expectedVersion: number,
+  ) {
+    const { data, error } = await this.db.rpc('save_contact_settings', {
+      p_contact: contact,
+      p_actor: actor,
+      p_expected_version: expectedVersion,
+    });
+    this.check(error);
+    return data as import('../../packages/contracts/src/index.ts').ContactSettings;
   }
   async commitPackage(
     pkg: import('../../packages/contracts/src/index.ts').PackageSpec,

@@ -4,6 +4,8 @@ import {
   hasPermission,
   accessPermissions,
   defaultService,
+  defaultContact,
+  CONTACT_ID,
   type Permission,
 } from '../../packages/contracts/src/index.ts';
 import { z } from 'zod';
@@ -100,7 +102,10 @@ export function createApi(repo: Repository, config: ApiConfig) {
         });
       // Only adapter-supplied IPs are trusted; never arbitrary forwarded headers.
       const ipKey = await codeHash(trustedIp, config.pepper);
-      if (!path.startsWith('/admin/') && !(await repo.rateLimit(`ip:${ipKey}`, 120, 60))) {
+      const isPublicRead =
+        request.method === 'GET' &&
+        (path === '/catalog' || path === '/service/status' || path === '/contact');
+      if (isPublicRead && !(await repo.rateLimit(`pub:${ipKey}`, 120, 60))) {
         headers.set('Retry-After', '60');
         throw new HttpError(429, 'RATE_LIMITED');
       }
@@ -201,6 +206,14 @@ export function createApi(repo: Repository, config: ApiConfig) {
       }
       async function proof(purpose: string, data: z.infer<typeof Proof>): Promise<string> {
         const thumb = await thumbprint(data.public_key);
+        if (!(await repo.rateLimit(`dev-op:${thumb}`, 120, 60))) {
+          headers.set('Retry-After', '60');
+          throw new HttpError(429, 'RATE_LIMITED');
+        }
+        if (trustedIp !== 'unknown' && !(await repo.rateLimit(`op:${ipKey}`, 240, 60))) {
+          headers.set('Retry-After', '60');
+          throw new HttpError(429, 'RATE_LIMITED');
+        }
         const challenge = (await repo.list('challenges')).find((c) => c.id === data.challenge_id);
         if (
           !challenge ||
@@ -303,8 +316,14 @@ export function createApi(repo: Repository, config: ApiConfig) {
           .strict()
           .parse(body);
         const thumb = await thumbprint(input.public_key);
-        if (!(await repo.rateLimit(`device:${thumb}`, 20, 60)))
+        const chalIpLimit = trustedIp === 'unknown' ? 600 : 60;
+        if (
+          !(await repo.rateLimit(`device:${thumb}`, 20, 60)) ||
+          !(await repo.rateLimit(`chal:${ipKey}`, chalIpLimit, 60))
+        ) {
+          headers.set('Retry-After', '60');
           throw new HttpError(429, 'RATE_LIMITED');
+        }
         const challenge = {
           id: crypto.randomUUID(),
           nonce: b64(crypto.getRandomValues(new Uint8Array(32))),
@@ -322,6 +341,15 @@ export function createApi(repo: Repository, config: ApiConfig) {
       }
       if (path === '/licenses/activate' && request.method === 'POST') {
         const input = Activation.parse(body);
+        const preThumb = await thumbprint(input.public_key);
+        const actIpLimit = trustedIp === 'unknown' ? 300 : 60;
+        if (
+          !(await repo.rateLimit(`device-act:${preThumb}`, 20, 60)) ||
+          !(await repo.rateLimit(`act:${ipKey}`, actIpLimit, 60))
+        ) {
+          headers.set('Retry-After', '60');
+          throw new HttpError(429, 'RATE_LIMITED');
+        }
         const thumb = await proof('activate', input);
         const hash = await codeHash(input.code, config.pepper);
         let license;
@@ -445,6 +473,12 @@ export function createApi(repo: Repository, config: ApiConfig) {
             ? await repo.list('package_categories')
             : [],
           service: can('service.manage') ? service : null,
+          contact: can('contact.manage')
+            ? ((await repo.list('contact_settings'))[0] ?? defaultContact(0))
+            : null,
+          contact_audit: can('contact.manage')
+            ? (await repo.auditPage(CONTACT_ID)).slice(0, 25)
+            : [],
         });
       }
       if (path === '/admin/licenses' && request.method === 'POST') {

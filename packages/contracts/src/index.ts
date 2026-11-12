@@ -30,6 +30,7 @@ export const Permission = z.enum([
   'errors.resolve',
   'team.manage',
   'service.manage',
+  'contact.manage',
   'audit.read',
 ]);
 export type Permission = z.infer<typeof Permission>;
@@ -179,6 +180,190 @@ export const defaultService = (): ServiceSettings => ({
   message: '',
   updated_at: new Date().toISOString(),
 });
+export const CONTACT_ID = '00000000-0000-4000-8000-000000000002';
+const safeTextLine = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .refine((v) => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v), 'کاراکتر کنترلی مجاز نیست');
+const safeHttpsUrl = (allowedHosts?: RegExp) =>
+  z
+    .string()
+    .trim()
+    .max(256)
+    .refine((value) => {
+      if (!value) return true;
+      try {
+        const u = new URL(value);
+        if (
+          u.protocol !== 'https:' ||
+          (u.port && u.port !== '443') ||
+          u.username ||
+          u.password ||
+          isPrivateHost(u.hostname)
+        )
+          return false;
+        return !allowedHosts || allowedHosts.test(u.hostname.toLowerCase().replace(/\.+$/, ''));
+      } catch {
+        return false;
+      }
+    }, 'نشانی معتبر HTTPS لازم است');
+export const ContactExtraLink = z
+  .object({
+    label_fa: safeTextLine(60),
+    label_en: safeTextLine(60),
+    url: safeHttpsUrl().refine((v) => v.length > 0, 'نشانی HTTPS لازم است'),
+  })
+  .strict()
+  .refine((l) => l.label_fa.length > 0 || l.label_en.length > 0, 'عنوان لینک لازم است');
+export type ContactExtraLink = z.infer<typeof ContactExtraLink>;
+export const ContactInput = z
+  .object({
+    headline_fa: safeTextLine(120).default(''),
+    headline_en: safeTextLine(120).default(''),
+    intro_fa: safeTextLine(600).default(''),
+    intro_en: safeTextLine(600).default(''),
+    email: z
+      .string()
+      .trim()
+      .max(160)
+      .refine(
+        (v) => !v || (z.string().email().safeParse(v).success && !/[\x00-\x1f\x7f<>]/.test(v)),
+        'نشانی ایمیل معتبر نیست',
+      )
+      .default(''),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .refine(
+        (v) => !v || (/^[+\d()\s-]{5,40}$/.test(v) && (v.match(/\d/g)?.length ?? 0) >= 5),
+        'شماره تماس معتبر نیست',
+      )
+      .default(''),
+    telegram: z
+      .string()
+      .trim()
+      .max(256)
+      .refine((v) => {
+        if (!v) return true;
+        if (/^@[a-zA-Z0-9_]{4,32}$/.test(v)) return true;
+        return safeHttpsUrl(/^(t\.me|telegram\.me)$/).safeParse(v).success;
+      }, 'نشانی تلگرام باید با https://t.me/ یا @نام_کاربری باشد')
+      .default(''),
+    discord: safeHttpsUrl(/^(www\.)?(discord\.gg|discord\.com|discordapp\.com)$/).default(''),
+    instagram: z
+      .string()
+      .trim()
+      .max(256)
+      .refine((v) => {
+        if (!v) return true;
+        if (/^@[a-zA-Z0-9._]{2,30}$/.test(v)) return true;
+        return safeHttpsUrl(/^(www\.)?instagram\.com$/).safeParse(v).success;
+      }, 'نشانی اینستاگرام باید با https://instagram.com/ یا @نام_کاربری باشد')
+      .default(''),
+    youtube: safeHttpsUrl(/^(www\.|m\.)?(youtube\.com|youtu\.be)$/).default(''),
+    website: safeHttpsUrl().default(''),
+    support_hours_fa: safeTextLine(160).default(''),
+    support_hours_en: safeTextLine(160).default(''),
+    location_fa: safeTextLine(160).default(''),
+    location_en: safeTextLine(160).default(''),
+    response_note_fa: safeTextLine(300).default(''),
+    response_note_en: safeTextLine(300).default(''),
+    extra_links: z.array(ContactExtraLink).max(6).default([]),
+    expected_version: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type ContactInput = z.infer<typeof ContactInput>;
+export type ContactSettings = Omit<ContactInput, 'expected_version'> & {
+  id: string;
+  version: number;
+  updated_at: string;
+  updated_by?: string;
+};
+export const defaultContact = (version = 0): ContactSettings => ({
+  id: CONTACT_ID,
+  headline_fa: '',
+  headline_en: '',
+  intro_fa: '',
+  intro_en: '',
+  email: '',
+  phone: '',
+  telegram: '',
+  discord: '',
+  instagram: '',
+  youtube: '',
+  website: '',
+  support_hours_fa: '',
+  support_hours_en: '',
+  location_fa: '',
+  location_en: '',
+  response_note_fa: '',
+  response_note_en: '',
+  extra_links: [],
+  version,
+  updated_at: new Date(0).toISOString(),
+  updated_by: '',
+});
+export function contactChannelHref(
+  channel: 'email' | 'phone' | 'telegram' | 'discord' | 'instagram' | 'youtube' | 'website',
+  raw: string,
+): string | null {
+  const value = (raw || '').trim();
+  if (!value) return null;
+  if (channel === 'email')
+    return z.string().email().safeParse(value).success && !/[\x00-\x1f\x7f<>]/.test(value)
+      ? `mailto:${value}`
+      : null;
+  if (channel === 'phone') {
+    const cleaned = value.replace(/[^\d+]/g, '');
+    return cleaned.length >= 5 ? `tel:${cleaned}` : null;
+  }
+  if (channel === 'telegram') {
+    if (/^@[a-zA-Z0-9_]{4,32}$/.test(value)) return `https://t.me/${value.slice(1)}`;
+    return safeHttpsUrl(/^(t\.me|telegram\.me)$/).safeParse(value).success ? value : null;
+  }
+  if (channel === 'instagram') {
+    if (/^@[a-zA-Z0-9._]{2,30}$/.test(value)) return `https://instagram.com/${value.slice(1)}`;
+    return safeHttpsUrl(/^(www\.)?instagram\.com$/).safeParse(value).success ? value : null;
+  }
+  if (channel === 'discord')
+    return safeHttpsUrl(/^(www\.)?(discord\.gg|discord\.com|discordapp\.com)$/).safeParse(value)
+      .success
+      ? value
+      : null;
+  if (channel === 'youtube')
+    return safeHttpsUrl(/^(www\.|m\.)?(youtube\.com|youtu\.be)$/).safeParse(value).success
+      ? value
+      : null;
+  return safeHttpsUrl().safeParse(value).success ? value : null;
+}
+export function isContactConfigured(contact: Partial<ContactSettings> | null | undefined): boolean {
+  if (!contact) return false;
+  return Boolean(
+    contact.email ||
+    contact.phone ||
+    contact.telegram ||
+    contact.discord ||
+    contact.instagram ||
+    contact.youtube ||
+    contact.website ||
+    (contact.extra_links && contact.extra_links.length > 0) ||
+    contact.intro_fa ||
+    contact.intro_en ||
+    contact.support_hours_fa ||
+    contact.support_hours_en ||
+    contact.location_fa ||
+    contact.location_en ||
+    contact.response_note_fa ||
+    contact.response_note_en,
+  );
+}
+export function publicContact(contact: ContactSettings): Omit<ContactSettings, 'updated_by'> {
+  const { updated_by: _ignored, ...rest } = contact;
+  return rest;
+}
 export const Version = z.string().regex(/^\d+\.\d+\.\d+$/, 'نسخه باید مانند 1.2.0 باشد');
 export const Id = z.string().uuid();
 export function safeRelativePath(input: string): boolean {
@@ -220,7 +405,10 @@ export const DownloadUrl = z
     );
   }, 'آدرس HTTPS عمومی بدون نام کاربری و رمز لازم است');
 export function isPrivateHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  const h = host
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '');
   return (
     h === 'localhost' ||
     h.endsWith('.localhost') ||
@@ -398,6 +586,7 @@ export type Tables = {
   admin_access: AdminAccess;
   telemetry_events: TelemetryEvent;
   service_settings: ServiceSettings;
+  contact_settings: ContactSettings;
   custom_roles: CustomRole;
   package_categories: PackageCategory;
 };

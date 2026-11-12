@@ -12,6 +12,11 @@ import {
   EventInput,
   ServiceInput,
   defaultService,
+  CONTACT_ID,
+  ContactInput,
+  defaultContact,
+  isContactConfigured,
+  publicContact,
   hasPermission,
   rolePermissions,
   type Admin,
@@ -37,6 +42,44 @@ export async function adminServices(c: {
       settings: (await repo.list('service_settings'))[0] ?? defaultService(),
       bot_configured: false,
     });
+  if (path === '/contact' && method === 'GET') {
+    const current = (await repo.list('contact_settings'))[0] ?? defaultContact(0);
+    return reply({
+      contact: publicContact(current),
+      configured: isContactConfigured(current),
+    });
+  }
+  if (path === '/admin/contact' && method === 'GET') {
+    await requireAdmin('contact.manage');
+    const current = (await repo.list('contact_settings'))[0] ?? defaultContact(0);
+    return reply({
+      contact: current,
+      configured: isContactConfigured(current),
+      audit: (await repo.auditPage(CONTACT_ID)).slice(0, 25),
+    });
+  }
+  if (path === '/admin/contact' && method === 'POST') {
+    const actor = await requireAdmin('contact.manage');
+    const parsed = ContactInput.extend({
+      expected_version: z.number().int().nonnegative(),
+    }).parse(body);
+    const { expected_version, ...fields } = parsed;
+    const old = (await repo.list('contact_settings'))[0];
+    if ((old?.version ?? 0) !== expected_version) return fail('EDIT_CONFLICT', 409);
+    const next = {
+      ...defaultContact(old?.version ?? 0),
+      ...fields,
+      id: CONTACT_ID,
+      updated_by: actor.id,
+      updated_at: new Date().toISOString(),
+    };
+    const saved = await repo.saveContact(next, actor.id, expected_version);
+    return reply({
+      contact: saved,
+      configured: isContactConfigured(saved),
+      audit: (await repo.auditPage(CONTACT_ID)).slice(0, 25),
+    });
+  }
   if (path === '/admin/license-session' && method === 'POST') {
     const input = Proof.extend({ license_id: Id }).strict().parse(body);
     const thumb = await c.proof('admin', input);

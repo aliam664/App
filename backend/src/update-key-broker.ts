@@ -2,7 +2,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import updater from '../../config/updater-public.json';
 export const BROKER_URL = 'https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/update-key-broker';
-export const RELEASE_REFS = ['refs/heads/main', 'refs/heads/arena/0b78cac4-app'] as const;
+export const RELEASE_REFS = ['refs/heads/main', 'refs/heads/arena/a81c9815-app'] as const;
 export const RELEASE_WORKFLOW =
   'aliam664/App/.github/workflows/release-launcher.yml@refs/heads/main';
 const githubKeys = createRemoteJWKSet(

@@ -9,12 +9,15 @@ import {
   Bell,
   Check,
   ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronsUpDown,
   CircleCheck,
+  Clock,
   Clock3,
   Compass,
   Download,
+  ExternalLink,
   FlaskConical,
   Folder,
   FolderCheck,
@@ -23,22 +26,30 @@ import {
   FolderOpen,
   Gamepad2,
   GitBranch,
+  Globe,
+  ImageOff,
   Info,
   KeyRound,
+  Languages,
   Layers2,
   LayoutDashboard,
   LayoutGrid,
   LockKeyhole,
+  Mail,
+  MapPin,
   Menu,
+  MessageCircle,
   Monitor,
   Package,
   PackageOpen,
+  Phone,
   Plus,
   Radio,
   RefreshCw,
   ScrollText,
   Search,
   SearchX,
+  Send,
   Settings2,
   Shield,
   ShieldCheck,
@@ -49,6 +60,9 @@ import {
   WifiOff,
   X,
 } from 'lucide';
+import { ApiError } from './api';
+import { L, getLang, num, fmtDate, fmtSize, errorMessages, categoryLabelsEn } from './i18n';
+
 const icons = {
   ArrowLeft,
   ArrowUpLeft,
@@ -59,12 +73,15 @@ const icons = {
   Bell,
   Check,
   ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronsUpDown,
   CircleCheck,
+  Clock,
   Clock3,
   Compass,
   Download,
+  ExternalLink,
   FlaskConical,
   Folder,
   FolderCheck,
@@ -73,22 +90,30 @@ const icons = {
   FolderOpen,
   Gamepad2,
   GitBranch,
+  Globe,
+  ImageOff,
   Info,
   KeyRound,
+  Languages,
   Layers2,
   LayoutDashboard,
   LayoutGrid,
   LockKeyhole,
+  Mail,
+  MapPin,
   Menu,
+  MessageCircle,
   Monitor,
   Package,
   PackageOpen,
+  Phone,
   Plus,
   Radio,
   RefreshCw,
   ScrollText,
   Search,
   SearchX,
+  Send,
   Settings2,
   Shield,
   ShieldCheck,
@@ -99,36 +124,44 @@ const icons = {
   WifiOff,
   X,
 };
-import { ApiError, messages } from './api';
+
 export const esc = (x: unknown) =>
   String(x ?? '').replace(
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   );
+
 export const icon = (name: string, cls = '') => `<i data-lucide="${name}" class="${cls}"></i>`;
+
 export const decorate = () =>
-  createIcons({ icons, attrs: { 'stroke-width': 1.6, 'aria-hidden': 'true', focusable: 'false' } });
-export const fa = (n: number) => new Intl.NumberFormat('fa-IR').format(n);
-export const date = (s: string | null) =>
-  s
-    ? new Date(s).toLocaleDateString('fa-IR', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—';
-export const size = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes < 0) return '—';
-  if (bytes < 1000) return `${fa(Math.round(bytes))} B`;
-  if (bytes < 1e6) return `${(bytes / 1000).toFixed(1)} KB`;
-  return `${(bytes / (bytes >= 1e9 ? 1e9 : 1e6)).toFixed(1)} ${bytes >= 1e9 ? 'GB' : 'MB'}`;
-};
+  createIcons({
+    icons,
+    attrs: { 'stroke-width': 1.65, 'aria-hidden': 'true', focusable: 'false' },
+  });
+
+export const fa = (n: number) => num(n);
+export const date = (s: string | null) => fmtDate(s);
+export const size = (bytes: number) => fmtSize(bytes);
+
 export const tierLabel = (tier: string) =>
   ({ normal: 'Normal', pro: 'Pro', vip: 'VIP' })[tier] || tier;
+
 export const badge = (tier: string) =>
   `<span class="tier tier-${esc(tier)}" dir="ltr">${tierLabel(tier)}</span>`;
+
 export const category: Record<string, string> = {
   graphics: 'گرافیک و نور',
   tracks: 'مسیرها',
   cars: 'خودروها',
   tools: 'ابزارهای پایه',
 };
+
+export function categoryLabel(id: string): string {
+  const lang = getLang();
+  if (lang === 'en' && categoryLabelsEn[id]) return categoryLabelsEn[id];
+  return category[id] || L('نامشخص', 'Other', lang);
+}
+
 export function toast(text: string, danger = false) {
   let stack = document.querySelector<HTMLElement>('.toast-stack');
   if (!stack) {
@@ -144,7 +177,7 @@ export function toast(text: string, danger = false) {
   const close = document.createElement('button');
   close.type = 'button';
   close.className = 'toast-close';
-  close.setAttribute('aria-label', 'بستن پیام');
+  close.setAttribute('aria-label', L('بستن پیام', 'Dismiss message'));
   close.textContent = '×';
   close.onclick = () => el.remove();
   el.append(message, close);
@@ -152,29 +185,38 @@ export function toast(text: string, danger = false) {
   while (stack.children.length > 3) stack.firstElementChild?.remove();
   setTimeout(() => el.remove(), danger ? 10000 : 6500);
 }
-export const handleError = (e: unknown) =>
+
+export const handleError = (e: unknown) => {
+  const dict = errorMessages();
   toast(
     e instanceof ApiError
-      ? (messages[e.code] || e.code) + (e.detail ? ` ${e.detail}` : '')
+      ? (dict[e.code] || e.code) + (e.detail ? ` ${e.detail}` : '')
       : e instanceof Error
         ? e.message
         : typeof e === 'string'
           ? e
-          : 'خطای غیرمنتظره',
+          : L('خطای غیرمنتظره', 'Unexpected error'),
     true,
   );
+};
+
 export function modal(title: string, content: string, wide = false): HTMLDialogElement {
   const dialog = document.createElement('dialog');
   dialog.className = wide ? 'modal wide' : 'modal';
   const titleId = `dialog-${crypto.randomUUID()}`;
   const opener = document.activeElement;
   dialog.setAttribute('aria-labelledby', titleId);
-  dialog.innerHTML = `<div class="modal-head"><h2 id="${titleId}">${esc(title)}</h2><button class="icon-button" data-close aria-label="بستن">${icon('x')}</button></div><div class="modal-body">${content}</div>`;
+  dialog.innerHTML = `<div class="modal-head"><h2 id="${titleId}">${esc(title)}</h2><button class="icon-button" data-close aria-label="${L('بستن', 'Close')}">${icon('x')}</button></div><div class="modal-body">${content}</div>`;
   document.body.append(dialog);
   const requestClose = () => {
     if (
       dialog.dataset.dirty === 'true' &&
-      !window.confirm('تغییرات این فرم ذخیره نشده است. بدون ذخیره بسته شود؟')
+      !window.confirm(
+        L(
+          'تغییرات این فرم ذخیره نشده است. بدون ذخیره بسته شود؟',
+          'Unsaved changes in this form will be lost. Close without saving?',
+        ),
+      )
     )
       return;
     dialog.close();
@@ -215,10 +257,11 @@ export function modal(title: string, content: string, wide = false): HTMLDialogE
   document.documentElement.classList.add('has-modal');
   return dialog;
 }
+
 export async function busy(button: HTMLButtonElement, job: () => Promise<void>) {
   const text = button.innerHTML;
   button.disabled = true;
-  button.textContent = 'در حال انجام…';
+  button.textContent = L('در حال انجام…', 'Working…');
   try {
     await job();
   } catch (e) {
@@ -229,7 +272,9 @@ export async function busy(button: HTMLButtonElement, job: () => Promise<void>) 
     decorate();
   }
 }
+
 export const empty = (title: string, subtitle: string, symbol = 'package-open') =>
   `<div class="empty">${icon(symbol)}<h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div>`;
+
 export const field = (label: string, input: string) =>
   `<label class="field"><span>${label}</span>${input}</label>`;

@@ -60,7 +60,7 @@ describe('release signing credential trust boundary', () => {
     ).not.toThrow();
   });
   it('accepts the fixed session branch with its matching workflow and subject', () => {
-    const ref = 'refs/heads/arena/0b78cac4-app';
+    const ref = 'refs/heads/arena/a81c9815-app';
     expect(() =>
       assertReleaseIdentity({
         ...claims(),
@@ -73,8 +73,10 @@ describe('release signing credential trust boundary', () => {
   it('retires the old session branch and rejects unrelated refs', () => {
     for (const ref of [
       'refs/heads/arena/37af8e92-app',
+      'refs/heads/arena/0b78cac4-app',
       'refs/heads/feature',
       'refs/tags/uhm-launcher-v0.1.3',
+      'refs/tags/uhm-launcher-v0.1.4',
     ]) {
       expect(() =>
         assertReleaseIdentity({

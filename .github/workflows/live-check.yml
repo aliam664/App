@@ -1,7 +1,7 @@
 name: Non-destructive production verification
 on:
   push:
-    branches: [main, arena/0b78cac4-app]
+    branches: [main, arena/a81c9815-app]
     paths:
       - .github/workflows/live-check.yml
       - scripts/check-live-public.ts

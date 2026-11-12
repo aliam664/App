@@ -1,6 +1,7 @@
 /** Fixed commissioning checks. Uses a throwaway owner, NEVER the user's owner license. */
 import { importJWK, jwtVerify, calculateJwkThumbprint } from 'jose';
 import production from '../config/production-public.json';
+import { version as appVersion } from '../package.json';
 function check(value: unknown, label: string): asserts value {
   if (!value) throw new Error(`Commissioning failed: ${label}`);
 }

@@ -4,6 +4,7 @@ import { createApi, type ApiConfig } from '../backend/src/api';
 import { LocalRepository, emptyState } from '../backend/dev/store';
 import { b64, codeHash, verifyToken, grant } from '../backend/src/crypto';
 import { seedPackages } from '../backend/src/seed';
+import metadata from '../package.json';
 let repo: LocalRepository, config: ApiConfig, handler: ReturnType<typeof createApi>;
 const code = 'UHM-EXAMPLE-LONG-TEST-CODE-123456';
 const pub = (key: JsonWebKey) => ({ kty: key.kty, crv: key.crv, x: key.x, y: key.y });
@@ -718,11 +719,11 @@ it('accepts real PostgreSQL timezone offsets in history cursors', async () => {
   ).toBe(200);
 });
 
-describe('0.1.3 license and publication regressions', () => {
+describe('0.1.4 license and publication regressions', () => {
   it('reports the actual application version on health', async () => {
     const r = await request('/health');
     expect(r.status).toBe(200);
-    expect(r.data.version).toBe('0.1.3');
+    expect(r.data.version).toBe(metadata.version);
   });
   it('honors a bounded configurable offline lease without exceeding license expiry', async () => {
     const d = await device();
