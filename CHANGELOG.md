@@ -6,7 +6,7 @@
 
 - Public redesign of the Assetto Corsa Launcher: new editorial garage identity, modular CSS (`apps/web/src/styles/`), refreshed brand assets (`mark.svg`, `icon.png`, hero and track artwork) and a rebuilt home/library/package/admin surfaces.
 - Full runtime bilingual localization (FA/EN) through `apps/web/src/i18n.ts`; every visible string now switches language without reload.
-- Added the Contact Us flow (`apps/web/src/contact.ts`) backed by the new `202611090001_contact_settings` migration, with an admin-side read path.
+- Added the Contact Us flow (`apps/web/src/contact.ts`) backed by the new `20261112101846_contact_settings` migration, with an admin-side read path.
 - Responsive and WCAG fixes: keyboard focus, contrast, and mobile layout regressions addressed.
 
 ### Licensing / backend

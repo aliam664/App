@@ -15,7 +15,7 @@ beforeAll(async () => {
   await db.exec(await readFile('supabase/migrations/20261104085627_custom_roles.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261104085636_license_windows.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261104085700_package_workflows.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/202611090001_contact_settings.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261112101846_contact_settings.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
