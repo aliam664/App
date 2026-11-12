@@ -1,5 +1,5 @@
 {
-  "build_run": "43199638035",
+  "build_run": "43217722448",
   "publish_candidate": true,
-  "request_note": "Publish signed 0.1.4 from 0cc80a445c5cf09b673deb255885802990e3c9ac. Platform checks 43199638035 passed web/API/native/strict lint/real PostgreSQL chain/audits/fresh NSIS and the immutable public 0.1.2 upgrade; Platform checks 43199096479 passed identically on bc85076, the commit before the migration filename correction. Contact settings migration 20261112101846 applied additively; license/catalog/telemetry data unchanged. update-key-broker upgraded to v5 and byte-verified against deployment/edge/update-key-broker.js. Live API v12 still serves 0.1.3 until the API body is deployed. Postpublication real automatic-update smoke required."
+  "request_note": "Publish signed 0.1.4 from a62aada3793c0bcc74d4aaf0585ac0f84c5ff745. Platform checks 43217722448, Non-destructive production verification 43217722524, Security and package permission audit 43217722452, and GitHub Pages build 43217725482 all passed on arena/0274db12-app. Live API upgraded to v13 (0.1.4) and update-key-broker upgraded to v6 (byte-verified); production license/catalog/telemetry/contact data verified unchanged."
 }
