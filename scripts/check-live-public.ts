@@ -44,12 +44,18 @@ checks.push(
   'Matching application version, production identity, unchanged license trust and backward-compatible capabilities',
 );
 check(Array.isArray((await (await request('/catalog', 200)).json()).packages), 'live catalog');
+const contact = await (await request('/contact', 200)).json();
+check(
+  typeof contact.configured === 'boolean' && typeof contact.contact === 'object',
+  'live public contact settings',
+);
 await request('/admin/overview', 401);
+await request('/admin/contact', 401);
 for (const operation of ['validate', 'test-plan'])
   await request(`/admin/packages/00000000-0000-4000-8000-000000000000/${operation}`, 401, true);
 const denied = await request('/health', 403, false, 'https://untrusted.invalid');
 check(!denied.headers.has('Access-Control-Allow-Origin'), 'untrusted origin rejected');
-checks.push('Live catalog and anonymous admin/builder denial; CORS isolation');
+checks.push('Live catalog, public contact and anonymous admin/builder denial; CORS isolation');
 for (const table of [
   'licenses',
   'package_files',
@@ -57,6 +63,7 @@ for (const table of [
   'package_dependencies',
   'custom_roles',
   'package_categories',
+  'contact_settings',
 ]) {
   const response = await fetch(`${config.supabase_url}/rest/v1/${table}?select=*`, {
     headers: { apikey: config.supabase_publishable_key, 'Accept-Profile': 'uhm' },

@@ -71,5 +71,10 @@ export interface Repository {
     input: import('zod').infer<typeof import('../../packages/contracts/src/index.ts').ProfileInput>,
     actor: string,
   ): Promise<void>;
+  saveContact(
+    contact: import('../../packages/contracts/src/index.ts').ContactSettings,
+    actor: string,
+    expectedVersion: number,
+  ): Promise<import('../../packages/contracts/src/index.ts').ContactSettings>;
   mutateLicense(id: string, action: string, actor: string, days?: number): Promise<void>;
 }

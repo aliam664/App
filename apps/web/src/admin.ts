@@ -13,16 +13,16 @@ import {
   type TelemetryEvent,
   type ServiceSettings,
   type PackageCategory,
+  type ContactSettings,
   licenseState,
 } from '../../../packages/contracts/src/index';
 import { assetUrl } from './runtime';
 import { api, supabase, requireContentV2 } from './api';
+import { L, getLang, num, fmtDate, fmtTime, statusLabels, roleLabels } from './i18n';
 import {
   esc,
   icon,
   decorate,
-  fa,
-  date,
   badge,
   category,
   toast,
@@ -38,6 +38,7 @@ import {
   type AuditEvent,
   type InstallReport,
 } from '../../../packages/contracts/src/index';
+
 export type Overview = {
   admin: Admin;
   capabilities?: string[];
@@ -49,31 +50,24 @@ export type Overview = {
   events: AuditEvent[];
   reports: InstallReport[];
 };
+
 let overview: Overview;
 let token = '';
 let refreshPage: () => Promise<void>;
-const statuses: Record<string, string> = {
-  active: 'فعال',
-  unused: 'فعال‌نشده',
-  suspended: 'معلق',
-  revoked: 'لغوشده',
-  published: 'منتشرشده',
-  draft: 'پیش‌نویس',
-  archived: 'بایگانی',
-  scheduled: 'شروع در آینده',
-  expired: 'منقضی‌شده',
-};
+
 const can = (section: string) =>
   hasPermission(
     overview.admin,
     ({ license: 'licenses.create', content: 'content.update' }[section] || section) as Permission,
   );
+
 export async function renderAdmin(
   container: HTMLElement,
   page: string,
   adminToken: string,
   reload: () => Promise<void>,
   isCurrent: () => boolean = () => true,
+  onContactUpdated?: (contact: ContactSettings, configured: boolean) => void,
 ) {
   token = adminToken;
   refreshPage = reload;
@@ -91,6 +85,7 @@ export async function renderAdmin(
     errors: 'errors.read',
     team: 'team.manage',
     service: 'service.manage',
+    contact: 'contact.manage',
     logs: 'audit.read',
   };
   document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) => {
@@ -118,20 +113,22 @@ export async function renderAdmin(
                     ].some((p) => hasPermission(overview.admin, p as Permission))
                   : !hasPermission(overview.admin, permission);
   });
-  const roleLabels: Record<string, string> = {
-    owner: 'مالک اصلی',
-    content_manager: 'مدیر محتوا',
-    license_manager: 'مدیر لایسنس',
-    support: 'پشتیبان',
-    viewer: 'مشاهده‌گر',
-  };
+  const rLabels = roleLabels();
   document.querySelectorAll('[data-admin-role]').forEach((el) => {
-    el.textContent = roleLabels[overview.admin.role] || 'مدیریت';
+    el.textContent = rLabels[overview.admin.role] || L('مدیریت', 'Staff');
   });
   document.querySelectorAll<HTMLElement>('.nav-group').forEach((group) => {
     group.hidden = !group.querySelector('[data-nav]:not([hidden])');
   });
-  if (await renderConsole(container, page, { data: overview, token, reload })) return;
+  if (
+    await renderConsole(container, page, {
+      data: overview,
+      token,
+      reload,
+      onContactUpdated,
+    })
+  )
+    return;
   if (page === 'dashboard') dashboard(container);
   else if (page === 'licenses') licenses(container);
   else if (page === 'users') await renderUsers(container, overview.admin, token);
@@ -141,6 +138,7 @@ export async function renderAdmin(
   else logs(container);
   decorate();
 }
+
 function dashboard(el: HTMLElement) {
   const { licenses, packages, events, reports } = overview;
   const active = licenses.filter(
@@ -158,55 +156,59 @@ function dashboard(el: HTMLElement) {
     {
       allowed: can('licenses.read'),
       value: licenses.length,
-      label: 'کل لایسنس‌ها',
-      detail: 'ثبت‌شده در سرویس',
+      label: L('کل لایسنس‌ها', 'Total Licenses'),
+      detail: L('ثبت‌شده در سرویس', 'Registered in platform'),
       symbol: 'key-round',
     },
     {
       allowed: can('licenses.read'),
       value: active,
-      label: 'اشتراک فعال',
-      detail: 'فعال و دارای اعتبار زمانی',
+      label: L('اشتراک فعال', 'Active Entitlements'),
+      detail: L('فعال و دارای اعتبار زمانی', 'Active & unexpired'),
       symbol: 'badge-check',
     },
     {
       allowed: can('content.read'),
       value: published,
-      label: 'پکیج منتشرشده',
-      detail: `${fa(drafts)} پیش‌نویس در فضای محتوا`,
+      label: L('پکیج منتشرشده', 'Published Packages'),
+      detail: `${num(drafts)} ${L('پیش‌نویس در فضای محتوا', 'drafts in studio')}`,
       symbol: 'package',
     },
     {
       allowed: can('errors.read'),
       value: openErrors,
-      label: 'خطای رسیدگی‌نشده',
-      detail: 'در رویدادهای دریافتی اخیر',
+      label: L('خطای رسیدگی‌نشده', 'Open Incidents'),
+      detail: L('در رویدادهای دریافتی اخیر', 'From recent telemetry'),
       symbol: 'triangle-alert',
     },
   ].filter((m) => m.allowed);
+
+  const arrow = getLang() === 'fa' ? 'arrow-up-left' : 'arrow-up-right';
+  const chevron = getLang() === 'fa' ? 'chevron-left' : 'chevron-right';
   const action = (target: string, title: string, detail: string, symbol: string) =>
-    `<button class="dashboard-action" data-open="${target}">${icon(symbol)}<span><b>${title}</b><small>${detail}</small></span>${icon('arrow-up-left')}</button>`;
-  el.innerHTML = `<section class="dashboard-welcome"><div><div class="eyebrow" lang="en"><span class="eyebrow-line"></span> UHM / CONTROL CENTER</div><h1>همه‌چیز، زیر کنترل.</h1><p>یک نگاه روشن به سرویس؛ یک مسیر کوتاه برای کار بعدی.</p><div class="dashboard-context"><span>${icon('calendar-days')}${new Date().toLocaleDateString('fa-IR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${icon('refresh-cw')}دریافت داده: <time>${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</time></span></div></div><div class="welcome-actions"><span class="workspace-tag">${icon('shield-check')}فضای مدیریت UHM</span><button class="button secondary" id="admin-refresh" aria-label="به‌روزرسانی">${icon('refresh-cw')}به‌روزرسانی</button></div></section>
-  ${metrics.length ? `<div class="metrics dashboard-metrics">${metrics.map((m, i) => `<article class="metric"><div class="metric-heading"><span>${m.label}</span><span class="metric-icon metric-icon-${i}">${icon(m.symbol)}</span></div><strong>${fa(m.value)}</strong><small>${m.detail}</small></article>`).join('')}</div>` : ''}
-  <section class="dashboard-shortcuts" aria-label="دسترسی سریع">${can('license') ? `<button class="dashboard-action primary-action" id="quick-license">${icon('plus')}<span><b>صدور لایسنس</b><small>دسترسی جدید، با سطح دلخواه</small></span>${icon('arrow-up-left')}</button>` : ''}${can('content') ? `<button class="dashboard-action" id="quick-package">${icon('package-open')}<span><b>ساخت پکیج</b><small>فایل، نسخه و مراحل نصب</small></span>${icon('arrow-up-left')}</button>` : ''}${can('team.manage') ? action('team', 'تیم و دسترسی‌ها', 'کنترل دقیق مجوز همکاران', 'shield-check') : ''}${can('service.manage') ? action('service', 'کنترل سرویس', 'نگهداری و وضعیت عملیات', 'sliders-horizontal') : ''}</section>
+    `<button class="dashboard-action" data-open="${target}">${icon(symbol)}<span><b>${title}</b><small>${detail}</small></span>${icon(arrow)}</button>`;
+
+  el.innerHTML = `<section class="dashboard-welcome"><div><div class="eyebrow" lang="en"><span class="eyebrow-line"></span>CONTROL CENTER</div><h1>${L('همه‌چیز، زیر کنترل.', 'Everything Under Control.')}</h1><p>${L('یک نگاه روشن به سرویس؛ یک مسیر کوتاه برای کار بعدی.', 'Real-time operational metrics, license issuance, and release controls.')}</p><div class="dashboard-context"><span>${icon('calendar-days')}${new Date().toLocaleDateString(getLang() === 'en' ? 'en-US' : 'fa-IR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>${icon('refresh-cw')}${L('دریافت داده:', 'Synced:')} <time>${fmtTime(new Date())}</time></span></div></div><div class="welcome-actions"><span class="workspace-tag">${icon('shield-check')}${L('فضای مدیریت لانچر', 'Control Room')}</span><button class="button secondary" id="admin-refresh" aria-label="${L('به‌روزرسانی', 'Refresh')}">${icon('refresh-cw')}${L('به‌روزرسانی', 'Refresh')}</button></div></section>
+  ${metrics.length ? `<div class="metrics dashboard-metrics">${metrics.map((m, i) => `<article class="metric"><div class="metric-heading"><span>${m.label}</span><span class="metric-icon metric-icon-${i}">${icon(m.symbol)}</span></div><strong>${num(m.value)}</strong><small>${m.detail}</small></article>`).join('')}</div>` : ''}
+  <section class="dashboard-shortcuts" aria-label="${L('دسترسی سریع', 'Quick actions')}">${can('license') ? `<button class="dashboard-action primary-action" id="quick-license">${icon('plus')}<span><b>${L('صدور لایسنس', 'Issue Licenses')}</b><small>${L('دسترسی جدید، با سطح دلخواه', 'Generate single-device keys')}</small></span>${icon(arrow)}</button>` : ''}${can('content') ? `<button class="dashboard-action" id="quick-package">${icon('package-open')}<span><b>${L('ساخت پکیج', 'New Package')}</b><small>${L('فایل، نسخه و مراحل نصب', 'Manifest, hashes & install steps')}</small></span>${icon(arrow)}</button>` : ''}${can('team.manage') ? action('team', L('تیم و دسترسی‌ها', 'Team & Access'), L('کنترل دقیق مجوز همکاران', 'Role & permission boundaries'), 'shield-check') : ''}${can('contact.manage') ? action('contact', L('تماس با ما', 'Contact Us Studio'), L('تنظیم کانال‌های پشتیبانی عمومی', 'Manage public channels'), 'mail') : ''}${can('service.manage') ? action('service', L('کنترل سرویس', 'Service Controls'), L('نگهداری و وضعیت عملیات', 'Maintenance & pauses'), 'sliders-horizontal') : ''}</section>
   <div class="dashboard-grid dashboard-insights">${
     can('licenses.read')
-      ? `<section class="panel"><div class="section-heading"><div><p class="section-kicker">LICENSE OVERVIEW</p><h2>ترکیب اشتراک‌ها</h2></div><span class="subtle">${fa(licenses.length)} لایسنس</span></div><div class="tier-bars">${[
+      ? `<section class="panel"><div class="section-heading"><div><p class="section-kicker">LICENSE OVERVIEW</p><h2>${L('ترکیب اشتراک‌ها', 'Tier Mix')}</h2></div><span class="subtle">${num(licenses.length)} ${L('لایسنس', 'licenses')}</span></div><div class="tier-bars">${[
           'normal',
           'pro',
           'vip',
         ]
           .map((t) => {
             const count = licenses.filter((l) => l.tier === t).length;
-            return `<div><div>${badge(t)}<b>${fa(count)} <small>لایسنس</small></b></div><progress aria-label="تعداد لایسنس ${t.toUpperCase()}" max="${Math.max(licenses.length, 1)}" value="${count}"></progress></div>`;
+            return `<div><div>${badge(t)}<b>${num(count)} <small>${L('لایسنس', 'keys')}</small></b></div><progress aria-label="${L('تعداد لایسنس', 'License count for')} ${t.toUpperCase()}" max="${Math.max(licenses.length, 1)}" value="${count}"></progress></div>`;
           })
           .join(
             '',
-          )}</div><div class="panel-note">${icon('info')}تعداد لایسنس به‌معنی تعداد اشخاص احراز هویت‌شده نیست.</div></section>`
+          )}</div><div class="panel-note">${icon('info')}${L('تعداد لایسنس به‌معنی تعداد اشخاص احراز هویت‌شده نیست.', 'License count reflects issued keys, not unique verified individuals.')}</div></section>`
       : ''
   }
-  <section class="panel attention-panel"><div class="section-heading"><div><p class="section-kicker">NEXT UP</p><h2>در یک نگاه</h2></div>${icon('layers-2')}</div><div class="attention-list">${can('content.read') ? `<button class="attention-row" data-open="packages"><span class="attention-icon">${icon('package')}</span><span><b>محتوای در حال آماده‌سازی</b><small>پیش‌نویس‌ها هنوز در کاتالوگ عمومی نیستند</small></span><strong>${fa(drafts)}</strong>${icon('chevron-left')}</button>` : ''}${can('licenses.read') ? `<button class="attention-row" data-open="licenses"><span class="attention-icon">${icon('clock-3')}</span><span><b>اشتراک‌های منقضی‌شده</b><small>برای بررسی اعتبار، پرونده را باز کنید</small></span><strong>${fa(expired)}</strong>${icon('chevron-left')}</button>` : ''}${can('errors.read') ? `<button class="attention-row" data-open="errors"><span class="attention-icon">${icon('triangle-alert')}</span><span><b>خطاهای نیازمند رسیدگی</b><small>بر اساس رویدادهای اخیر دریافتی</small></span><strong>${fa(openErrors)}</strong>${icon('chevron-left')}</button>` : ''}</div><div class="panel-note">${icon('radio')}${can('analytics.read') ? `${fa(reports.filter((r) => r.status === 'installed').length)} گزارش نصب موفق · ${fa(reports.filter((r) => r.status === 'failed').length)} گزارش نصب ناموفق` : 'اطلاعات این صفحه مطابق مجوزهای حساب شماست.'}</div></section></div>
-  ${can('audit.read') ? `<section class="panel dashboard-activity"><div class="section-heading"><div><p class="section-kicker">ACTIVITY LOG</p><h2>آخرین فعالیت‌ها</h2></div><button class="text-button" data-open="logs">همه رویدادها ${icon('arrow-up-left')}</button></div>${eventTable([...events].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6))}</section>` : ''}`;
+  <section class="panel attention-panel"><div class="section-heading"><div><p class="section-kicker">NEXT UP</p><h2>${L('در یک نگاه', 'At a Glance')}</h2></div>${icon('layers-2')}</div><div class="attention-list">${can('content.read') ? `<button class="attention-row" data-open="packages"><span class="attention-icon">${icon('package')}</span><span><b>${L('محتوای در حال آماده‌سازی', 'Draft Packages')}</b><small>${L('پیش‌نویس‌ها هنوز در کاتالوگ عمومی نیستند', 'Drafts remain hidden until published')}</small></span><strong>${num(drafts)}</strong>${icon(chevron)}</button>` : ''}${can('licenses.read') ? `<button class="attention-row" data-open="licenses"><span class="attention-icon">${icon('clock-3')}</span><span><b>${L('اشتراک‌های منقضی‌شده', 'Expired Licenses')}</b><small>${L('برای بررسی اعتبار، پرونده را باز کنید', 'Open dossier to review or extend')}</small></span><strong>${num(expired)}</strong>${icon(chevron)}</button>` : ''}${can('errors.read') ? `<button class="attention-row" data-open="errors"><span class="attention-icon">${icon('triangle-alert')}</span><span><b>${L('خطاهای نیازمند رسیدگی', 'Unresolved Incidents')}</b><small>${L('بر اساس رویدادهای اخیر دریافتی', 'Recent telemetry failures')}</small></span><strong>${num(openErrors)}</strong>${icon(chevron)}</button>` : ''}</div><div class="panel-note">${icon('radio')}${can('analytics.read') ? `${num(reports.filter((r) => r.status === 'installed').length)} ${L('گزارش نصب موفق', 'installed reports')} · ${num(reports.filter((r) => r.status === 'failed').length)} ${L('گزارش نصب ناموفق', 'failed reports')}` : L('اطلاعات این صفحه مطابق مجوزهای حساب شماست.', 'Visible panels reflect your active permissions.')}</div></section></div>
+  ${can('audit.read') ? `<section class="panel dashboard-activity"><div class="section-heading"><div><p class="section-kicker">ACTIVITY LOG</p><h2>${L('آخرین فعالیت‌ها', 'Recent Audit Activity')}</h2></div><button class="text-button" data-open="logs">${L('همه رویدادها', 'All Audit Logs')} ${icon(arrow)}</button></div>${eventTable([...events].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6))}</section>` : ''}`;
   el.querySelector('#admin-refresh')!.addEventListener('click', () => void refreshPage());
   el.querySelector('#quick-license')?.addEventListener('click', generateDialog);
   el.querySelector('#quick-package')?.addEventListener('click', () => editPackage());
@@ -216,16 +218,12 @@ function dashboard(el: HTMLElement) {
     ),
   );
 }
+
 function licenses(el: HTMLElement) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">ACCESS MANAGEMENT / 02</p><h1>هر دسترسی، یک هویت.</h1><p class="muted">تولید، تمدید و کنترل لایسنس‌های تک‌دستگاهی.</p></div>${can('license') ? `<button class="button" id="generate">${icon('plus')}تولید لایسنس</button>` : ''}</div>
-  <div class="toolbar"><label class="search">${icon('search')}<input id="license-search" placeholder="جست‌وجوی نام، شناسه یا برچسب…"></label><select id="license-filter" aria-label="فیلتر وضعیت لایسنس"><option value="all">همه وضعیت‌ها</option>${Object.entries(
-    statuses,
-  )
-    .slice(0, 4)
-    .map(([v, l]) => `<option value="${v}">${l}</option>`)
-    .join(
-      '',
-    )}<option value="scheduled">شروع در آینده</option><option value="expired">منقضی‌شده</option><option value="archived">بایگانی‌شده</option></select></div><div class="panel table-panel" id="license-table"></div>`;
+  const sLabels = statusLabels();
+  const chevron = getLang() === 'fa' ? 'chevron-left' : 'chevron-right';
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>ACCESS MANAGEMENT / 02</p><h1>${L('هر دسترسی، یک هویت.', 'Every Key, One Identity.')}</h1><p class="muted">${L('تولید، تمدید و کنترل لایسنس‌های تک‌دستگاهی.', 'Generate, window, extend, and manage hardware-bound licenses.')}</p></div>${can('license') ? `<button class="button" id="generate">${icon('plus')}${L('تولید لایسنس', 'Issue Licenses')}</button>` : ''}</div>
+  <div class="toolbar"><label class="search">${icon('search')}<input id="license-search" placeholder="${L('جست‌وجوی نام، شناسه یا برچسب…', 'Search display name, prefix, UUID, or tag…')}"></label><select id="license-filter" aria-label="${L('فیلتر وضعیت لایسنس', 'Filter license status')}"><option value="all">${L('همه وضعیت‌ها', 'All Statuses')}</option>${['active', 'unused', 'suspended', 'revoked', 'scheduled', 'expired'].map((v) => `<option value="${v}">${sLabels[v]}</option>`).join('')}<option value="archived">${L('بایگانی‌شده', 'Archived')}</option></select></div><div class="panel table-panel" id="license-table"></div>`;
   const render = () => {
     const q = (el.querySelector('#license-search') as HTMLInputElement).value.toLowerCase(),
       filter = (el.querySelector('#license-filter') as HTMLSelectElement).value;
@@ -238,8 +236,15 @@ function licenses(el: HTMLElement) {
         (filter === 'all' || filter === 'archived' || licenseState(l) === filter),
     );
     el.querySelector('#license-table')!.innerHTML = items.length
-      ? `<div class="table-scroll"><table><thead><tr><th>شناسه / پیشوند</th><th>سطح</th><th>وضعیت</th><th>اعتبار تا</th><th>دستگاه</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><b>${esc(l.display_name || 'بدون نام')}</b><small class="cell-sub"><code>${esc(l.prefix)}••••</code></small><small class="cell-sub" dir="ltr">${l.id.slice(0, 8)}</small></td><td>${badge(l.tier)}</td><td><span class="status ${l.status}">${statuses[licenseState(l)] || 'نامشخص'}</span></td><td>${date(l.expires_at)}<small class="cell-sub">${fa(l.duration_days)} روز از فعال‌سازی</small></td><td>${l.device_thumbprint ? `<span class="device-dot"></span><code>${esc(l.device_thumbprint.slice(0, 8))}</code>` : '—'}</td><td><button class="text-button" data-license="${l.id}">پرونده ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div>`
-      : empty('لایسنسی پیدا نشد', 'فیلتر را تغییر دهید یا یک لایسنس جدید بسازید.', 'key-round');
+      ? `<div class="table-scroll"><table><thead><tr><th>${L('شناسه / پیشوند', 'Identity / Prefix')}</th><th>${L('سطح', 'Tier')}</th><th>${L('وضعیت', 'Status')}</th><th>${L('اعتبار تا', 'Expires')}</th><th>${L('دستگاه', 'Device')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${items.map((l) => `<tr><td><b>${esc(l.display_name || L('بدون نام', 'Unnamed'))}</b><small class="cell-sub"><code dir="ltr">${esc(l.prefix)}••••</code></small><small class="cell-sub" dir="ltr">${l.id.slice(0, 8)}</small></td><td>${badge(l.tier)}</td><td><span class="status ${l.status}">${sLabels[licenseState(l)] || L('نامشخص', 'Unknown')}</span></td><td>${fmtDate(l.expires_at)}<small class="cell-sub">${num(l.duration_days)} ${L('روز از فعال‌سازی', 'days from activation')}</small></td><td>${l.device_thumbprint ? `<span class="device-dot"></span><code dir="ltr">${esc(l.device_thumbprint.slice(0, 8))}</code>` : '—'}</td><td><button class="text-button" data-license="${l.id}">${L('پرونده', 'Dossier')} ${icon(chevron)}</button></td></tr>`).join('')}</tbody></table></div>`
+      : empty(
+          L('لایسنسی پیدا نشد', 'No matching licenses'),
+          L(
+            'فیلتر را تغییر دهید یا یک لایسنس جدید بسازید.',
+            'Adjust filters or generate a new batch.',
+          ),
+          'key-round',
+        );
     el.querySelectorAll<HTMLButtonElement>('[data-license]').forEach(
       (b) =>
         (b.onclick = () =>
@@ -252,10 +257,11 @@ function licenses(el: HTMLElement) {
   el.querySelector('#generate')?.addEventListener('click', generateDialog);
   render();
 }
+
 function generateDialog() {
   const d = modal(
-    'تولید لایسنس',
-    `<p class="muted">کد کامل فقط یک‌بار نمایش داده می‌شود. اگر تاریخ تقویمی وارد نکنید، شروع اعتبار در اولین فعال‌سازی است.</p><form id="generate-form"><div class="form-grid">${field('سطح اشتراک', '<select name="tier"><option value="normal">Normal</option><option value="pro">Pro</option><option value="vip">VIP</option></select>')}${field('اعتبار (روز)', '<input name="duration_days" type="number" min="1" max="1095" value="30" required>')}${field('تعداد', '<input name="count" type="number" min="1" max="100" value="1" required>')}${overview.capabilities?.includes('license-window-v1') ? field('شروع مجاز فعال‌سازی (زمان محلی، اختیاری)', '<input name="starts_at" type="datetime-local">') + field('انقضای ثابت تقویمی (زمان محلی، اختیاری)', '<input name="expires_at" type="datetime-local">') : ''}</div><div class="notice">${icon('monitor')}هر لایسنس فقط یک دستگاه فعال دارد.</div><button class="button full" type="submit">تولید و نمایش کدها</button></form>`,
+    L('تولید لایسنس', 'Issue New Licenses'),
+    `<p class="muted">${L('کد کامل فقط یک‌بار نمایش داده می‌شود. اگر تاریخ تقویمی وارد نکنید، شروع اعتبار در اولین فعال‌سازی است.', 'Full keys are shown once only. Omit calendar dates to begin duration upon first device activation.')}</p><form id="generate-form"><div class="form-grid">${field(L('سطح اشتراک', 'Tier'), '<select name="tier"><option value="normal">Normal</option><option value="pro">Pro</option><option value="vip">VIP</option></select>')}${field(L('اعتبار (روز)', 'Duration (days)'), '<input name="duration_days" type="number" min="1" max="1095" value="30" required>')}${field(L('تعداد', 'Quantity'), '<input name="count" type="number" min="1" max="100" value="1" required>')}${overview.capabilities?.includes('license-window-v1') ? field(L('شروع مجاز فعال‌سازی (زمان محلی، اختیاری)', 'Allowed Start (local; optional)'), '<input name="starts_at" type="datetime-local">') + field(L('انقضای ثابت تقویمی (زمان محلی، اختیاری)', 'Fixed Expiration (local; optional)'), '<input name="expires_at" type="datetime-local">') : ''}</div><div class="notice">${icon('monitor')}${L('هر لایسنس فقط یک دستگاه فعال دارد.', 'Each license binds to one active hardware key.')}</div><button class="button full" type="submit">${L('تولید و نمایش کدها', 'Generate & Show Keys')}</button></form>`,
   );
   d.querySelector('form')!.onsubmit = (e) => {
     e.preventDefault();
@@ -282,15 +288,15 @@ function generateDialog() {
       );
       d.close();
       const out = modal(
-        'کدهای شما آماده‌اند',
-        `<p class="muted">این کدها در فهرست مدیریت قابل بازیابی نیستند. اکنون آن‌ها را ذخیره کنید.</p><textarea aria-label="کدهای لایسنس صادرشده" id="codes" rows="7" readonly dir="ltr">${esc(codes.join('\n'))}</textarea><div class="actions"><button class="button" id="download-codes">${icon('download')}خروجی CSV</button><button class="button secondary" id="copy-codes">کپی کدها</button></div>`,
+        L('کدهای شما آماده‌اند', 'Keys Issued'),
+        `<p class="muted">${L('این کدها در فهرست مدیریت قابل بازیابی نیستند. اکنون آن‌ها را ذخیره کنید.', 'Raw keys cannot be recovered later from the database. Save or export now.')}</p><textarea aria-label="${L('کدهای لایسنس صادرشده', 'Issued license keys')}" id="codes" rows="7" readonly dir="ltr">${esc(codes.join('\n'))}</textarea><div class="actions"><button class="button" id="download-codes">${icon('download')}${L('خروجی CSV', 'Export CSV')}</button><button class="button secondary" id="copy-codes">${L('کپی کدها', 'Copy Keys')}</button></div>`,
       );
       out.querySelector('#copy-codes')!.addEventListener(
         'click',
         () =>
           void navigator.clipboard
             .writeText(codes.join('\n'))
-            .then(() => toast('کدها کپی شدند.'))
+            .then(() => toast(L('کدها کپی شدند.', 'Keys copied to clipboard.')))
             .catch(handleError),
       );
       out.querySelector('#download-codes')!.addEventListener('click', () => {
@@ -299,7 +305,7 @@ function generateDialog() {
         );
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'uhm-licenses.csv';
+        a.download = 'launcher-licenses.csv';
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       });
@@ -307,23 +313,36 @@ function generateDialog() {
     });
   };
 }
+
 function licenseDialog(l: Overview['licenses'][number]) {
   licenseProfile(l, { data: overview, token, reload: refreshPage });
 }
+
 function packages(el: HTMLElement, versions: boolean) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">CONTENT STUDIO / 03</p><h1>${versions ? 'انتشار بعدی، دقیق‌تر.' : 'محتوا را شما می‌سازید.'}</h1><p class="muted">${versions ? 'نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.' : 'چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.'}</p></div><div class="actions">${overview.capabilities?.includes('package-admin-v1') && can('categories.manage') ? '<button class="button secondary" id="manage-categories">دسته‌بندی‌ها</button>' : ''}${can('content.create') ? '<button class="button" id="new-package">' + icon('plus') + 'پکیج جدید</button>' : ''}</div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>سطح</th><th>وضعیت</th><th>فایل / پیش‌نیاز</th><th>عملیات</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code>v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${statuses[p.status]}</span></td><td>${can('content') ? fa(p.files.length) : 'محفوظ'} / ${fa(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? 'ویرایش / انتشار' : 'مشاهده'} ${icon('chevron-left')}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.</p>`;
+  const sLabels = statusLabels();
+  const chevron = getLang() === 'fa' ? 'chevron-left' : 'chevron-right';
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>CONTENT STUDIO / 03</p><h1>${versions ? L('انتشار بعدی، دقیق‌تر.', 'Release Precision.') : L('محتوا را شما می‌سازید.', 'Content Studio.')}</h1><p class="muted">${versions ? L('نسخه، تغییرات و چرخهٔ انتشار پکیج‌ها.', 'Versions, changelogs, and release history.') : L('چند فایل، چند مرحله؛ بدون نیاز به ساخت دوباره لانچر.', 'Multi-file manifests, SHA-256 verification, and staged install steps.')}</p></div><div class="actions">${overview.capabilities?.includes('package-admin-v1') && can('categories.manage') ? `<button class="button secondary" id="manage-categories">${L('دسته‌بندی‌ها', 'Categories')}</button>` : ''}${can('content.create') ? '<button class="button" id="new-package">' + icon('plus') + L('پکیج جدید', 'New Package') + '</button>' : ''}</div></div><div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>${L('پکیج', 'Package')}</th><th>${L('نسخه', 'Version')}</th><th>${L('سطح', 'Tier')}</th><th>${L('وضعیت', 'Status')}</th><th>${L('فایل / پیش‌نیاز', 'Files / Deps')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${overview.packages.map((p) => `<tr><td><div class="table-product"><img src="${esc(assetUrl(p.image))}" alt=""><span>${esc(p.name)}<small class="cell-sub" dir="ltr">${esc(p.slug)}</small></span></div></td><td><code dir="ltr">v${esc(p.version)}</code></td><td>${badge(p.tier)}</td><td><span class="status ${p.status}">${sLabels[p.status]}</span></td><td>${can('content') ? num(p.files.length) : L('محفوظ', 'Redacted')} / ${num(p.dependencies.length)}</td><td><button class="text-button" data-edit="${p.id}">${can('content') ? L('ویرایش / انتشار', 'Edit / Publish') : L('مشاهده', 'Inspect')} ${icon(chevron)}</button></td></tr>`).join('')}</tbody></table></div></div><p class="fine-print">${L('انتشار به فایل، هش و مراحل معتبر نیاز دارد. اعتبارسنجی سرور جای آزمون واقعی نصب را نمی‌گیرد. نسخهٔ منتشرشده تغییرناپذیر است.', 'Publishing requires valid HTTPS artifacts, SHA-256 digests, and non-overlapping install steps. Published snapshots are immutable.')}</p>`;
   if (!can('content.read'))
     el.querySelector('.table-panel')!.innerHTML = empty(
-      'فهرست محتوا برای این حساب پنهان است',
+      L('فهرست محتوا برای این حساب پنهان است', 'Package Directory Hidden'),
       can('content')
-        ? 'می‌توانید پکیج جدید بسازید؛ مشاهده پکیج‌های قبلی به مجوز جداگانه نیاز دارد.'
-        : 'برای مشاهده و انتخاب پکیج‌ها از مالک مجوز مشاهده محتوا بخواهید.',
+        ? L(
+            'می‌توانید پکیج جدید بسازید؛ مشاهده پکیج‌های قبلی به مجوز جداگانه نیاز دارد.',
+            'You can create new drafts; viewing existing manifests requires content.read.',
+          )
+        : L(
+            'برای مشاهده و انتخاب پکیج‌ها از مالک مجوز مشاهده محتوا بخواهید.',
+            'Request content.read permission from the platform owner.',
+          ),
       'lock-keyhole',
     );
   else if (!overview.packages.length)
     el.querySelector('.table-panel')!.innerHTML = empty(
-      'هنوز پکیجی ساخته نشده',
-      'پس از ساخت اولین پیش‌نویس، فایل‌ها و چرخه انتشار اینجا مدیریت می‌شوند.',
+      L('هنوز پکیجی ساخته نشده', 'No packages created yet'),
+      L(
+        'پس از ساخت اولین پیش‌نویس، فایل‌ها و چرخه انتشار اینجا مدیریت می‌شوند.',
+        'Create your first package draft to configure artifacts and publish releases.',
+      ),
     );
   el.querySelector('#manage-categories')?.addEventListener('click', () =>
     manageCategories(overview.categories || [], token, refreshPage),
@@ -343,14 +362,14 @@ async function versionsPage(el: HTMLElement) {
       published_at: string;
     }[];
   };
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">RELEASE ARCHIVE / 04</p><h1>هر انتشار، یک نقطهٔ بازگشت.</h1><p class="muted">نسخه‌های منتشرشده به‌صورت snapshot تغییرناپذیر نگهداری می‌شوند؛ این صفحه ۵۰۰ انتشار اخیر را نشان می‌دهد.</p></div></div><div class="panel">${releases.length ? `<div class="table-scroll"><table><thead><tr><th>پکیج</th><th>نسخه</th><th>انتشار</th><th>تغییرات</th><th>عملیات</th></tr></thead><tbody>${releases.map((r, i) => `<tr><td>${esc(r.manifest.name)}</td><td><code>v${esc(r.version)}</code></td><td>${date(r.published_at)}</td><td><span class="release-notes">${esc(r.manifest.changelog || '—')}</span></td><td><button class="text-button" data-release="${i}">جزئیات انتشار</button></td></tr>`).join('')}</tbody></table></div>` : empty('هنوز انتشار واقعی ثبت نشده', 'پس از اتصال فایل و انتشار پکیج، snapshot نسخه در این بخش ذخیره می‌شود. پکیج‌های نمونه سابقه انتشار واقعی ندارند.', 'git-branch')}</div><div class="notice">${icon('info')}ساخت پیش‌نویس نسخه جدید، آخرین نسخه منتشرشده را از کاتالوگ کاربران حذف نمی‌کند. بازگردانی فایل‌های نصب‌شده به نسخه قدیمی هنوز نیازمند جریان جداگانه است.</div>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>RELEASE ARCHIVE / 04</p><h1>${L('هر انتشار، یک نقطهٔ بازگشت.', 'Every Release, A Rollback Anchor.')}</h1><p class="muted">${L('نسخه‌های منتشرشده به‌صورت snapshot تغییرناپذیر نگهداری می‌شوند؛ این صفحه ۵۰۰ انتشار اخیر را نشان می‌دهد.', 'Published versions are stored as immutable release snapshots (showing up to 500 latest).')}</p></div></div><div class="panel">${releases.length ? `<div class="table-scroll"><table><thead><tr><th>${L('پکیج', 'Package')}</th><th>${L('نسخه', 'Version')}</th><th>${L('انتشار', 'Published')}</th><th>${L('تغییرات', 'Changelog')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${releases.map((r, i) => `<tr><td>${esc(r.manifest.name)}</td><td><code dir="ltr">v${esc(r.version)}</code></td><td>${fmtDate(r.published_at)}</td><td><span class="release-notes">${esc(r.manifest.changelog || '—')}</span></td><td><button class="text-button" data-release="${i}">${L('جزئیات انتشار', 'Release Details')}</button></td></tr>`).join('')}</tbody></table></div>` : empty(L('هنوز انتشار واقعی ثبت نشده', 'No immutable releases yet'), L('پس از اتصال فایل و انتشار پکیج، snapshot نسخه در این بخش ذخیره می‌شود. پکیج‌های نمونه سابقه انتشار واقعی ندارند.', 'Published packages generate immutable release snapshots here.'), 'git-branch')}</div><div class="notice">${icon('info')}${L('ساخت پیش‌نویس نسخه جدید، آخرین نسخه منتشرشده را از کاتالوگ کاربران حذف نمی‌کند. بازگردانی فایل‌های نصب‌شده به نسخه قدیمی هنوز نیازمند جریان جداگانه است.', 'Drafting a newer version preserves the current published snapshot in the public catalog.')}</div>`;
   el.querySelectorAll<HTMLButtonElement>('[data-release]').forEach(
     (b) =>
       (b.onclick = () => {
         const r = releases[Number(b.dataset.release)];
         const d = modal(
-          'نسخه ' + r.version,
-          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>تعداد فایل‌ها</dt><dd>${fa(r.manifest.files.length)}</dd><dt>مراحل نصب</dt><dd>${fa(r.manifest.steps.length)}</dd><dt>انتشار</dt><dd>${date(r.published_at)}</dd></dl>${(overview.capabilities?.includes('package-admin-v1') ? can('content.versions') && overview.packages.some((p) => p.id === r.package_id) : can('content')) ? '<button class="button full" id="fork-release">ساخت پیش‌نویس از این نسخه</button>' : ''}`,
+          `${L('نسخه', 'Version')} ${r.version}`,
+          `<h3>${esc(r.manifest.name)}</h3><p class="preserve muted">${esc(r.manifest.changelog)}</p><dl class="definition"><dt>${L('تعداد فایل‌ها', 'Files')}</dt><dd>${num(r.manifest.files.length)}</dd><dt>${L('مراحل نصب', 'Install Steps')}</dt><dd>${num(r.manifest.steps.length)}</dd><dt>${L('انتشار', 'Published')}</dt><dd>${fmtDate(r.published_at)}</dd></dl>${(overview.capabilities?.includes('package-admin-v1') ? can('content.versions') && overview.packages.some((p) => p.id === r.package_id) : can('content')) ? `<button class="button full" id="fork-release">${L('ساخت پیش‌نویس از این نسخه', 'Restore as New Draft')}</button>` : ''}`,
         );
         d.querySelector('#fork-release')?.addEventListener('click', () => {
           void busy(d.querySelector('#fork-release')!, async () => {
@@ -370,7 +389,10 @@ async function versionsPage(el: HTMLElement) {
               d.close();
               await refreshPage();
               toast(
-                'نسخهٔ قبلی به صورت پیش‌نویس با شمارهٔ جدید بازگردانده شد؛ هنوز منتشر یا روی دستگاهی نصب نشده است.',
+                L(
+                  'نسخهٔ قبلی به صورت پیش‌نویس با شمارهٔ جدید بازگردانده شد؛ هنوز منتشر یا روی دستگاهی نصب نشده است.',
+                  'Previous snapshot restored as a draft with incremented patch version.',
+                ),
               );
             } else {
               d.close();
@@ -409,9 +431,9 @@ function editPackage(existing?: PackageSpec) {
       released_at: null,
     } as PackageSpec);
   const d = modal(
-    existing ? 'استودیوی پکیج' : 'ساخت پکیج جدید',
-    `<div class="studio-intro"><span class="console-pill">MANIFEST STUDIO</span><h3>از لینک تا نصب؛ دقیق و قابل تکرار.</h3><p>فایل‌ها، رمز استخراج، پیش‌نیازها و مراحل نصب را جداگانه تنظیم کنید. خروجی انتشار تغییرناپذیر است.</p></div><form id="package-form" data-guard-discard><fieldset ${writable ? '' : 'disabled'}><div class="form-grid">${field('نام پکیج', `<input name="name" required minlength="2" maxlength="80" value="${esc(p.name)}">`)}${field('شناسه خوانا (انگلیسی)', `<input name="slug" required dir="ltr" pattern="[a-z0-9-]{2,64}" value="${esc(p.slug)}">`)}${field('نسخه', `<input name="version" required dir="ltr" pattern="[0-9]+\.[0-9]+\.[0-9]+" value="${esc(p.version)}">`)}${field('سطح دسترسی', `<select name="tier">${['normal', 'pro', 'vip'].map((t) => `<option ${p.tier === t ? 'selected' : ''} value="${t}">${t.toUpperCase()}</option>`).join('')}</select>`)}${field(
-      'دسته‌بندی',
+    existing ? L('استودیوی پکیج', 'Package Studio') : L('ساخت پکیج جدید', 'Create Package'),
+    `<div class="studio-intro"><span class="console-pill">MANIFEST STUDIO</span><h3>${L('از لینک تا نصب؛ دقیق و قابل تکرار.', 'From Manifest to Atomic Install.')}</h3><p>${L('فایل‌ها، رمز استخراج، پیش‌نیازها و مراحل نصب را جداگانه تنظیم کنید. خروجی انتشار تغییرناپذیر است.', 'Configure remote artifacts, archive passwords, dependencies, and install steps cleanly.')}</p></div><form id="package-form" data-guard-discard><fieldset ${writable ? '' : 'disabled'}><div class="form-grid">${field(L('نام پکیج', 'Package Name'), `<input name="name" required minlength="2" maxlength="80" value="${esc(p.name)}">`)}${field(L('شناسه خوانا (انگلیسی)', 'Slug (lowercase)'), `<input name="slug" required dir="ltr" pattern="[a-z0-9-]{2,64}" value="${esc(p.slug)}">`)}${field(L('نسخه', 'Version (SemVer)'), `<input name="version" required dir="ltr" pattern="[0-9]+\.[0-9]+\.[0-9]+" value="${esc(p.version)}">`)}${field(L('سطح دسترسی', 'Tier'), `<select name="tier">${['normal', 'pro', 'vip'].map((t) => `<option ${p.tier === t ? 'selected' : ''} value="${t}">${t.toUpperCase()}</option>`).join('')}</select>`)}${field(
+      L('دسته‌بندی', 'Category'),
       `<select name="category">${Object.entries(category)
         .filter(
           ([id]) =>
@@ -423,30 +445,35 @@ function editPackage(existing?: PackageSpec) {
             `<option value="${v}" ${p.category === v ? 'selected' : ''}>${esc(l)}</option>`,
         )
         .join('')}</select>`,
-    )}${field('تصویر کاور (HTTPS یا تصویر داخلی)', `<input name="image" required dir="ltr" value="${esc(p.image)}" placeholder="https://… یا /images/01.jpg">`)}</div>${field('توضیح کوتاه', `<input name="short_description" maxlength="240" value="${esc(p.short_description || '')}">`)}<div class="form-grid">${field('نوع محتوا', `<select name="content_type">${['car', 'track', 'skin', 'python_app', 'lua_app', 'csp', 'ppfilter', 'pack'].map((k) => `<option value="${k}" ${(p.content_type || 'pack') === k ? 'selected' : ''}>${k}</option>`).join('')}</select>`)}${field('سازنده', `<input name="author" maxlength="120" value="${esc(p.author || '')}">`)}${field('برند', `<input name="brand" maxlength="120" value="${esc(p.brand || '')}">`)}${field('کانال انتشار', `<select name="channel"><option value="stable">عمومی</option><option value="test" ${p.channel === 'test' ? 'selected' : ''}>تست / مخفی از کاتالوگ عمومی</option></select>`)}${field('زمان انتشار (زمان محلی؛ اختیاری)', `<input name="scheduled_at" type="datetime-local" value="${p.scheduled_at ? new Date(Date.parse(p.scheduled_at) - new Date(p.scheduled_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}">`)}</div>${field('برچسب‌ها (با کامای انگلیسی)', `<input name="tags" value="${esc((p.tags || []).join(', '))}">`)}${field('تصاویر اضافی HTTPS (هر خط یک لینک)', `<textarea name="images" dir="ltr">${esc((p.images || []).join('\n'))}</textarea>`)}${field('توضیحات', `<textarea name="description" minlength="10" maxlength="3000" required>${esc(p.description)}</textarea>`)}${field('تغییرات این نسخه', `<textarea name="changelog" maxlength="3000">${esc(p.changelog)}</textarea>`)}<h3 class="form-section">پیش‌نیازها</h3><div class="checks">${
+    )}${field(L('تصویر کاور (HTTPS یا تصویر داخلی)', 'Cover Image (HTTPS or /images/01.jpg)'), `<input name="image" required dir="ltr" value="${esc(p.image)}" placeholder="https://… or /images/01.jpg">`)}</div>${field(L('توضیح کوتاه', 'Short Summary'), `<input name="short_description" maxlength="240" value="${esc(p.short_description || '')}">`)}<div class="form-grid">${field(L('نوع محتوا', 'Content Type'), `<select name="content_type">${['car', 'track', 'skin', 'python_app', 'lua_app', 'csp', 'ppfilter', 'pack'].map((k) => `<option value="${k}" ${(p.content_type || 'pack') === k ? 'selected' : ''}>${k}</option>`).join('')}</select>`)}${field(L('سازنده', 'Author'), `<input name="author" maxlength="120" value="${esc(p.author || '')}">`)}${field(L('برند', 'Brand'), `<input name="brand" maxlength="120" value="${esc(p.brand || '')}">`)}${field(L('کانال انتشار', 'Release Channel'), `<select name="channel"><option value="stable">${L('عمومی', 'Stable (Public)')}</option><option value="test" ${p.channel === 'test' ? 'selected' : ''}>${L('تست / مخفی از کاتالوگ عمومی', 'Test (Hidden)')}</option></select>`)}${field(L('زمان انتشار (زمان محلی؛ اختیاری)', 'Scheduled Release (local; optional)'), `<input name="scheduled_at" type="datetime-local" value="${p.scheduled_at ? new Date(Date.parse(p.scheduled_at) - new Date(p.scheduled_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}">`)}</div>${field(L('برچسب‌ها (با کامای انگلیسی)', 'Tags (comma-separated)'), `<input name="tags" dir="ltr" value="${esc((p.tags || []).join(', '))}">`)}${field(L('تصاویر اضافی HTTPS (هر خط یک لینک)', 'Additional Gallery HTTPS URLs (one per line)'), `<textarea name="images" dir="ltr">${esc((p.images || []).join('\n'))}</textarea>`)}${field(L('توضیحات', 'Description'), `<textarea name="description" minlength="10" maxlength="3000" required>${esc(p.description)}</textarea>`)}${field(L('تغییرات این نسخه', 'Changelog'), `<textarea name="changelog" maxlength="3000">${esc(p.changelog)}</textarea>`)}<h3 class="form-section">${L('پیش‌نیازها', 'Dependencies')}</h3><div class="checks">${
       overview.packages
         .filter((q) => q.id !== p.id)
         .map(
           (q) =>
             `<label><input type="checkbox" name="dependencies" value="${q.id}" ${p.dependencies.includes(q.id) ? 'checked' : ''}>${esc(q.name)} ${badge(q.tier)}</label>`,
         )
-        .join('') || '<span class="muted">پکیج دیگری وجود ندارد.</span>'
-    }</div><div class="section-heading form-section"><h3>۲ · فایل‌ها و رمزهای استخراج</h3><button type="button" class="text-button" id="add-file">${icon('plus')}افزودن فایل</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>۳ · مراحل نصب به ترتیب اجرا</h3><button type="button" class="text-button" id="add-step">افزودن مرحله</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.</p></fieldset>${!writable ? '<p class="notice">این فرم فقط خواندنی است. جزئیات فایل و رمز طبق مجوز حساب پنهان می‌شوند؛ عملیات انتشار روی نسخه ذخیره‌شده سرور انجام می‌شود.</p>' : ''}<div class="actions studio-actions">${writable ? '<button class="button" type="submit">ذخیره پیش‌نویس</button>' : ''}${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="validate-package">اعتبارسنجی سرور</button><button type="button" class="button secondary" id="test-package">نصب تست روی این دستگاه</button><button type="button" class="button secondary" id="publish-package">انتشار نسخه</button>' : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? '<button type="button" class="button secondary" id="archive-package">بایگانی</button>' : ''}</div></form>`,
+        .join('') ||
+      `<span class="muted">${L('پکیج دیگری وجود ندارد.', 'No other packages in workspace.')}</span>`
+    }</div><div class="section-heading form-section"><h3>${L('۲ · فایل‌ها و رمزهای استخراج', '2 · Files & Archive Passwords')}</h3><button type="button" class="text-button" id="add-file">${icon('plus')}${L('افزودن فایل', 'Add File')}</button></div><div id="file-rows"></div><div class="section-heading form-section"><h3>${L('۳ · مراحل نصب به ترتیب اجرا', '3 · Ordered Install Steps')}</h3><button type="button" class="text-button" id="add-step">${L('افزودن مرحله', 'Add Step')}</button></div><div id="install-steps"></div><p class="studio-summary" id="studio-summary"></p><p class="fine-print">${L('مقصد نسبت به ریشه بازی است. اجرای خودکار EXE ممنوع است. برای استخراج RAR/7z به استخراج‌کنندهٔ تأییدشده در نسخه Native نیاز است.', 'Destinations resolve relative to the AC game root. Downloaded EXEs are never executed automatically.')}</p></fieldset>${!writable ? `<p class="notice">${L('این فرم فقط خواندنی است. جزئیات فایل و رمز طبق مجوز حساب پنهان می‌شوند؛ عملیات انتشار روی نسخه ذخیره‌شده سرور انجام می‌شود.', 'Read-only view: links and archive passwords are hidden by your permission set; publish validates the saved draft on the server.')}</p>` : ''}<div class="actions studio-actions">${writable ? `<button class="button" type="submit">${L('ذخیره پیش‌نویس', 'Save Draft')}</button>` : ''}${existing && p.status === 'draft' && hasPermission(overview.admin, 'content.publish') ? `<button type="button" class="button secondary" id="validate-package">${L('اعتبارسنجی سرور', 'Validate Draft')}</button><button type="button" class="button secondary" id="test-package">${L('نصب تست روی این دستگاه', 'Test Install on Device')}</button><button type="button" class="button secondary" id="publish-package">${L('انتشار نسخه', 'Publish Release')}</button>` : ''}${existing && p.status === 'published' && hasPermission(overview.admin, 'content.publish') ? `<button type="button" class="button secondary" id="archive-package">${L('بایگانی', 'Archive')}</button>` : ''}</div></form>`,
     true,
   );
   if (existing && overview.capabilities?.includes('package-admin-v1') && can('content.delete')) {
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'button danger-button';
-    remove.textContent = 'حذف پکیج از کاتالوگ';
+    remove.textContent = L('حذف پکیج از کاتالوگ', 'Soft-Delete Package');
     d.querySelector('.studio-actions')!.append(remove);
     remove.onclick = () =>
       void busy(remove, async () => {
         const typed = window.prompt(
-          `حذف منطقی پکیج با حفظ تاریخچه؛ فایل‌های نصب‌شده دست‌نخورده می‌مانند. برای تأیید شناسه را وارد کنید: ${p.slug}`,
+          L(
+            `حذف منطقی پکیج با حفظ تاریخچه؛ فایل‌های نصب‌شده دست‌نخورده می‌مانند. برای تأیید شناسه را وارد کنید: ${p.slug}`,
+            `Soft-delete this package while keeping release history? Type exact slug to confirm: ${p.slug}`,
+          ),
         );
         if (typed === null) return;
-        if (typed !== p.slug) throw new Error('شناسه تأیید مطابقت ندارد.');
+        if (typed !== p.slug)
+          throw new Error(L('شناسه تأیید مطابقت ندارد.', 'Confirmation slug did not match.'));
         await api(
           `/admin/packages/${p.id}/delete`,
           { confirm_slug: typed, expected_revision: p.revision || 1 },
@@ -454,7 +481,7 @@ function editPackage(existing?: PackageSpec) {
         );
         d.close();
         await refreshPage();
-        toast('پکیج حذف منطقی شد؛ تاریخچه حفظ شد.');
+        toast(L('پکیج حذف منطقی شد؛ تاریخچه حفظ شد.', 'Package soft-deleted cleanly.'));
       });
   }
   const rows = d.querySelector('#file-rows')!;
@@ -462,7 +489,9 @@ function editPackage(existing?: PackageSpec) {
   function refreshFiles() {
     const files = [...rows.querySelectorAll<HTMLElement>('.file-row')].map((el) => ({
       id: el.dataset.id!,
-      name: (el.querySelector('[data-f=name]') as HTMLInputElement).value || 'فایل بدون نام',
+      name:
+        (el.querySelector('[data-f=name]') as HTMLInputElement).value ||
+        L('فایل بدون نام', 'Unnamed file'),
     }));
     stepsEl.querySelectorAll<HTMLSelectElement>('[data-step-file]').forEach((select) => {
       const current = select.value || select.dataset.initial;
@@ -481,7 +510,7 @@ function editPackage(existing?: PackageSpec) {
       ...rows.querySelectorAll<HTMLInputElement>('[data-f=archive_password]'),
     ].filter((i) => i.value).length;
     d.querySelector('#studio-summary')!.textContent =
-      `${fa(files.length)} فایل · ${fa(stepsEl.children.length)} مرحله · ${(bytes / 1e6).toFixed(1)} MB · ${fa(encrypted)} رمز آرشیو`;
+      `${num(files.length)} ${L('فایل', 'files')} · ${num(stepsEl.children.length)} ${L('مرحله', 'steps')} · ${(bytes / 1e6).toFixed(1)} MB · ${num(encrypted)} ${L('رمز آرشیو', 'encrypted')}`;
   }
   function move(el: HTMLElement, down: boolean) {
     const sibling = down ? el.nextElementSibling : el.previousElementSibling;
@@ -492,7 +521,7 @@ function editPackage(existing?: PackageSpec) {
     const el = document.createElement('div');
     el.className = 'install-step';
     el.dataset.id = step?.id || crypto.randomUUID();
-    el.innerHTML = `<div class="section-heading"><b>مرحله نصب</b><div class="actions"><button type="button" data-up aria-label="مرحله بالاتر">↑</button><button type="button" data-down aria-label="مرحله پایین‌تر">↓</button><button type="button" data-remove aria-label="حذف مرحله">${icon('trash-2')}</button></div></div><div class="form-grid">${field('فایل منبع', '<select data-step-file required></select>')}${field('عملیات', `<select data-step="action"><option value="extract" ${step?.action === 'extract' ? 'selected' : ''}>استخراج آرشیو</option><option value="copy" ${step?.action === 'copy' ? 'selected' : ''}>کپی فایل</option></select>`)}${field('مسیر نسبی مقصد', `<input data-step="destination" required dir="ltr" value="${esc(step?.destination || 'extension')}">`)}${field('زیرپوشه منبع آرشیو (اختیاری)', `<input data-step="source_subdir" dir="ltr" value="${esc(step?.source_subdir || '')}" placeholder="wrapper/content/cars">`)}${field('وابستگی مراحل (شناسه‌ها با کاما؛ باید بالاتر باشند)', `<input data-step="depends_on" dir="ltr" value="${esc((step?.depends_on || []).join(', '))}">`)}<small class="muted" dir="ltr">Step ID: ${esc(el.dataset.id!)}</small>${field('فایل موجود', `<select data-step="overwrite"><option value="backup">بکاپ و جایگزینی</option><option value="fail" ${step?.overwrite === 'fail' ? 'selected' : ''}>توقف در صورت تداخل</option></select>`)}</div>`;
+    el.innerHTML = `<div class="section-heading"><b>${L('مرحله نصب', 'Install Step')}</b><div class="actions"><button type="button" data-up aria-label="${L('مرحله بالاتر', 'Move up')}">↑</button><button type="button" data-down aria-label="${L('مرحله پایین‌تر', 'Move down')}">↓</button><button type="button" data-remove aria-label="${L('حذف مرحله', 'Remove step')}">${icon('trash-2')}</button></div></div><div class="form-grid">${field(L('فایل منبع', 'Source File'), '<select data-step-file required></select>')}${field(L('عملیات', 'Action'), `<select data-step="action"><option value="extract" ${step?.action === 'extract' ? 'selected' : ''}>${L('استخراج آرشیو', 'Extract Archive')}</option><option value="copy" ${step?.action === 'copy' ? 'selected' : ''}>${L('کپی فایل', 'Copy File')}</option></select>`)}${field(L('مسیر نسبی مقصد', 'Relative Destination'), `<input data-step="destination" required dir="ltr" value="${esc(step?.destination || 'extension')}">`)}${field(L('زیرپوشه منبع آرشیو (اختیاری)', 'Archive Subfolder (optional)'), `<input data-step="source_subdir" dir="ltr" value="${esc(step?.source_subdir || '')}" placeholder="wrapper/content/cars">`)}${field(L('وابستگی مراحل (شناسه‌ها با کاما؛ باید بالاتر باشند)', 'Depends on Step IDs (comma-separated)'), `<input data-step="depends_on" dir="ltr" value="${esc((step?.depends_on || []).join(', '))}">`)}<small class="muted" dir="ltr">Step ID: ${esc(el.dataset.id!)}</small>${field(L('فایل موجود', 'Conflict Policy'), `<select data-step="overwrite"><option value="backup">${L('بکاپ و جایگزینی', 'Backup & Replace')}</option><option value="fail" ${step?.overwrite === 'fail' ? 'selected' : ''}>${L('توقف در صورت تداخل', 'Abort on Conflict')}</option></select>`)}</div>`;
     (el.querySelector('[data-step-file]') as HTMLSelectElement).dataset.initial =
       step?.file_id || fileId || '';
     el.querySelector('[data-up]')!.addEventListener('click', () => move(el, false));
@@ -509,7 +538,7 @@ function editPackage(existing?: PackageSpec) {
     const el = document.createElement('div');
     el.className = 'file-row';
     el.dataset.id = file?.id || crypto.randomUUID();
-    el.innerHTML = `<div class="section-heading"><b>فایل دانلود / جزء آرشیو</b><div class="actions"><button type="button" data-up aria-label="فایل بالاتر">↑</button><button type="button" data-down aria-label="فایل پایین‌تر">↓</button><button type="button" class="icon-button remove-file" aria-label="حذف فایل">${icon('trash-2')}</button></div></div><div class="form-grid">${field('نام دقیق فایل (مانند mod.part1.rar)', `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field('فرمت', `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field('لینک مستقیم HTTPS', `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field('لینک‌های جایگزین HTTPS (هر خط یک لینک؛ حداکثر ۵)', `<textarea data-f="mirrors" dir="ltr">${esc((file?.mirrors || []).join('\n'))}</textarea>`)}${field('SHA-256 (۶۴ کاراکتر)', `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field('حجم دقیق (بایت)', `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field('رمز آرشیو (اختیاری)', `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><button type="button" class="button secondary" data-inspect>انتخاب فایل و محاسبهٔ هش / حجم</button><p class="fine-print">محاسبه روی دستگاه شماست؛ فایل آپلود نمی‌شود. رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.</p>`;
+    el.innerHTML = `<div class="section-heading"><b>${L('فایل دانلود / جزء آرشیو', 'Artifact / Archive Volume')}</b><div class="actions"><button type="button" data-up aria-label="${L('فایل بالاتر', 'Move up')}">↑</button><button type="button" data-down aria-label="${L('فایل پایین‌تر', 'Move down')}">↓</button><button type="button" class="icon-button remove-file" aria-label="${L('حذف فایل', 'Remove file')}">${icon('trash-2')}</button></div></div><div class="form-grid">${field(L('نام دقیق فایل (مانند mod.part1.rar)', 'Exact Filename (e.g. mod.part1.rar)'), `<input data-f="name" required maxlength="100" value="${esc(file?.name || '')}" dir="ltr">`)}${field(L('فرمت', 'Format'), `<select data-f="format">${['zip', 'rar', '7z', 'file', 'exe'].map((f) => `<option ${file?.format === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}</div>${field(L('لینک مستقیم HTTPS', 'Direct HTTPS URL'), `<input data-f="url" type="url" required dir="ltr" value="${esc(file?.url || '')}" placeholder="https://…">`)}${field(L('لینک‌های جایگزین HTTPS (هر خط یک لینک؛ حداکثر ۵)', 'Mirror HTTPS URLs (up to 5, one per line)'), `<textarea data-f="mirrors" dir="ltr">${esc((file?.mirrors || []).join('\n'))}</textarea>`)}${field(L('SHA-256 (۶۴ کاراکتر)', 'SHA-256 Digest (64 hex chars)'), `<input data-f="sha256" required pattern="[a-f0-9]{64}" dir="ltr" value="${esc(file?.sha256 || '')}">`)}<div class="form-grid">${field(L('حجم دقیق (بایت)', 'Exact Size (bytes)'), `<input data-f="size" type="number" min="1" required value="${file?.size || ''}">`)}${field(L('رمز آرشیو (اختیاری)', 'Archive Password (optional)'), `<input data-f="archive_password" type="password" maxlength="256" autocomplete="new-password" dir="ltr" value="${esc(file?.archive_password || '')}">`)}</div><button type="button" class="button secondary" data-inspect>${L('انتخاب فایل و محاسبهٔ هش / حجم', 'Inspect Local File (SHA-256 / Size)')}</button><p class="fine-print">${L('محاسبه روی دستگاه شماست؛ فایل آپلود نمی‌شود. رمز فقط به مدیر محتوا و دریافت‌کننده مجاز این پکیج داده می‌شود؛ از رمز حساب کاربری استفاده نکنید. برای آرشیو چندبخشی، همه بخش‌ها را با نام اصلی وارد و فقط بخش اول را در مرحله استخراج انتخاب کنید.', 'Checksum computes locally without uploading files. For multi-part archives, add all parts with exact filenames and target only part 1 in the extract step.')}</p>`;
     rows.append(el);
     el.querySelector<HTMLButtonElement>('[data-inspect]')!.onclick = function () {
       void busy(this as HTMLButtonElement, async () => {
@@ -521,7 +550,7 @@ function editPackage(existing?: PackageSpec) {
         if (!name.value) name.value = result.name;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         refreshFiles();
-        toast('هش و حجم دقیق، بدون آپلود محاسبه شد.');
+        toast(L('هش و حجم دقیق، بدون آپلود محاسبه شد.', 'Local SHA-256 & byte size calculated.'));
       });
     };
     el.querySelector('.remove-file')!.addEventListener('click', () => {
@@ -614,7 +643,12 @@ function editPackage(existing?: PackageSpec) {
         pkg = readManifest();
       } catch {
         wizard.show(3);
-        throw new Error('پکیج ذخیره نشد؛ خطاهای مرحلهٔ بازبینی را اصلاح کنید.');
+        throw new Error(
+          L(
+            'پکیج ذخیره نشد؛ خطاهای مرحلهٔ بازبینی را اصلاح کنید.',
+            'Draft not saved; fix manifest errors shown in Review.',
+          ),
+        );
       }
       const advanced = Boolean(
         pkg.short_description ||
@@ -631,7 +665,12 @@ function editPackage(existing?: PackageSpec) {
       if (advanced) await requireContentV2();
       await api('/admin/packages', pkg, token);
       d.close();
-      toast('پیش‌نویس ذخیره شد؛ برای انتشار دوباره آن را باز کنید.');
+      toast(
+        L(
+          'پیش‌نویس ذخیره شد؛ برای انتشار دوباره آن را باز کنید.',
+          'Draft saved; reopen to validate or publish.',
+        ),
+      );
       await refreshPage();
     });
   };
@@ -639,16 +678,25 @@ function editPackage(existing?: PackageSpec) {
     void busy(this, async () => {
       if (!native)
         throw new Error(
-          'تست نصب واقعی فقط در برنامه ویندوز و با لایسنس فعال همان دستگاه انجام می‌شود.',
+          L(
+            'تست نصب واقعی فقط در برنامه ویندوز و با لایسنس فعال همان دستگاه انجام می‌شود.',
+            'Test installation runs only in the Windows desktop client with an active device license.',
+          ),
         );
       if (
         !window.confirm(
-          'نسخه ذخیره‌شده روی مسیر واقعی انتخاب‌شده نصب شود؟ بهتر است یک کپی آزمایشی بازی را انتخاب کنید. پیش از اعمال، فهرست فایل‌ها تأیید خواهد شد.',
+          L(
+            'نسخه ذخیره‌شده روی مسیر واقعی انتخاب‌شده نصب شود؟ بهتر است یک کپی آزمایشی بازی را انتخاب کنید. پیش از اعمال، فهرست فایل‌ها تأیید خواهد شد.',
+            'Install saved draft onto the selected Assetto Corsa directory? Prefer a test copy; you will review exact files before commit.',
+          ),
         )
       )
         return;
       const grant = localStore.getItem('uhm-grant');
-      if (!grant) throw new Error('ابتدا لایسنس همین دستگاه را فعال کنید.');
+      if (!grant)
+        throw new Error(
+          L('ابتدا لایسنس همین دستگاه را فعال کنید.', 'Activate a device license first.'),
+        );
       await requireContentV2();
       const plan = await api(
         `/admin/packages/${p.id}/test-plan`,
@@ -664,7 +712,10 @@ function editPackage(existing?: PackageSpec) {
       await requireContentV2();
       const result = await api(`/admin/packages/${p.id}/validate`, {}, token);
       toast(
-        `ساختار ذخیره‌شده معتبر است؛ ${result.files} فایل و ${result.steps} مرحله. این آزمون، نصب واقعی نیست.`,
+        L(
+          `ساختار ذخیره‌شده معتبر است؛ ${result.files} فایل و ${result.steps} مرحله. این آزمون، نصب واقعی نیست.`,
+          `Saved manifest validated: ${result.files} files, ${result.steps} steps. Not a live archive test.`,
+        ),
       );
     });
   });
@@ -672,7 +723,10 @@ function editPackage(existing?: PackageSpec) {
     void busy(this as HTMLButtonElement, async () => {
       if (
         !window.confirm(
-          'نسخه ذخیره‌شده با فایل‌ها و مراحل فعلی منتشر شود؟ تغییرات ذخیره‌نشده این فرم منتشر نمی‌شوند.',
+          L(
+            'نسخه ذخیره‌شده با فایل‌ها و مراحل فعلی منتشر شود؟ تغییرات ذخیره‌نشده این فرم منتشر نمی‌شوند.',
+            'Publish the last saved draft? Unsaved form edits are excluded.',
+          ),
         )
       )
         return;
@@ -684,13 +738,20 @@ function editPackage(existing?: PackageSpec) {
         token,
       );
       d.close();
-      toast('نسخه منتشر شد.');
+      toast(L('نسخه منتشر شد.', 'Package published.'));
       await refreshPage();
     });
   });
   d.querySelector<HTMLButtonElement>('#archive-package')?.addEventListener('click', function () {
     void busy(this as HTMLButtonElement, async () => {
-      if (!window.confirm('پکیج از کاتالوگ حذف و بایگانی شود؟ تاریخچه نسخه‌ها محفوظ می‌ماند.'))
+      if (
+        !window.confirm(
+          L(
+            'پکیج از کاتالوگ حذف و بایگانی شود؟ تاریخچه نسخه‌ها محفوظ می‌ماند.',
+            'Archive this package from public catalog? Release history stays intact.',
+          ),
+        )
+      )
         return;
       await api(
         `/admin/packages/${p.id}/archive`,
@@ -700,12 +761,14 @@ function editPackage(existing?: PackageSpec) {
         token,
       );
       d.close();
-      toast('پکیج بایگانی شد.');
+      toast(L('پکیج بایگانی شد.', 'Package archived.'));
       await refreshPage();
     });
   });
 }
+
 async function devices(el: HTMLElement) {
+  const sLabels = statusLabels();
   const items: {
     id: string;
     tier: string;
@@ -716,14 +779,17 @@ async function devices(el: HTMLElement) {
     can('devices.read') && overview.capabilities?.includes('user-profiles-v1')
       ? (await api('/admin/devices', undefined, token)).devices
       : overview.licenses.filter((l) => l.device_thumbprint);
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">DEVICE REGISTRY / 04</p><h1>یک لایسنس. یک دستگاه.</h1><p class="muted">اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>اثر انگشت کلید</th><th>اشتراک</th><th>فعال‌سازی</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${date(l.activated_at)}</td><td><span class="status ${l.status}">${statuses[l.status] || 'نامشخص'}</span></td><td>${can('licenses.reset') ? `<button class="text-button" data-device="${l.id}">مدیریت اتصال</button>` : 'فقط مشاهده'}</td></tr>`).join('')}</tbody></table></div>` : empty('هنوز دستگاهی متصل نیست', 'با فعال‌سازی لایسنس در لانچر، دستگاه اینجا نمایش داده می‌شود.', 'monitor')}</div>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>DEVICE REGISTRY / 04</p><h1>${L('یک لایسنس. یک دستگاه.', 'One License. One Hardware Key.')}</h1><p class="muted">${L('اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.', 'Bindings rely on cryptographic P-256 device thumbprints, not user IP addresses.')}</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>${L('اثر انگشت کلید', 'Key Thumbprint')}</th><th>${L('اشتراک', 'Tier')}</th><th>${L('فعال‌سازی', 'Activated')}</th><th>${L('وضعیت', 'Status')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${fmtDate(l.activated_at)}</td><td><span class="status ${l.status}">${sLabels[l.status] || L('نامشخص', 'Unknown')}</span></td><td>${can('licenses.reset') ? `<button class="text-button" data-device="${l.id}">${L('مدیریت اتصال', 'Release Binding')}</button>` : L('فقط مشاهده', 'View only')}</td></tr>`).join('')}</tbody></table></div>` : empty(L('هنوز دستگاهی متصل نیست', 'No bound devices yet'), L('با فعال‌سازی لایسنس در لانچر، دستگاه اینجا نمایش داده می‌شود.', 'Bound hardware thumbprints appear here after license activation.'), 'monitor')}</div>`;
   el.querySelectorAll<HTMLButtonElement>('[data-device]').forEach(
     (b) =>
       (b.onclick = () =>
         void busy(b, async () => {
           if (
             !window.confirm(
-              'دستگاه این لایسنس آزاد شود؟ فعال‌سازی بعدی می‌تواند به دستگاه دیگری متصل شود.',
+              L(
+                'دستگاه این لایسنس آزاد شود؟ فعال‌سازی بعدی می‌تواند به دستگاه دیگری متصل شود.',
+                'Release this hardware binding? The next activation can bind to a different device.',
+              ),
             )
           )
             return;
@@ -732,22 +798,32 @@ async function devices(el: HTMLElement) {
         })),
   );
 }
+
 function eventTable(events: AuditEvent[]) {
   return events.length
-    ? `<div class="table-scroll"><table><thead><tr><th>رویداد</th><th>عامل</th><th>هدف</th><th>زمان</th></tr></thead><tbody>${events.map((e) => `<tr><td><code>${esc(e.action)}</code></td><td><code>${esc(e.actor.slice(0, 14))}</code></td><td><code>${esc(e.target.slice(0, 16))}</code></td><td>${date(e.created_at)} <small>${new Date(e.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</small></td></tr>`).join('')}</tbody></table></div>`
-    : empty('رویدادی ثبت نشده', 'عملیات واقعی پنل در این بخش ثبت می‌شوند.', 'scroll-text');
+    ? `<div class="table-scroll"><table><thead><tr><th>${L('رویداد', 'Event')}</th><th>${L('عامل', 'Actor')}</th><th>${L('هدف', 'Target')}</th><th>${L('زمان', 'Timestamp')}</th></tr></thead><tbody>${events.map((e) => `<tr><td><code dir="ltr">${esc(e.action)}</code></td><td><code dir="ltr">${esc(e.actor.slice(0, 14))}</code></td><td><code dir="ltr">${esc(e.target.slice(0, 16))}</code></td><td>${fmtDate(e.created_at)} <small>${fmtTime(e.created_at)}</small></td></tr>`).join('')}</tbody></table></div>`
+    : empty(
+        L('رویدادی ثبت نشده', 'No audit events recorded'),
+        L(
+          'عملیات واقعی پنل در این بخش ثبت می‌شوند.',
+          'Control room mutations are recorded here atomically.',
+        ),
+        'scroll-text',
+      );
 }
+
 function logs(el: HTMLElement) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow">AUDIT TRAIL / 05</p><h1>هیچ تغییری بی‌ردپا نیست.</h1><p class="muted">تاریخچهٔ عملیات؛ بدون ثبت کد کامل لایسنس یا کلید خصوصی.</p></div></div><section class="panel">${eventTable(overview.events)}</section>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>AUDIT TRAIL / 05</p><h1>${L('هیچ تغییری بی‌ردپا نیست.', 'Every Change Leaves a Trace.')}</h1><p class="muted">${L('تاریخچهٔ عملیات؛ بدون ثبت کد کامل لایسنس یا کلید خصوصی.', 'Immutable operational trail without raw license codes or private keys.')}</p></div></div><section class="panel">${eventTable(overview.events)}</section>`;
 }
+
 export function loginDialog(demo: boolean, onSuccess: (token: string) => void) {
   const d = modal(
-    'ورود به اتاق کنترل',
-    `<p class="muted">${demo ? 'محیط توسعه: ورود نمایشی به داده‌های محلی. این ورود در نسخه عملیاتی وجود ندارد.' : 'ورود مدیران با Supabase Auth و تأیید دومرحله‌ای.'}</p>${demo ? '<button class="button full" id="demo-admin">ورود به پنل نمایشی</button>' : `<form id="admin-login">${field('ایمیل', '<input name="email" type="email" required dir="ltr" autocomplete="username">')}${field('رمز عبور', '<input name="password" type="password" required dir="ltr" autocomplete="current-password">')}<button class="button full" type="submit">ورود امن</button></form>`}`,
+    L('ورود به اتاق کنترل', 'Control Room Sign-In'),
+    `<p class="muted">${demo ? L('محیط توسعه: ورود نمایشی به داده‌های محلی. این ورود در نسخه عملیاتی وجود ندارد.', 'Local sandbox mode: demo owner session for browser preview only.') : L('ورود مدیران با Supabase Auth و تأیید دومرحله‌ای.', 'Operator sign-in via Supabase Auth + TOTP MFA.')}</p>${demo ? `<button class="button full" id="demo-admin">${L('ورود به پنل نمایشی', 'Enter Demo Control Room')}</button>` : `<form id="admin-login">${field(L('ایمیل', 'Email'), '<input name="email" type="email" required dir="ltr" autocomplete="username">')}${field(L('رمز عبور', 'Password'), '<input name="password" type="password" required dir="ltr" autocomplete="current-password">')}<button class="button full" type="submit">${L('ورود امن', 'Sign In')}</button></form>`}`,
   );
   d.querySelector('.modal-body')?.insertAdjacentHTML(
     'afterbegin',
-    `<section class="license-login-panel"><div class="console-pill">DEVICE-BOUND ADMIN</div><h3>ورود با لایسنس مدیریت</h3><p class="muted">کدی که مالک برای شما دسترسی داده است؛ همین لایسنس در برنامه هم قابل استفاده است.</p><form id="license-admin-login">${field('کد لایسنس (اگر قبلاً فعال کرده‌اید، خالی بگذارید)', '<input name="license_code" dir="ltr" autocomplete="off" placeholder="UHM-…">')}<button class="button full" type="submit">ورود با لایسنس این دستگاه</button></form></section>`,
+    `<section class="license-login-panel"><div class="console-pill">DEVICE-BOUND ADMIN</div><h3>${L('ورود با لایسنس مدیریت', 'Device-Bound License Sign-In')}</h3><p class="muted">${L('کدی که مالک برای شما دسترسی داده است؛ همین لایسنس در برنامه هم قابل استفاده است.', 'Sign in using a staff-assigned license bound to this device key.')}</p><form id="license-admin-login">${field(L('کد لایسنس (اگر قبلاً فعال کرده‌اید، خالی بگذارید)', 'License Key (leave blank if already activated on this device)'), '<input name="license_code" dir="ltr" autocomplete="off" placeholder="UHM-…">')}<button class="button full" type="submit">${L('ورود با لایسنس این دستگاه', 'Sign In with Device License')}</button></form></section>`,
   );
   d.querySelector<HTMLFormElement>('#license-admin-login')!.onsubmit = (e) => {
     e.preventDefault();
@@ -776,24 +852,30 @@ export function loginDialog(demo: boolean, onSuccess: (token: string) => void) {
   d.querySelector<HTMLFormElement>('#admin-login')?.addEventListener('submit', (e) => {
     e.preventDefault();
     void busy(d.querySelector('button[type=submit]')!, async () => {
-      if (!supabase) throw new Error('تنظیمات Supabase برای پنل وارد نشده است.');
+      if (!supabase)
+        throw new Error(
+          L('تنظیمات Supabase برای پنل وارد نشده است.', 'Supabase credentials are not configured.'),
+        );
       const f = new FormData(e.target as HTMLFormElement);
       const { error } = await supabase.auth.signInWithPassword({
         email: String(f.get('email')),
         password: String(f.get('password')),
       });
-      if (error) throw new Error('ورود ناموفق بود.');
+      if (error) throw new Error(L('ورود ناموفق بود.', 'Sign-in failed.'));
       const { data: factors, error: factorError } = await supabase.auth.mfa.listFactors();
       if (factorError) throw factorError;
       const factor = factors.totp.find((f) => f.status === 'verified');
       if (!factor)
         throw new Error(
-          'ابتدا MFA مدیر را در فرایند راه‌اندازی امن ثبت کنید. دسترسی مدیریتی بدون MFA داده نمی‌شود.',
+          L(
+            'ابتدا MFA مدیر را در فرایند راه‌اندازی امن ثبت کنید. دسترسی مدیریتی بدون MFA داده نمی‌شود.',
+            'Verified TOTP MFA enrollment is required before admin sign-in.',
+          ),
         );
       d.close();
       const m = modal(
-        'تأیید دومرحله‌ای',
-        `<form id="mfa-form">${field('کد برنامه احراز هویت', '<input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required dir="ltr" autocomplete="one-time-code">')}<button class="button full" type="submit">تأیید</button></form>`,
+        L('تأیید دومرحله‌ای', 'Two-Factor Verification'),
+        `<form id="mfa-form">${field(L('کد برنامه احراز هویت', 'Authenticator 6-digit Code'), '<input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required dir="ltr" autocomplete="one-time-code">')}<button class="button full" type="submit">${L('تأیید', 'Verify')}</button></form>`,
       );
       m.querySelector('form')!.onsubmit = (e) => {
         e.preventDefault();
@@ -803,7 +885,7 @@ export function loginDialog(demo: boolean, onSuccess: (token: string) => void) {
             factorId: factor.id,
             code,
           });
-          if (error) throw new Error('کد معتبر نیست.');
+          if (error) throw new Error(L('کد معتبر نیست.', 'Invalid verification code.'));
           const { data } = await supabase!.auth.getSession();
           m.close();
           sessionStore.removeItem('uhm-admin-mode');

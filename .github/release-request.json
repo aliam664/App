@@ -1,5 +1,5 @@
 {
-  "build_run": "42507833044",
+  "build_run": "43217722448",
   "publish_candidate": true,
-  "request_note": "Publish signed 0.1.3 from cfb51224420c07c655a995b0f8f396dc09dba0a3. Platform checks 42507833044 passed web/API/native/strict lint/real PostgreSQL chain/audits/fresh NSIS and immutable public 0.1.2 upgrade. Pages 42507833088 and non-destructive production verification 42507833091 passed after API v12/broker v3 deployment. No database migration; existing data and license trust unchanged. Postpublication real automatic-update smoke required."
+  "request_note": "Publish signed 0.1.4 from a62aada3793c0bcc74d4aaf0585ac0f84c5ff745. Platform checks 43217722448, Non-destructive production verification 43217722524, Security and package permission audit 43217722452, and GitHub Pages build 43217725482 all passed on arena/0274db12-app. Live API upgraded to v13 (0.1.4) and update-key-broker upgraded to v6 (byte-verified); production license/catalog/telemetry/contact data verified unchanged."
 }

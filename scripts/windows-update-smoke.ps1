@@ -27,7 +27,8 @@ $gameSentinel = Join-Path $game 'content/preserve-after-update.txt'
 $settingsHash = (Get-FileHash $settings).Hash
 $gameHash = (Get-FileHash $gameSentinel).Hash
 $exe = Join-Path $target 'uhm-launcher.exe'
-Assert ($ExpectedVersion -eq '0.1.3') 'Only the reviewed 0.1.2 to 0.1.3 rollout is allowed'
+$configuredVersion = (Get-Content (Join-Path $PSScriptRoot '../src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
+Assert ($ExpectedVersion -match '^\d+\.\d+\.\d+$' -and $ExpectedVersion -eq $configuredVersion) "Only the reviewed 0.1.2 to $configuredVersion rollout is allowed (got $ExpectedVersion)"
 $installer = Join-Path $env:RUNNER_TEMP 'public-0.1.2/UHM-Launcher-0.1.2-x64-setup.exe'
 Assert ((Get-FileHash $installer -Algorithm SHA256).Hash.ToLower() -eq 'c13afbcc883fed9b484df4ab9b0103da38844981c9b77c6813c8ef7c8d84b395') 'Original public 0.1.2 installer bytes differ'
 $setup = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$target") -PassThru -Wait

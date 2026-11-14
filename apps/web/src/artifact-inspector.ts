@@ -1,4 +1,5 @@
 import { native, invoke } from './device';
+import { L } from './i18n';
 /** Reads only the explicitly selected file. Bytes never leave this device. */
 export async function inspectArtifact(): Promise<{
   name: string;
@@ -10,7 +11,10 @@ export async function inspectArtifact(): Promise<{
     const path = await open({
       multiple: false,
       directory: false,
-      title: 'انتخاب فایل برای محاسبهٔ محلی SHA-256؛ بدون آپلود',
+      title: L(
+        'انتخاب فایل برای محاسبهٔ محلی SHA-256؛ بدون آپلود',
+        'Select file for local SHA-256 calculation (no upload)',
+      ),
     });
     if (!path) return null;
     return invoke('inspect_artifact', { path });
@@ -23,10 +27,12 @@ export async function inspectArtifact(): Promise<{
     input.click();
   });
   if (!file) return null;
-  // WebCrypto requires a whole buffer. Bound browser memory; desktop streams 64 KiB chunks.
   if (file.size > 32 * 1024 * 1024)
     throw new Error(
-      'برای فایل بزرگ‌تر از ۳۲ مگابایت، محاسبهٔ جریانی را در نسخهٔ ویندوز انجام دهید یا هش ابزار محلی را وارد کنید. هیچ فایلی آپلود نشد.',
+      L(
+        'برای فایل بزرگ‌تر از ۳۲ مگابایت، محاسبهٔ جریانی را در نسخهٔ ویندوز انجام دهید یا هش ابزار محلی را وارد کنید. هیچ فایلی آپلود نشد.',
+        'For files larger than 32 MB, compute SHA-256 in the Windows desktop client or paste a local digest. Nothing was uploaded.',
+      ),
     );
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
   return {

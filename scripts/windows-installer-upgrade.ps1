@@ -5,7 +5,8 @@ function Assert($value,[string]$message){if(-not $value){throw $message}}
 function Version([string]$path){if(Test-Path $path){[regex]::Match((Get-Item $path).VersionInfo.ProductVersion,'^\d+\.\d+\.\d+').Value}else{''}}
 function Wait-Until([scriptblock]$test,[string]$message){$end=[DateTime]::UtcNow.AddSeconds(90);do{if(& $test){return};Start-Sleep -Seconds 1}while([DateTime]::UtcNow -lt $end);throw $message}
 Assert ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_OS -eq 'Windows' -and $env:GITHUB_REPOSITORY -eq 'aliam664/App') 'Disposable Windows CI only'
-Assert ($ExpectedVersion -eq '0.1.3') 'Explicit candidate version required'
+$configuredVersion=(Get-Content (Join-Path $PSScriptRoot '../src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
+Assert ($ExpectedVersion -match '^\d+\.\d+\.\d+$' -and $ExpectedVersion -eq $configuredVersion) "Explicit candidate version mismatch ($ExpectedVersion vs $configuredVersion)"
 $old=Join-Path $env:RUNNER_TEMP 'public-0.1.2/UHM-Launcher-0.1.2-x64-setup.exe'
 Assert ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -eq 'c13afbcc883fed9b484df4ab9b0103da38844981c9b77c6813c8ef7c8d84b395') 'Published 0.1.2 bytes changed'
 $target=Join-Path $env:RUNNER_TEMP 'uhm-public-installer-upgrade'

@@ -5,6 +5,7 @@ export const launcherPages = [
   'library-settings',
   'library',
   'downloads',
+  'contact',
   'settings',
 ];
 export const adminPages = [
@@ -18,6 +19,7 @@ export const adminPages = [
   'errors',
   'team',
   'service',
+  'contact',
   'logs',
   'settings',
 ];

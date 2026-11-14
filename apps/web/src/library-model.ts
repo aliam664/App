@@ -1,3 +1,5 @@
+import { L } from './i18n';
+
 export type LocalItem = {
   id: string;
   kind: string;
@@ -23,13 +25,28 @@ export const kinds: Record<string, string> = {
   skin: 'اسکین',
   layout: 'لی‌اوت',
 };
+export const kindLabels = () => ({
+  car: L('ماشین', 'Car'),
+  track: L('پیست', 'Track'),
+  skin: L('اسکین', 'Skin / Livery'),
+  layout: L('لی‌اوت', 'Track Layout'),
+});
 export const origins: Record<string, string> = {
   external: 'خارج از لانچر',
   launcher: 'لانچر',
   mixed: 'ترکیبی',
 };
+export const originLabels = () => ({
+  external: L('خارج از لانچر', 'External'),
+  launcher: L('لانچر', 'Launcher'),
+  mixed: L('ترکیبی', 'Mixed'),
+});
 export const text = (v: unknown) =>
-  typeof v === 'string' && v.trim() ? v : typeof v === 'number' ? String(v) : 'نامشخص';
+  typeof v === 'string' && v.trim()
+    ? v
+    : typeof v === 'number'
+      ? String(v)
+      : L('نامشخص', 'Unknown');
 export const localName = (i: LocalItem) => text(i.metadata.name ?? i.metadata.skinname);
 export function filterLocal(
   items: LocalItem[],

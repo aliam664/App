@@ -1,7 +1,7 @@
 name: Publish shared app UI to GitHub Pages
 on:
   push:
-    branches: [main, arena/0b78cac4-app]
+    branches: [main, arena/0274db12-app]
   workflow_dispatch:
 permissions:
   contents: read

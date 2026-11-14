@@ -11,14 +11,14 @@ test('raw branch index recovers to compiled shared UI instead of a white screen'
   });
   await page.goto('https://branch.github.io/App/');
   await expect(page).toHaveURL('https://branch.github.io/App/pages-preview/');
-  await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /دقت مهندسی برای/ })).toBeVisible();
   await expect(page.locator('.package-card')).toHaveCount(6);
-  await expect(page.locator('.brand img')).toHaveAttribute('src', '/App/public/brand/logo.png');
+  await expect(page.locator('.brand img')).toHaveAttribute('src', '/App/public/brand/mark.svg');
   await page.evaluate(async () => {
     await document.fonts.ready;
     await document.querySelector<HTMLImageElement>('.brand img')!.decode();
   });
-  expect(await page.evaluate(() => document.fonts.check('16px "UHM Outfit"'))).toBe(true);
+  expect(await page.evaluate(() => document.fonts.check('16px "Outfit"'))).toBe(true);
   await page.getByRole('button', { name: 'پنل مدیریت', exact: true }).click();
   await page.getByRole('button', { name: 'ورود به پنل نمایشی', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'همه‌چیز، زیر کنترل.' })).toBeVisible();

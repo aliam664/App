@@ -30,6 +30,8 @@ createServer(async (req, res) => {
       '.js': 'text/javascript',
       '.css': 'text/css',
       '.ts': 'text/plain',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
       '.woff2': 'font/woff2',

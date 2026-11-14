@@ -28,9 +28,21 @@ const api = createApi(repository, {
     .split(',')
     .map((s) => s.trim()),
 });
+const TRUSTED_IP_HEADERS = new Set([
+  'cf-connecting-ip',
+  'fly-client-ip',
+  'x-nf-client-connection-ip',
+  'x-vercel-forwarded-for',
+]);
+function resolveTrustedIp(request: Request): string {
+  const headerName = (Deno.env.get('TRUSTED_IP_HEADER') || '').trim().toLowerCase();
+  if (!headerName || !TRUSTED_IP_HEADERS.has(headerName)) return 'unknown';
+  const value = request.headers.get(headerName)?.trim();
+  return value && value.length <= 128 ? value : 'unknown';
+}
 Deno.serve((request) => {
   const url = new URL(request.url);
   url.pathname = `/api${url.pathname.replace(/^\/functions\/v1\/api|^\/api/, '')}`;
-  // Conservative shared rate bucket. Add a trusted ingress IP adapter before large public rollout.
-  return api(new Request(url, request), 'unknown');
+  // Never trust raw X-Forwarded-For; accept only an operator-pinned edge IP header or fall back to isolated route buckets.
+  return api(new Request(url, request), resolveTrustedIp(request));
 });

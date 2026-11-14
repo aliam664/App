@@ -14,17 +14,17 @@ test('compiled /App/ site uses the shared UI with working assets and no API serv
     if (new URL(r.url()).pathname.startsWith('/api')) apiRequests.push(r.url());
   });
   await page.goto('./');
-  await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /دقت مهندسی برای/ })).toBeVisible();
   await expect(page.locator('.demo-strip')).toContainText('GitHub Pages');
   await expect(page.locator('.package-card')).toHaveCount(6);
-  await expect(page.locator('.brand img')).toHaveAttribute('src', '/App/brand/logo.png');
+  await expect(page.locator('.brand img')).toHaveAttribute('src', '/App/brand/mark.svg');
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(
       [...document.images].filter((i) => i.loading !== 'lazy').map((i) => i.decode()),
     );
   });
-  expect(await page.evaluate(() => document.fonts.check('16px "UHM Outfit"'))).toBe(true);
+  expect(await page.evaluate(() => document.fonts.check('16px "Outfit"'))).toBe(true);
   await page.getByRole('tab', { name: 'مسیرها', exact: true }).click();
   await expect(page.locator('.package-card')).toHaveCount(1);
   expect(errors).toEqual([]);
@@ -41,8 +41,7 @@ test('sandbox activation and admin actions survive reload without a real backend
   await expect(page.locator('.profile')).toContainText('PRO MEMBER');
   await page.reload();
   await expect(page.locator('.profile')).toContainText('PRO MEMBER');
-  await page.getByRole('button', { name: 'منوی بخش‌ها' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'پنل مدیریت', exact: true }).click();
+  await page.getByRole('button', { name: 'پنل مدیریت', exact: true }).click();
   await page.getByRole('button', { name: 'ورود به پنل نمایشی' }).click();
   await expect(page).toHaveURL(/\/App\/#\/admin$/);
   await expect(page.getByRole('heading', { name: 'همه‌چیز، زیر کنترل.' })).toBeVisible();
@@ -57,7 +56,7 @@ test('sandbox activation and admin actions survive reload without a real backend
   await expect(page.getByRole('button', { name: 'تولید لایسنس', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'بازگشت به لانچر', exact: true }).click();
   await expect(page).toHaveURL(/\/App\/$/);
-  await expect(page.getByRole('heading', { name: /گرافیک استو را/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /دقت مهندسی برای/ })).toBeVisible();
 });
 
 test('hash deep link, root link, browser history and mobile layout work under /App/', async ({
@@ -77,6 +76,6 @@ test('hash deep link, root link, browser history and mobile layout work under /A
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'همه‌چیز، زیر کنترل.' })).toBeVisible();
-  await page.getByRole('link', { name: 'UHM Launcher' }).click();
+  await page.getByRole('link', { name: 'Assetto Corsa Launcher' }).click();
   await expect(page).toHaveURL(/\/App\/$/);
 });

@@ -4,7 +4,7 @@ const desktop = await readFile('dist/index.html', 'utf8');
 const pages = await readFile('dist-pages/index.html', 'utf8');
 assert.match(desktop, /src="\/assets\//);
 assert.match(pages, /src="\/App\/assets\//);
-assert.match(pages, /href="\/App\/brand\/logo\.png"/);
+assert.match(pages, /href="\/App\/brand\/icon\.png"/);
 const desktopFiles = await readdir('dist/assets');
 assert(
   !desktopFiles.some((f) => f.startsWith('static-preview-')),

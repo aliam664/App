@@ -1,0 +1,15 @@
+{
+  "api": {
+    "sha256": "c7f8141a988caf4760e3cf3963ed48f49c0be25274904a478b79a3e9781a7f5a",
+    "bytes": 40928
+  },
+  "updateKeyBroker": {
+    "sha256": "d8fd4ba70ee855e9af4c0f17bfad224cd5c3baaabf607008f63adf356114352c",
+    "bytes": 4080
+  },
+  "npm": {
+    "zod": "npm:zod@4.6.7",
+    "jose": "npm:jose@6.2.14",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0"
+  }
+}

@@ -34,11 +34,20 @@ for (const theme of ['dark', 'light'])
               'analytics',
               'errors',
               'team',
+              'contact',
               'service',
               'logs',
               'settings',
             ]
-          : ['discover', 'content', 'library-settings', 'library', 'downloads', 'settings'];
+          : [
+              'discover',
+              'content',
+              'library-settings',
+              'library',
+              'downloads',
+              'contact',
+              'settings',
+            ];
       for (const id of pages) {
         await nav(page, id);
         // Real local API; no production license, no mocked statistics.
@@ -77,7 +86,7 @@ test('mobile menu exposes every permitted owner destination; tablet labels remai
   ).not.toBe('none');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'منوی بخش‌ها', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: /UHM/ });
+  const dialog = page.getByRole('dialog', { name: /Assetto Corsa Launcher/ });
   await expect(dialog.getByRole('button', { name: 'کنترل سرویس', exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'تیم و دسترسی‌ها', exact: true }).click();
   await expect(page.locator('#content')).toContainText('تیم');
@@ -126,10 +135,12 @@ test('package studio is labelled, fits a phone, protects unsaved work and restor
   await expect(page.locator('#quick-package')).toBeFocused();
   expect(await page.locator('html').getAttribute('class')).not.toContain('has-modal');
 });
-test('user category tabs support RTL keyboard navigation and reduced motion', async ({ page }) => {
+test('user category tabs support RTL keyboard navigation, reduced motion and full FA/EN switch', async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await expect(page.locator('.hero-video')).not.toHaveAttribute('autoplay');
+  await expect(page.locator('.hero-visual img')).toBeVisible();
   const first = page.getByRole('tab', { name: 'همه پکیج‌ها', exact: true });
   await first.focus();
   await page.keyboard.press('ArrowLeft');
@@ -142,8 +153,12 @@ test('user category tabs support RTL keyboard navigation and reduced motion', as
   await expect(first).toHaveAttribute('aria-selected', 'true');
   await nav(page, 'settings');
   await page.locator('#language').selectOption('en');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.getByRole('heading', { name: 'Launcher Preferences.' })).toBeVisible();
+  await page.locator('#language').selectOption('fa');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 });
 test('temporary overview failure offers a working retry instead of a dead end', async ({
   page,
