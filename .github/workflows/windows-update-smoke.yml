@@ -1,7 +1,7 @@
 name: Real Windows automatic-update smoke
 on:
   push:
-    branches: [arena/0274db12-app]
+    branches: [arena/3ca2a721-app]
     paths: [.github/update-smoke-request.json]
 permissions:
   contents: read
