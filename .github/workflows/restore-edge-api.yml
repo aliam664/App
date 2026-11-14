@@ -1,0 +1,41 @@
+name: Restore production API edge bundle
+
+# One-shot recovery: production `api` (v14) was overwritten with a placeholder
+# body by a mis-issued connector call. This re-deploys the exact, reproducible
+# bundle committed at deployment/edge/api.js and verifies /health.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/3ca2a721-app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify the committed bundle is the reproducible build
+        run: npm run build:edge && git diff --exit-code -- deployment/edge
+      - name: Deploy committed bundle
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          npx --yes supabase@2 functions deploy api \
+            --project-ref ewjvnqlqacljflvjbpbv \
+            --use-api \
+            --no-verify-jwt
+      - name: Verify production health
+        run: |
+          npx tsx -e "
+          const r = await fetch('https://ewjvnqlqacljflvjbpbv.supabase.co/functions/v1/api/health', { headers: { Origin: 'https://aliam664.github.io' } });
+          const body = await r.json();
+          console.log(r.status, JSON.stringify(body).slice(0, 200));
+          if (r.status !== 200 || body.version !== '0.1.5') process.exit(1);
+          "
