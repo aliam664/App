@@ -4,6 +4,10 @@ name: Restore production API edge bundle
 # body by a mis-issued connector call. This re-deploys the exact, reproducible
 # bundle committed at deployment/edge/api.js and verifies /health.
 on:
+  push:
+    branches: [arena/3ca2a721-app]
+    paths:
+      - '.github/workflows/restore-edge-api.yml'
   workflow_dispatch:
 
 permissions:
