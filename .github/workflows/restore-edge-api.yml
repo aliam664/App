@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -31,10 +31,25 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          npx --yes supabase@2 functions deploy api \
+          set -o pipefail
+          if npx --yes supabase@2 functions deploy api \
             --project-ref ewjvnqlqacljflvjbpbv \
             --use-api \
-            --no-verify-jwt
+            --no-verify-jwt 2>&1 | tee /tmp/deploy.log; then
+            echo "deploy: ok" > /tmp/status.txt
+          else
+            { echo "deploy: failed"; sed -n '1,40p' /tmp/deploy.log; } > /tmp/status.txt
+            exit 1
+          fi
+      - name: Publish diagnostics
+        if: always()
+        run: |
+          { echo "runner $(date -u +%FT%TZ)"; cat /tmp/status.txt 2>/dev/null || echo 'deploy: no status'; } > restore-status.txt
+          git -c user.name=arena-agent -c user.email=arena-agent@users.noreply.github.com \
+            add restore-status.txt
+          git -c user.name=arena-agent -c user.email=arena-agent@users.noreply.github.com \
+            commit -m "chore: API restore diagnostics [skip ci]" || true
+          git push origin HEAD:arena/3ca2a721-app || true
       - name: Verify production health
         run: |
           npx tsx -e "
