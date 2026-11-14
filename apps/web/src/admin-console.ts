@@ -54,10 +54,10 @@ function activityTable(events: TelemetryEvent[], packages: Context['data']['pack
   return events.length
     ? `<div class="table-scroll"><table><thead><tr><th>${L('فعالیت / نتیجه', 'Activity / Outcome')}</th><th>${L('پکیج / نسخه', 'Package / Version')}</th><th>${L('فایل / میزبان', 'File / Host')}</th><th>${L('زمان وقوع', 'Occurred')}</th><th>${L('دریافت سرور', 'Received')}</th></tr></thead><tbody>${events.map((e) => `<tr><td><span class="event-state ${e.type.includes('failed') || e.type === 'app_error' ? 'is-error' : ''}">${esc(evtLabels[e.type] || e.type)}</span><small class="cell-sub">${esc(errLabels[e.error_code || ''] || e.error_code || '')}</small></td><td>${esc(packages.find((p) => p.id === e.package_id)?.name || '—')}<small class="cell-sub" dir="ltr">${esc(e.version || '')}</small></td><td><code dir="ltr">${esc(e.file_name || e.file_id?.slice(0, 8) || '—')}</code><small class="cell-sub" dir="ltr">${esc(e.host || '')}</small></td><td>${fmtDate(e.occurred_at)}<small class="cell-sub">${fmtTime(e.occurred_at)}</small></td><td>${fmtDate(e.received_at)}</td></tr>`).join('')}</tbody></table></div>`
     : empty(
-        L('هنوز رویدادی دریافت نشده', 'No telemetry events yet'),
+        L('سرویس هنوز رویدادی نگرفته', 'No Events Have Reached the Service'),
         L(
-          'داده‌ها فقط پس از ارسال واقعی از برنامه نمایش داده می‌شوند.',
-          'Events appear only once reported by active launcher clients.',
+          'جدول وقتی پر می‌شود که کلاینتی با لایسنس فعال، رویداد واقعی بفرستد. دادهٔ ساختگی اینجا ساخته نمی‌شود.',
+          'This table fills when a licensed client reports a real event. Nothing is fabricated to fill it.',
         ),
         'radio',
       );
@@ -275,10 +275,10 @@ export async function renderConsole(el: HTMLElement, page: string, c: Context): 
   if (!need[page]) return false;
   if (!(page === 'team' ? can(c, 'team.manage') || can(c, 'roles.manage') : can(c, need[page]))) {
     el.innerHTML = empty(
-      L('دسترسی این بخش واگذار نشده', 'Section Access Not Assigned'),
+      L('این بخش برای حساب شما باز نیست', 'This Section Is Not Open to Your Account'),
       L(
-        'مالک می‌تواند مجوزهای حساب مدیریتی شما را تغییر دهد.',
-        'The platform owner can grant this permission in Team & Access.',
+        'نقش فعلی شما این مجوز را ندارد. برای دسترسی، از مالک بخواهید در «تیم و دسترسی‌ها» مجوز را اضافه کند.',
+        'Your role does not include this permission. Ask the owner to add it under Team & Access.',
       ),
       'shield',
     );

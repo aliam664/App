@@ -60,8 +60,9 @@ type Task = {
   key?: string;
 };
 
+/* Warm paper is the default surface; stored preference wins. */
 document.documentElement.dataset.theme =
-  localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
+  localStore.getItem('uhm-theme') === 'dark' ? 'dark' : 'light';
 setLang(getLang());
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -205,7 +206,7 @@ function shell() {
   const nav = adminMode ? getAdminNav() : getLauncherNav();
   app.innerHTML = adminMode ? adminShell(nav) : launcherShell(nav);
   document.documentElement.dataset.theme =
-    localStore.getItem('uhm-theme') === 'light' ? 'light' : 'dark';
+    localStore.getItem('uhm-theme') === 'dark' ? 'dark' : 'light';
   document.querySelector('.skip-link')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.querySelector<HTMLElement>('#content')?.focus();
@@ -283,10 +284,10 @@ function shell() {
             )
             .join('')}</div>`
         : empty(
-            L('هنوز خبری نیست', 'No releases yet'),
+            L('فید انتشار خالی است', 'The Release Feed Is Empty'),
             L(
-              'با انتشار پکیج، تغییرات اینجا دیده می‌شوند.',
-              'Published package updates appear here once released.',
+              'تا وقتی اولین نسخهٔ پکیج منتشر نشود، چیزی برای خواندن اینجا نیست. تغییرات هر انتشار بعداً همین‌جا می‌نشیند.',
+              'Nothing to read until the first package version is published. Each release note will land here.',
             ),
           ),
     ),
@@ -308,7 +309,7 @@ async function render() {
   const content = document.querySelector<HTMLElement>('#content')!;
   content.setAttribute('aria-busy', 'true');
   if (adminMode)
-    content.innerHTML = `<div class="page-loading" role="status">${L('در حال دریافت اطلاعات اتاق کنترل…', 'Loading control room…')}</div>`;
+    content.innerHTML = `<div class="page-loading" role="status">${L('در حال خواندن داده‌های اتاق کنترل…', 'Reading control-room data…')}</div>`;
   try {
     if (page === 'settings') {
       settings(content);
@@ -369,8 +370,11 @@ async function render() {
       sessionStore.removeItem('uhm-admin-mode');
     }
     content.innerHTML = empty(
-      L('دریافت اطلاعات ممکن نشد', 'Unable to Load View'),
-      L('اتصال یا نشست خود را بررسی کنید.', 'Check your network connection or session privileges.'),
+      L('این بخش بارگذاری نشد', 'This Section Would Not Load'),
+      L(
+        'پاسخ سرویس نیامد یا نشست شما منقضی شده است. یک‌بار دیگر تلاش کنید؛ اگر باز هم همین شد، از تنظیمات وضعیت اتصال را کپی کنید.',
+        'The service did not answer, or your session expired. Retry once — if it fails again, copy the connection details from Settings.',
+      ),
       'wifi-off',
     );
     content.insertAdjacentHTML(
@@ -397,7 +401,7 @@ function discover(el: HTMLElement) {
       <div class="hero-copy">
         <div class="eyebrow"><span class="eyebrow-line"></span>ASSETTO CORSA / MOTORSPORT ATELIER</div>
         <h1>${L('دقت مهندسی برای', 'Engineered Precision for')} <span class="hero-highlight">${L('گاراژ استو کورسا', 'Your Assetto Corsa Garage')}</span></h1>
-        <p class="hero-lead">${L('مدیریت یکپارچه پکیج‌های گرافیکی، مسیرها و خودروهای Assetto Corsa؛ از فعال‌سازی لایسنس دستگاه‌محور تا بررسی SHA-256، بکاپ خودکار و نصب تراکنشی امن.', 'Curated graphics presets, circuits, and vehicles for Assetto Corsa—uniting device-bound licensing, SHA-256 artifact checks, and atomic transactional installs.')}</p>
+        <p class="hero-lead">${L('کاتالوگ، لایسنس و نصب در یک مسیر. هر پکیج پیش از دست‌زدن به پوشه بازی، اثر انگشت SHA-256 و نسخهٔ پشتیبان خودش را دارد.', 'One path from catalog to license to install. Every package carries its own SHA-256 fingerprint and rollback snapshot before a single game file changes.')}</p>
         <div class="hero-buttons">
           <button class="btn primary" id="browse-packages">${L('مرور کاتالوگ پکیج‌ها', 'Browse Catalog')} ${icon('arrow-down')}</button>
           <button class="btn ghost" id="view-atelier">${L('معماری نصب و امنیت', 'Engineering Architecture')}</button>
@@ -408,11 +412,6 @@ function discover(el: HTMLElement) {
           <span>SHA-256 VERIFIED</span>
           <span>ATOMIC BACKUP & ROLLBACK</span>
         </div>
-        <div class="stats">
-          <div class="stat"><b>${num(catalog.length)}</b><span>${L('پکیج در کاتالوگ', 'Catalog Packages')}</span></div>
-          <div class="stat"><b dir="ltr">Normal / Pro / VIP</b><span>${L('سطوح دسترسی', 'Entitlement Tiers')}</span></div>
-          <div class="stat"><b dir="ltr">ZIP / RAR / 7z</b><span>${L('فرمت‌های پشتیبانی‌شده', 'Verified Formats')}</span></div>
-        </div>
       </div>
       <figure class="hero-visual">
         <picture>
@@ -421,6 +420,14 @@ function discover(el: HTMLElement) {
         </picture>
         <figcaption><span>${L('اثر بصری اختصاصی لانچر — نمای گاراژ استودیویی', 'Editorial Launcher Artwork — Studio Pit Bay')}</span><code>EDITORIAL ART</code></figcaption>
       </figure>
+    </div>
+    <div class="container hero-index">
+      <p class="hero-index-label">${L('در یک نگاه', 'At a Glance')}</p>
+      <div class="stats">
+        <div class="stat"><b>${num(catalog.length)}</b><span>${L('پکیج در کاتالوگ', 'Catalog Packages')}</span></div>
+        <div class="stat"><b dir="ltr">Normal / Pro / VIP</b><span>${L('سطوح دسترسی', 'Entitlement Tiers')}</span></div>
+        <div class="stat"><b dir="ltr">ZIP / RAR / 7z</b><span>${L('فرمت‌های پشتیبانی‌شده', 'Verified Formats')}</span></div>
+      </div>
     </div>
   </section>
 

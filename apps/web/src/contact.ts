@@ -66,8 +66,8 @@ export function renderContactBody(
     return empty(
       L('هنوز راه ارتباطی ثبت نشده است', 'No contact channels published yet', lang),
       L(
-        'مدیر سیستم هنوز اطلاعات تماس عمومی را تنظیم نکرده است. این بخش پس از انتشار اطلاعات رسمی به‌روز می‌شود.',
-        'The platform operator has not published public contact details yet. Configured channels will appear here automatically.',
+        'هنوز ایمیلی، شماره‌ای یا کانالی برای پشتیبانی منتشر نشده. به‌محض اینکه تیم پشتیبانی اطلاعات را در اتاق کنترل منتشر کند، همین صفحه به‌روز می‌شود؛ نه زودتر.',
+        'Nothing has been published yet. As soon as the support team enters its channels in the control room, this page fills in by itself.',
         lang,
       ),
       'mail',

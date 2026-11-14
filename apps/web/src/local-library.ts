@@ -15,13 +15,13 @@ let currentObserver: IntersectionObserver | undefined;
 
 export async function localLibrary(el: HTMLElement, force = false) {
   currentObserver?.disconnect();
-  el.innerHTML = `<div class="page-title"><h1>${L('کتابخانه من', 'My Library')}</h1></div>${empty(L('خواندن کتابخانه واقعی', 'Reading Local Content'), L('فایل‌های بازی و محتوای نصب‌شده خارج از لانچر بررسی می‌شوند.', 'Scanning game files and externally installed mods.'), 'folder-search')}`;
+  el.innerHTML = `<div class="page-title"><h1>${L('کتابخانه من', 'My Library')}</h1></div>${empty(L('در حال خواندن پوشهٔ بازی', 'Reading Your Game Folder'), L('ماشین‌ها، پیست‌ها و اسکین‌های نصب‌شده — چه با لانچر چه دستی — یکی‌یکی فهرست می‌شوند.', 'Cars, tracks, and liveries you installed — through the launcher or by hand — are being listed one by one.'), 'folder-search')}`;
   if (!native) {
     el.innerHTML = empty(
       L('کتابخانه محلی در نسخه ویندوز', 'Local Library on Windows Desktop'),
       L(
-        'مرورگر به فایل‌های بازی دسترسی ندارد؛ کاتالوگ آنلاین با کتابخانه محلی متفاوت است.',
-        'Web browsers cannot inspect local game directories; install via the Windows desktop client.',
+        'مرورگر اجازهٔ خواندن پوشه‌های ویندوز را ندارد. برای دیدن ماشین‌ها و پیست‌های نصب‌شده، همین صفحه را در اپ دسکتاپ باز کنید. کاتالوگ آنلاین با کتابخانهٔ محلی یکی نیست.',
+        'Browsers are sandboxed away from Windows folders. Open this page inside the desktop app to see the cars and tracks you actually have installed. The online catalog is not your local library.',
       ),
       'monitor',
     );
@@ -158,7 +158,7 @@ function localDetails(item: LocalItem, refresh: () => Promise<void>) {
 }
 
 export async function libraryPreferences(el: HTMLElement, onPath: (path: string) => void) {
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>LIBRARY SETTINGS</p><h1>${L('تنظیمات کتابخانه', 'Library Settings')}</h1><p class="muted">${L('کشف مسیر نصب بازی، اسکن خودکار و بازیابی فایل‌های قرنطینه.', 'Detect Steam/Assetto Corsa paths, toggle auto-scanning, and recover quarantined files.')}</p></div></div>${!native ? empty(L('نیازمند نسخه ویندوز', 'Windows Desktop Required'), L('کشف و انتخاب پوشه‌ها در مرورگر انجام نمی‌شود.', 'Path discovery and local directory quarantine operate only in the Windows desktop app.'), 'monitor') : `<section class="panel"><div class="actions"><button class="button" id="discover-paths">${L('کشف Steam و نصب‌های بازی', 'Detect Steam & AC Installs')}</button><button class="button secondary" id="manual-game">${L('انتخاب دستی بازی', 'Choose Game Folder')}</button></div><div id="detected-paths"></div><label class="setting-row"><span>${L('اسکن خودکار هنگام نمایش کتابخانه (هر ۶۰ ثانیه)', 'Auto-rescan library every 60s when open')}</span><input type="checkbox" id="autoscan-content"></label></section><section class="panel"><h2>${L('بازیابی قرنطینه', 'Quarantine Recovery')}</h2><div id="recovery-list"></div></section>`}`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>LIBRARY SETTINGS</p><h1>${L('تنظیمات کتابخانه', 'Library Settings')}</h1><p class="muted">${L('کشف مسیر نصب بازی، اسکن خودکار و بازیابی فایل‌های قرنطینه.', 'Detect Steam/Assetto Corsa paths, toggle auto-scanning, and recover quarantined files.')}</p></div></div>${!native ? empty(L('این صفحه به ویندوز نیاز دارد', 'This Page Needs Windows'), L('پیدا کردن پوشهٔ استیم و قرنطینهٔ فایل‌ها فقط داخل اپ دسکتاپ انجام می‌شود؛ در مرورگر هیچ مسیری خوانده یا تغییر نمی‌کند.', 'Steam discovery and file quarantine only run inside the desktop app. No path is read or modified in a browser tab.'), 'monitor') : `<section class="panel"><div class="actions"><button class="button" id="discover-paths">${L('کشف Steam و نصب‌های بازی', 'Detect Steam & AC Installs')}</button><button class="button secondary" id="manual-game">${L('انتخاب دستی بازی', 'Choose Game Folder')}</button></div><div id="detected-paths"></div><label class="setting-row"><span>${L('اسکن خودکار هنگام نمایش کتابخانه (هر ۶۰ ثانیه)', 'Auto-rescan library every 60s when open')}</span><input type="checkbox" id="autoscan-content"></label></section><section class="panel"><h2>${L('بازیابی قرنطینه', 'Quarantine Recovery')}</h2><div id="recovery-list"></div></section>`}`;
   if (!native) return;
   const settings = await invoke<{ game_path: string; autoscan: boolean }>('get_settings');
   (el.querySelector('#autoscan-content') as HTMLInputElement).checked = settings.autoscan;

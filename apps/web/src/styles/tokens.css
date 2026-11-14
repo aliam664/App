@@ -1,3 +1,9 @@
+/* =============================================================================
+   UHM — Warm Neo-Minimal design tokens
+   Bone & Sand paper, Charcoal ink, one warm Rust accent (60–30–10).
+   No gradients, no glass, no glow. Small radii, quiet shadows.
+   ========================================================================== */
+
 @font-face {
   font-family: 'Outfit';
   src: url('/brand/fonts/outfit-latin-variable.woff2') format('woff2');
@@ -15,53 +21,63 @@
 }
 
 :root {
-  color-scheme: dark;
-  --font-fa: 'Vazirmatn', 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-en: 'Outfit', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+
+  --font-fa: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-en: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace;
 
-  /* Luxury Automotive Editorial × Motorsport Atelier — Dark Obsidian */
-  --bg: #0b0c0e;
-  --bg-elevated: #0f1114;
-  --surface: #121417;
-  --surface-elevated: #181b20;
-  --surface-subtle: #14171c;
-  --border: #242830;
-  --border-strong: #343a46;
+  /* ---- Paper & ink (light) -------------------------------------------- */
+  --bg: #f0eee9; /* Bone */
+  --bg-elevated: #e8e4dc; /* Sand, one step deeper */
+  --bg-deep: #e2ded5;
+  --surface: #f5f3ee;
+  --surface-elevated: #f1eee7;
+  --surface-subtle: #ebe7de;
+  --border: #dcd7cc;
+  --border-strong: #c7c0b2;
 
-  --text: #f2efe9;
-  --text-secondary: #a9aeb7;
-  --text-muted: #9399a4;
+  --text: #1a1b1e; /* Charcoal ink */
+  --text-secondary: #4a4a45;
+  --text-muted: #655f55;
 
-  --accent: #c81e2b;
-  --accent-hover: #df2634;
+  /* One warm accent, used sparingly (10%) */
+  --accent: #b81a27; /* Soft rust */
+  --accent-hover: #97131e;
   --accent-ink: #ffffff;
-  --accent-text: #f26b74;
-  --accent-soft: rgba(200, 30, 43, 0.14);
-  --accent-border: rgba(200, 30, 43, 0.45);
+  --accent-text: #9c1520;
+  --accent-soft: rgba(184, 26, 39, 0.07);
+  --accent-border: rgba(184, 26, 39, 0.3);
 
-  --champagne: #d4b475;
-  --champagne-soft: rgba(212, 180, 117, 0.14);
+  /* Champagne — editorial highlights only, never decoration */
+  --champagne: #7a5a16;
+  --champagne-soft: rgba(122, 90, 22, 0.09);
+  --champagne-border: rgba(122, 90, 22, 0.26);
 
-  --success-bg: rgba(16, 185, 129, 0.12);
-  --success-text: #5eead4;
-  --success-border: rgba(94, 234, 212, 0.32);
+  --success-bg: #e8f1ea;
+  --success-text: #1d5a3a;
+  --success-border: rgba(29, 90, 58, 0.24);
 
-  --warning-bg: rgba(245, 158, 11, 0.14);
-  --warning-text: #fbbf24;
-  --warning-border: rgba(251, 191, 36, 0.32);
+  --warning-bg: #f6eee0;
+  --warning-text: #7a4c0c;
+  --warning-border: rgba(122, 76, 12, 0.24);
 
-  --danger-bg: rgba(200, 30, 43, 0.16);
-  --danger-text: #fda4af;
-  --danger-border: rgba(242, 107, 116, 0.45);
+  --danger-bg: #f8e9e8;
+  --danger-text: #92161f;
+  --danger-border: rgba(146, 22, 31, 0.26);
 
-  --focus-ring: #f2efe9;
-  --header-bg: rgba(11, 12, 14, 0.9);
-  --modal-backdrop: rgba(6, 7, 9, 0.78);
+  --focus-ring: #1a1b1e;
+  --focus-halo: rgba(184, 26, 39, 0.24);
+  --header-bg: rgba(240, 238, 233, 0.94);
+  --modal-backdrop: rgba(26, 27, 30, 0.44);
 
+  --shadow-quiet: 0 1px 1px rgba(26, 27, 30, 0.03), 0 8px 20px -16px rgba(26, 27, 30, 0.2);
+  --shadow-lift: 0 1px 2px rgba(26, 27, 30, 0.04), 0 14px 28px -22px rgba(26, 27, 30, 0.24);
+
+  /* ---- Scale ---------------------------------------------------------- */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
   --radius-pill: 999px;
 
   --space-1: 0.25rem;
@@ -73,55 +89,72 @@
   --space-7: 3rem;
   --space-8: 4.5rem;
 
-  --text-hero: clamp(2rem, 4.4vw, 3.75rem);
-  --text-h1: clamp(1.5rem, 2.7vw, 2.25rem);
-  --text-h2: clamp(1.15rem, 1.8vw, 1.5rem);
-  --text-h3: 1.05rem;
+  --text-display: clamp(2.35rem, 5.2vw, 4.25rem);
+  --text-hero: clamp(1.85rem, 3.4vw, 2.85rem);
+  --text-h1: clamp(1.5rem, 2.5vw, 2.1rem);
+  --text-h2: clamp(1.12rem, 1.6vw, 1.4rem);
+  --text-h3: 1.02rem;
   --text-body: 0.9375rem;
-  --text-sm: 0.84rem;
+  --text-sm: 0.85rem;
   --text-xs: 0.75rem;
 
-  --container: 1280px;
+  --tracking-tight: -0.022em;
+  --tracking-tight-fa: -0.006em;
+  --tracking-wide: 0.16em;
+
+  --ease-out: cubic-bezier(0.24, 0.79, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+
+  --container: 1240px;
+  --measure: 68ch;
 }
 
-:root[data-theme='light'] {
-  color-scheme: light;
-  /* Light Studio Automotive Atelier */
-  --bg: #f5f3ee;
-  --bg-elevated: #ece8df;
-  --surface: #ffffff;
-  --surface-elevated: #f0ece3;
-  --surface-subtle: #eae5db;
-  --border: #dad4c8;
-  --border-strong: #bdb5a5;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-  --text: #121417;
-  --text-secondary: #484d57;
-  --text-muted: #585e68;
+  /* ---- Warm obsidian, not a cold gray -------------------------------- */
+  --bg: #131211; /* warm obsidian */
+  --bg-elevated: #1a1917;
+  --bg-deep: #0e0d0c;
+  --surface: #191816;
+  --surface-elevated: #1f1e1b;
+  --surface-subtle: #171614;
+  --border: #2c2a26;
+  --border-strong: #403d36;
 
-  --accent: #b81a27;
-  --accent-hover: #9e1420;
+  --text: #ede9e1; /* warm paper ink */
+  --text-secondary: #b8b2a6;
+  --text-muted: #a29b8e;
+
+  --accent: #cf4438;
+  --accent-hover: #dd5544;
   --accent-ink: #ffffff;
-  --accent-text: #9e1420;
-  --accent-soft: rgba(184, 26, 39, 0.08);
-  --accent-border: rgba(184, 26, 39, 0.32);
+  --accent-text: #f7aa9d;
+  --accent-soft: rgba(207, 68, 56, 0.14);
+  --accent-border: rgba(207, 68, 56, 0.42);
 
-  --champagne: #7c5b14;
-  --champagne-soft: rgba(124, 91, 20, 0.1);
+  --champagne: #dcc193;
+  --champagne-soft: rgba(220, 193, 147, 0.12);
+  --champagne-border: rgba(220, 193, 147, 0.32);
 
-  --success-bg: #e7f6ef;
-  --success-text: #146c49;
-  --success-border: rgba(20, 108, 73, 0.25);
+  --success-bg: rgba(94, 176, 133, 0.13);
+  --success-text: #8fd3ac;
+  --success-border: rgba(143, 211, 172, 0.28);
 
-  --warning-bg: #fef4e2;
-  --warning-text: #854d0e;
-  --warning-border: rgba(133, 77, 14, 0.25);
+  --warning-bg: rgba(214, 163, 84, 0.13);
+  --warning-text: #e6bd85;
+  --warning-border: rgba(230, 189, 133, 0.28);
 
-  --danger-bg: #fdebec;
-  --danger-text: #991522;
-  --danger-border: rgba(153, 21, 34, 0.28);
+  --danger-bg: rgba(207, 68, 56, 0.14);
+  --danger-text: #f4a79c;
+  --danger-border: rgba(241, 154, 141, 0.34);
 
-  --focus-ring: #121417;
-  --header-bg: rgba(245, 243, 238, 0.92);
-  --modal-backdrop: rgba(18, 20, 23, 0.54);
+  --focus-ring: #ede9e1;
+  --focus-halo: rgba(207, 68, 56, 0.34);
+  --header-bg: rgba(19, 18, 17, 0.94);
+  --modal-backdrop: rgba(8, 8, 7, 0.64);
+
+  --shadow-quiet: 0 1px 1px rgba(0, 0, 0, 0.24), 0 10px 24px -18px rgba(0, 0, 0, 0.7);
+  --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.3), 0 18px 32px -24px rgba(0, 0, 0, 0.8);
 }

@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 0.1.5 — 2026-11-14
+
+### UI / UX — warm neo-minimal editorial redesign
+
+- New design tokens (`apps/web/src/styles/tokens.css`): warm Bone/Sand paper (`#f0eee9` / `#f5f3ee`), Charcoal ink (`#1a1b1e`) instead of pure black, one warm Rust accent (`#b81a27`) under a 60–30–10 rule, and a warm-obsidian dark theme (`#131211`) instead of a cold gray. No gradients, glassmorphism, glow, or decorative iconography.
+- Typography kept bilingual (Vazirmatn FA / Outfit EN) but given character: a single display hero per page, tight negative tracking on Latin headings, generous body leading (1.62 EN / 1.85 FA), and monospace restricted to versions, hashes, and licence identifiers.
+- Layout rebuilt content-first: an intentionally asymmetric hero (type column narrower than a visual that bleeds to the viewport edge), a numeric index band below it, tighter intra-group and looser inter-group spacing, hairlines instead of boxed sections, 4–8 px radii and very soft shadows.
+- Catalogue is no longer a uniform card grid: a 6-column editorial composition (4+2, then 3+3) with an image-led featured card that survives RTL and collapses to one column on phones.
+- Consolidated to four brand primitives (button, field, card/panel, badge) with a single visible focus treatment (`:focus-visible` outline plus accent halo) and WCAG AA contrast re-verified in both themes.
+- Empty, loading, and error states rewritten with specific, human microcopy in both languages (e.g. "Nothing has been published yet. As soon as the support team enters its channels in the control room, this page fills in by itself.") instead of generic welcome/error strings.
+- Motion reduced to short ease-out transitions of colour and one toast entrance; `prefers-reduced-motion` disables animation, transitions, and smooth scrolling. No scroll-triggered or looping animation.
+- Admin control room restyled on the same primitives: editorial tab underlines, a quieter sidebar with an accent rail, metric rows instead of card chrome, and the full permission/team/service/contact editors in both directions.
+- Warm default theme (light paper) with the stored preference preserved; the Tauri window background now matches the warm obsidian surface.
+
+### Release / CI
+
+- Version aligned to 0.1.5 across npm, lockfiles, Tauri and Cargo manifests; `tests/release-version.test.ts` stays green.
+- Browser expectations for the brand identity/theme test were updated to the new warm palette and the light-by-default theme; all design, WCAG, RTL, responsive, E2E, Pages and security browser suites pass locally.
+
 ## 0.1.4 — 2026-11-11
 
 ### UI / UX

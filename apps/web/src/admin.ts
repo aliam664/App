@@ -240,8 +240,8 @@ function licenses(el: HTMLElement) {
       : empty(
           L('لایسنسی پیدا نشد', 'No matching licenses'),
           L(
-            'فیلتر را تغییر دهید یا یک لایسنس جدید بسازید.',
-            'Adjust filters or generate a new batch.',
+            'با این عبارت و فیلتر چیزی پیدا نشد. جست‌وجو را کوتاه‌تر کنید یا یک لایسنس تازه صادر کنید.',
+            'Nothing matches this search and filter. Try a shorter query, or issue a fresh license.',
           ),
           'key-round',
         );
@@ -779,7 +779,7 @@ async function devices(el: HTMLElement) {
     can('devices.read') && overview.capabilities?.includes('user-profiles-v1')
       ? (await api('/admin/devices', undefined, token)).devices
       : overview.licenses.filter((l) => l.device_thumbprint);
-  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>DEVICE REGISTRY / 04</p><h1>${L('یک لایسنس. یک دستگاه.', 'One License. One Hardware Key.')}</h1><p class="muted">${L('اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.', 'Bindings rely on cryptographic P-256 device thumbprints, not user IP addresses.')}</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>${L('اثر انگشت کلید', 'Key Thumbprint')}</th><th>${L('اشتراک', 'Tier')}</th><th>${L('فعال‌سازی', 'Activated')}</th><th>${L('وضعیت', 'Status')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${fmtDate(l.activated_at)}</td><td><span class="status ${l.status}">${sLabels[l.status] || L('نامشخص', 'Unknown')}</span></td><td>${can('licenses.reset') ? `<button class="text-button" data-device="${l.id}">${L('مدیریت اتصال', 'Release Binding')}</button>` : L('فقط مشاهده', 'View only')}</td></tr>`).join('')}</tbody></table></div>` : empty(L('هنوز دستگاهی متصل نیست', 'No bound devices yet'), L('با فعال‌سازی لایسنس در لانچر، دستگاه اینجا نمایش داده می‌شود.', 'Bound hardware thumbprints appear here after license activation.'), 'monitor')}</div>`;
+  el.innerHTML = `<div class="page-title"><div><p class="eyebrow"><span class="eyebrow-line"></span>DEVICE REGISTRY / 04</p><h1>${L('یک لایسنس. یک دستگاه.', 'One License. One Hardware Key.')}</h1><p class="muted">${L('اتصال‌ها بر اساس کلید دستگاه هستند، نه IP کاربر.', 'Bindings rely on cryptographic P-256 device thumbprints, not user IP addresses.')}</p></div></div><div class="panel table-panel">${items.length ? `<div class="table-scroll"><table><thead><tr><th>${L('اثر انگشت کلید', 'Key Thumbprint')}</th><th>${L('اشتراک', 'Tier')}</th><th>${L('فعال‌سازی', 'Activated')}</th><th>${L('وضعیت', 'Status')}</th><th>${L('عملیات', 'Actions')}</th></tr></thead><tbody>${items.map((l) => `<tr><td><code dir="ltr">${esc(l.device_thumbprint?.slice(0, 24))}…</code></td><td>${badge(l.tier)}</td><td>${fmtDate(l.activated_at)}</td><td><span class="status ${l.status}">${sLabels[l.status] || L('نامشخص', 'Unknown')}</span></td><td>${can('licenses.reset') ? `<button class="text-button" data-device="${l.id}">${L('مدیریت اتصال', 'Release Binding')}</button>` : L('فقط مشاهده', 'View only')}</td></tr>`).join('')}</tbody></table></div>` : empty(L('هنوز دستگاهی به حساب وصل نیست', 'No Device Has Bound Yet'), L('اولین اتصال وقتی ساخته می‌شود که یک لایسنس در اپ ویندوز فعال شود؛ از همان لحظه اثر انگشت کلید اینجا ثبت می‌شود.', 'The first row appears the moment a license is activated on the Windows app — the hardware thumbprint is recorded right then.'), 'monitor')}</div>`;
   el.querySelectorAll<HTMLButtonElement>('[data-device]').forEach(
     (b) =>
       (b.onclick = () =>

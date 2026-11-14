@@ -87,25 +87,39 @@ test('Assetto Corsa Launcher brand identity, editorial art, FA/EN toggle and per
   await expect(page.locator('.reference-header .brand')).toContainText('Assetto Corsa Launcher');
   await expect(page.locator('.reference-header')).not.toContainText('UHM');
   await expect(page.locator('.hero .hero-highlight')).toHaveText('گاراژ استو کورسا');
+  // Warm paper hero: Bone surface with the single Rust accent, in both directions.
   expect(
     await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase(),
     ),
-  ).toBe('#0B0C0E');
+  ).toBe('#F0EEE9');
   expect(
     await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().toUpperCase(),
     ),
-  ).toBe('#C81E2B');
+  ).toBe('#B81A27');
+  expect(
+    await page.evaluate(() =>
+      getComputedStyle(document.body).getPropertyValue('--text').trim().toUpperCase(),
+    ),
+  ).toBe('#1A1B1E');
   expect(
     await page.evaluate(() => {
       const img = document.querySelector<HTMLImageElement>('.hero-visual img');
       return !!img && img.complete && img.naturalWidth > 0;
     }),
   ).toBe(true);
+  // Warm paper is the default; one click flips to the warm obsidian theme and it sticks.
   await page.getByRole('button', { name: 'تغییر تم', exact: true }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(
+    await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase(),
+    ),
+  ).toBe('#131211');
   await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'تغییر تم', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.locator('#header-lang').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
